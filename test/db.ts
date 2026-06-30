@@ -1,5 +1,5 @@
 import { newDb } from 'pg-mem';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Querier } from '../src/lib/querier';
 
@@ -27,7 +27,13 @@ export function makeTestDb(): Querier {
     impure: true,
   });
 
-  let sql = readFileSync(join(__dirname, '../db/migrations/0001_init.sql'), 'utf8');
+  // Apply every migration in order, just like db/migrate.mjs ships them.
+  const migrationsDir = join(__dirname, '../db/migrations');
+  let sql = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => readFileSync(join(migrationsDir, f), 'utf8'))
+    .join('\n');
 
   // Remove pgvector-specific bits pg-mem can't parse.
   sql = sql
