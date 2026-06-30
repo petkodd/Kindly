@@ -111,14 +111,10 @@ export const summaryRepo = {
 
     const { bodyLong, bodyShort, hasConcern } = composeBody(firstName, convRows);
 
-    const { rows: existingRows } = await q.query<WeeklySummary>(
-      `SELECT * FROM weekly_summaries WHERE parent_id = $1 AND period_start = $2`,
-      [parentId, b.periodStart],
-    );
-    const existing = existingRows[0];
-
-    if (existing) {
-      if (existing.status === 'sent') return existing; // don't rewrite sent history
+    // Refresh an existing week's row in place — but never rewrite one that has
+    // already been sent (sent history is immutable).
+    const refresh = async (existing: WeeklySummary): Promise<WeeklySummary> => {
+      if (existing.status === 'sent') return existing;
       const { rows } = await q.query<WeeklySummary>(
         `UPDATE weekly_summaries
             SET period_end = $2, body_long = $3, body_short = $4,
@@ -128,16 +124,37 @@ export const summaryRepo = {
         [existing.id, b.periodEnd, bodyLong, bodyShort, hasConcern],
       );
       return rows[0];
-    }
+    };
 
-    const { rows } = await q.query<WeeklySummary>(
-      `INSERT INTO weekly_summaries
-         (parent_id, period_start, period_end, status, body_long, body_short, has_concern)
-       VALUES ($1, $2, $3, 'preview', $4, $5, $6)
-       RETURNING *`,
-      [parentId, b.periodStart, b.periodEnd, bodyLong, bodyShort, hasConcern],
-    );
-    return rows[0];
+    const load = async (): Promise<WeeklySummary | undefined> => {
+      const { rows } = await q.query<WeeklySummary>(
+        `SELECT * FROM weekly_summaries WHERE parent_id = $1 AND period_start = $2`,
+        [parentId, b.periodStart],
+      );
+      return rows[0];
+    };
+
+    const existing = await load();
+    if (existing) return refresh(existing);
+
+    // No row yet — insert. Two concurrent first-previews can both reach here;
+    // the loser hits the UNIQUE(parent_id, period_start) constraint, so we
+    // recover by refreshing the row the winner just created (idempotent).
+    try {
+      const { rows } = await q.query<WeeklySummary>(
+        `INSERT INTO weekly_summaries
+           (parent_id, period_start, period_end, status, body_long, body_short, has_concern)
+         VALUES ($1, $2, $3, 'preview', $4, $5, $6)
+         RETURNING *`,
+        [parentId, b.periodStart, b.periodEnd, bodyLong, bodyShort, hasConcern],
+      );
+      return rows[0];
+    } catch (err) {
+      if ((err as { code?: string }).code !== '23505') throw err; // unique_violation
+      const raced = await load();
+      if (!raced) throw err;
+      return refresh(raced);
+    }
   },
 
   /** Past summaries for a parent, newest first. */
@@ -167,16 +184,28 @@ export const summaryRepo = {
       );
     }
 
-    const summary = await this.preview(q, parentId, firstName, ref);
+    const summary = await summaryRepo.preview(q, parentId, firstName, ref);
 
-    const deliveries: SummaryDelivery[] = [];
+    // Idempotent: a recipient already delivered to (non-failed) for this summary
+    // is skipped, so a re-send or double-click never delivers twice.
+    const { rows: priorRows } = await q.query<SummaryDelivery>(
+      `SELECT * FROM summary_deliveries WHERE summary_id = $1 AND status <> 'failed'`,
+      [summary.id],
+    );
+    const alreadyDelivered = new Set(priorRows.map((d) => d.consent_id));
+    const deliveries: SummaryDelivery[] = [...priorRows];
+
     for (const consent of recipients) {
+      if (alreadyDelivered.has(consent.id)) continue;
+      // recipient_user stays null: the recipient is identified by the consent
+      // (detail.recipient_email) and is typically not yet a Kindly user. It is
+      // NOT the buyer in consent.granted_by.
       const { rows } = await q.query<SummaryDelivery>(
         `INSERT INTO summary_deliveries
            (summary_id, recipient_user, channel, consent_id, status, sent_at)
-         VALUES ($1, $2, 'email', $3, 'sent', now())
+         VALUES ($1, NULL, 'email', $2, 'sent', now())
          RETURNING *`,
-        [summary.id, consent.granted_by ?? null, consent.id],
+        [summary.id, consent.id],
       );
       deliveries.push(rows[0]);
     }

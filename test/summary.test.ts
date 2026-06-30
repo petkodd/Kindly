@@ -125,6 +125,31 @@ describe('weekly summary send (consent-gated)', () => {
     expect(deliveries[0].status).toBe('sent');
   });
 
+  it('is idempotent — sending twice does not duplicate deliveries', async () => {
+    const { id, firstName } = await seedParent();
+    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+
+    const first = await summaryRepo.send(q, id, firstName, REF);
+    expect(first.deliveries).toHaveLength(1);
+
+    const second = await summaryRepo.send(q, id, firstName, REF);
+    expect(second.deliveries).toHaveLength(1); // returns the same delivery, not a new one
+    expect(second.deliveries[0].id).toBe(first.deliveries[0].id);
+
+    const { rows } = await q.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM summary_deliveries WHERE summary_id = $1`,
+      [first.summary.id],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it('does not attribute the delivery to the buyer (recipient_user stays null)', async () => {
+    const { id, firstName } = await seedParent();
+    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    const { deliveries } = await summaryRepo.send(q, id, firstName, REF);
+    expect(deliveries[0].recipient_user).toBeNull();
+  });
+
   it('re-previewing after send does not downgrade a sent summary', async () => {
     const { id, firstName } = await seedParent();
     await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
