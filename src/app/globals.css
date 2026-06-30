@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  @apply bg-mist text-ink antialiased;
+  font-family: var(--font-body);
+}
+
+/* Senior-friendly focus: always visible, generous. */
+:focus-visible {
+  outline: 3px solid theme('colors.sageDeep');
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Reusable building blocks */
+@layer components {
+  .container-k { @apply mx-auto w-full max-w-content px-6; }
+  .btn-primary {
+    @apply inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-sage px-8 text-lg font-semibold text-cloud transition-colors hover:bg-sageDeep;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-sage px-8 text-lg font-semibold text-sageDeep transition-colors hover:bg-sage hover:text-cloud;
+  }
+  .eyebrow { @apply text-sm font-semibold uppercase tracking-[0.18em] text-clay; }
+}
