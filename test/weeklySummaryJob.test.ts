@@ -96,5 +96,32 @@ describe('generate_weekly_summary job', () => {
     const res = await generateWeeklySummaries(q, REF);
     expect(res.generated).toHaveLength(0);
     expect(res.failed).toHaveLength(0);
+    expect(res.processed).toBe(0);
+    expect(res.done).toBe(true);
+  });
+
+  it('processes every active parent across multiple pages', async () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 5; i++) {
+      ids.add(await makeActiveParent(`p${i}@example.com`, `Parent${i}`));
+    }
+    const res = await generateWeeklySummaries(q, REF, { batchSize: 2 });
+    expect(res.done).toBe(true);
+    expect(res.processed).toBe(5);
+    expect(new Set(res.generated.map((g) => g.parentId))).toEqual(ids);
+  });
+
+  it('stops at maxParents and reports done=false (resumable on a later run)', async () => {
+    for (let i = 0; i < 4; i++) {
+      await makeActiveParent(`p${i}@example.com`, `Parent${i}`);
+    }
+    const capped = await generateWeeklySummaries(q, REF, { batchSize: 5, maxParents: 2 });
+    expect(capped.done).toBe(false);
+    expect(capped.processed).toBe(2);
+
+    // A subsequent uncapped run finishes the rest; idempotent for the first two.
+    const full = await generateWeeklySummaries(q, REF);
+    expect(full.done).toBe(true);
+    expect(full.processed).toBe(4);
   });
 });

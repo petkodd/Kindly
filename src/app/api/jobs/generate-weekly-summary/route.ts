@@ -4,6 +4,8 @@ import { generateWeeklySummaries } from '@/lib/jobs/weeklySummary';
 
 // This route triggers DB work and must never be statically cached.
 export const dynamic = 'force-dynamic';
+// Give the batch room beyond the default function timeout (capped by the plan).
+export const maxDuration = 300;
 
 /**
  * Weekly cron entrypoint for `generate_weekly_summary`. Invoked by Vercel Cron
@@ -22,6 +24,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await generateWeeklySummaries(db());
+    // Per-parent failures don't fail the run; surface them to the platform logs
+    // (the cron response body is discarded) so they don't go unnoticed.
+    if (result.failed.length > 0) {
+      console.error('generate-weekly-summary: per-parent failures', result.failed);
+    }
+    if (!result.done) {
+      console.warn(
+        `generate-weekly-summary: stopped at maxParents after ${result.processed} parents — cohort not fully processed`,
+      );
+    }
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error('generate-weekly-summary job failed', err);
