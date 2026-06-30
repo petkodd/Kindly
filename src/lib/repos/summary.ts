@@ -200,14 +200,19 @@ export const summaryRepo = {
       // recipient_user stays null: the recipient is identified by the consent
       // (detail.recipient_email) and is typically not yet a Kindly user. It is
       // NOT the buyer in consent.granted_by.
+      //
+      // ON CONFLICT closes the cross-request race: a concurrent send that won
+      // the insert leaves RETURNING empty here, so we never double-deliver
+      // (uq_summary_delivery_consent — migration 0002).
       const { rows } = await q.query<SummaryDelivery>(
         `INSERT INTO summary_deliveries
            (summary_id, recipient_user, channel, consent_id, status, sent_at)
          VALUES ($1, NULL, 'email', $2, 'sent', now())
+         ON CONFLICT (summary_id, consent_id) DO NOTHING
          RETURNING *`,
         [summary.id, consent.id],
       );
-      deliveries.push(rows[0]);
+      if (rows[0]) deliveries.push(rows[0]);
     }
 
     const { rows } = await q.query<WeeklySummary>(
