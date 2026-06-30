@@ -12,6 +12,9 @@ export type Sensitivity = 'normal' | 'sensitive' | 'restricted';
 
 export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary_recipient';
 
+export type SummaryStatus = 'draft' | 'preview' | 'sent';
+export type DeliveryChannel = 'email' | 'sms';
+
 export interface Parent {
   id: string;
   buyer_id: string;
@@ -51,6 +54,28 @@ export interface Consent {
   granted_at: string;
   revoked_at: string | null;
   detail: Record<string, unknown> | null;
+}
+
+export interface WeeklySummary {
+  id: string;
+  parent_id: string;
+  period_start: string;
+  period_end: string;
+  status: SummaryStatus;
+  body_long: string | null;
+  body_short: string | null;
+  has_concern: boolean;
+  generated_at: string;
+}
+
+export interface SummaryDelivery {
+  id: string;
+  summary_id: string;
+  recipient_user: string | null;
+  channel: DeliveryChannel;
+  consent_id: string;
+  sent_at: string | null;
+  status: string;
 }
 
 /** Thrown when a caller tries to reach a parent they don't own. API maps this to 404. */
