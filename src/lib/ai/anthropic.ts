@@ -11,6 +11,7 @@ import type {
   SafetyScan,
   SafetyScanInput,
 } from './types';
+import { AiError } from './types';
 import {
   COMPANION_SYSTEM_V1,
   CONVERSATION_SUMMARY_SYSTEM_V1,
@@ -39,6 +40,32 @@ function textOf(message: Message): string {
     .trim();
 }
 
+/**
+ * Pull usable text off a response, or throw AiError. A refusal or an empty body
+ * is a failure the caller must handle, not an empty string to parse. `where`
+ * names the operation for the error message. Exported for unit testing.
+ */
+export function requireText(message: Message, where: string): string {
+  if (message.stop_reason === 'refusal') {
+    throw new AiError(`${where}: model refused the request`);
+  }
+  const text = textOf(message);
+  if (!text) throw new AiError(`${where}: model returned no text`);
+  return text;
+}
+
+/** Parse a response body as JSON, or throw AiError. Exported for unit testing. */
+export function parseJson<T>(message: Message, where: string): T {
+  const text = requireText(message, where);
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // Most often a max_tokens truncation left the JSON incomplete.
+    const truncated = message.stop_reason === 'max_tokens' ? ' (response was truncated)' : '';
+    throw new AiError(`${where}: could not parse model output as JSON${truncated}`);
+  }
+}
+
 /** Render the personalization layers into a single system suffix. */
 function renderContext(input: CompanionReplyInput): string {
   const lines: string[] = [];
@@ -64,18 +91,20 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
   const client = new Anthropic({ apiKey });
 
   async function jsonCall<T>(
+    where: string,
     system: string,
     userText: string,
     schema: Record<string, unknown>,
+    maxTokens: number,
   ): Promise<T> {
     const message = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: userText }],
       output_config: { format: { type: 'json_schema', schema } },
     });
-    return JSON.parse(textOf(message)) as T;
+    return parseJson<T>(message, where);
   }
 
   return {
@@ -90,24 +119,31 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
         system: `${COMPANION_SYSTEM_V1}\n\n${renderContext(input)}`,
         messages: [...history, { role: 'user', content: input.message }],
       });
-      return { text: textOf(message) };
+      return { text: requireText(message, 'companionReply') };
     },
 
     async safetyScan({ message }: SafetyScanInput): Promise<SafetyScan> {
-      return jsonCall<SafetyScan>(SAFETY_SCAN_SYSTEM_V1, message, {
-        type: 'object',
-        additionalProperties: false,
-        required: ['severity', 'rationale'],
-        properties: {
-          severity: { type: 'string', enum: ['none', 'p0', 'p1', 'p2', 'p3'] },
-          rationale: { type: 'string' },
+      return jsonCall<SafetyScan>(
+        'safetyScan',
+        SAFETY_SCAN_SYSTEM_V1,
+        message,
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['severity', 'rationale'],
+          properties: {
+            severity: { type: 'string', enum: ['none', 'p0', 'p1', 'p2', 'p3'] },
+            rationale: { type: 'string' },
+          },
         },
-      });
+        1024,
+      );
     },
 
     async extractMemories({ turns }: MemoryExtractionInput): Promise<MemoryCandidate[]> {
       const transcript = turns.map((t) => `${t.role}: ${t.content}`).join('\n');
       const { candidates } = await jsonCall<{ candidates: MemoryCandidate[] }>(
+        'extractMemories',
         MEMORY_EXTRACTION_SYSTEM_V1,
         transcript,
         {
@@ -132,6 +168,8 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
             },
           },
         },
+        // Scales with transcript length — more headroom than the short ops.
+        4096,
       );
       return candidates;
     },
@@ -143,17 +181,23 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
       const transcript = `Parent's first name: ${firstName}\n\n${turns
         .map((t) => `${t.role}: ${t.content}`)
         .join('\n')}`;
-      return jsonCall<ConversationSummary>(CONVERSATION_SUMMARY_SYSTEM_V1, transcript, {
-        type: 'object',
-        additionalProperties: false,
-        required: ['summaryText', 'moodSignal'],
-        properties: {
-          summaryText: { type: 'string' },
-          moodSignal: {
-            anyOf: [{ type: 'string', enum: ['warm', 'flat', 'low'] }, { type: 'null' }],
+      return jsonCall<ConversationSummary>(
+        'summarizeConversation',
+        CONVERSATION_SUMMARY_SYSTEM_V1,
+        transcript,
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['summaryText', 'moodSignal'],
+          properties: {
+            summaryText: { type: 'string' },
+            moodSignal: {
+              anyOf: [{ type: 'string', enum: ['warm', 'flat', 'low'] }, { type: 'null' }],
+            },
           },
         },
-      });
+        1024,
+      );
     },
   };
 }

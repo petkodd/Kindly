@@ -9,6 +9,19 @@
 
 import type { MemoryLayer, Sensitivity } from '../types';
 
+/**
+ * Thrown when the model returns something the client can't use — a refusal, an
+ * empty body, or output that won't parse as the expected JSON. Callers decide
+ * policy (e.g. the safety pipeline treats a classifier failure as cause to route
+ * to human review rather than silently clearing the flag).
+ */
+export class AiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AiError';
+  }
+}
+
 /** Coarse, non-clinical mood signal stored on a conversation. */
 export type MoodSignal = 'warm' | 'flat' | 'low';
 

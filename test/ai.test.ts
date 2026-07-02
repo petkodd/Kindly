@@ -1,6 +1,17 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import type { Message } from '@anthropic-ai/sdk/resources/messages';
 import { fakeAiClient } from '../src/lib/ai/fake';
 import { getAiClient, resetAiClient } from '../src/lib/ai';
+import { AiError } from '../src/lib/ai/types';
+import { parseJson, requireText } from '../src/lib/ai/anthropic';
+
+// Minimal Message stand-in for testing the response guards.
+function msg(text: string, stopReason: Message['stop_reason'] = 'end_turn'): Message {
+  return {
+    content: text ? [{ type: 'text', text, citations: null }] : [],
+    stop_reason: stopReason,
+  } as unknown as Message;
+}
 
 const profile = { firstName: 'Robert' };
 
@@ -89,6 +100,33 @@ describe('fake conversation summary', () => {
   it('has no mood signal for an empty conversation', async () => {
     const s = await fakeAiClient.summarizeConversation({ firstName: 'Robert', turns: [] });
     expect(s.moodSignal).toBeNull();
+  });
+});
+
+describe('anthropic client response guards', () => {
+  it('requireText throws AiError on a refusal', () => {
+    expect(() => requireText(msg('', 'refusal'), 'safetyScan')).toThrow(AiError);
+  });
+
+  it('requireText throws AiError on an empty body', () => {
+    expect(() => requireText(msg(''), 'companionReply')).toThrow(AiError);
+  });
+
+  it('parseJson throws AiError (not SyntaxError) on truncated JSON', () => {
+    const err = (() => {
+      try {
+        parseJson(msg('{"severity":"p0"', 'max_tokens'), 'safetyScan');
+      } catch (e) {
+        return e;
+      }
+    })();
+    expect(err).toBeInstanceOf(AiError);
+    expect((err as Error).message).toContain('truncated');
+  });
+
+  it('parseJson returns the value on well-formed output', () => {
+    const out = parseJson<{ severity: string }>(msg('{"severity":"none"}'), 'safetyScan');
+    expect(out.severity).toBe('none');
   });
 });
 
