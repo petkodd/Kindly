@@ -1,7 +1,16 @@
 import { NextRequest } from 'next/server';
 import type { Querier } from './querier';
 import { accessTokenRepo } from './repos/accessToken';
-import { NotFoundError } from './types';
+import { NotFoundError, ValidationError } from './types';
+
+/** Parse a JSON request body, mapping malformed JSON to a 400 (not a 500). */
+export async function readJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
+  try {
+    return (await req.json()) as Record<string, unknown>;
+  } catch {
+    throw new ValidationError('Request body must be valid JSON.');
+  }
+}
 
 /**
  * Alpha auth shim. Resolves the current buyer's user id.
@@ -57,6 +66,10 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       return { status: 404, body: { error: { code: 'not_found', message: 'Not found.' } } };
     case 'ForbiddenError':
       return { status: 403, body: { error: { code: 'forbidden', message: (err as Error).message } } };
+    case 'AiError':
+      // Upstream model failure (refusal, empty, truncated, network) — not a bug
+      // in our server. Surface as 502 so callers can distinguish + retry.
+      return { status: 502, body: { error: { code: 'model_unavailable', message: 'The companion is unavailable right now.' } } };
     case 'PreconditionError':
       return { status: 409, body: { error: { code: 'precondition_failed', message: (err as Error).message } } };
     case 'ValidationError':

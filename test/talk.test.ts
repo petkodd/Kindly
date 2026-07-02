@@ -19,13 +19,20 @@ async function makeBuyer(email: string): Promise<string> {
   return rows[0].id;
 }
 
-async function makeParent(consented: boolean): Promise<string> {
+async function makeParent(
+  consented: boolean,
+  opts: { activate?: boolean } = {},
+): Promise<string> {
   const buyer = await makeBuyer(`b${Math.random()}@example.com`);
   const parent = await parentRepo.create(q, {
     buyerId: buyer,
     firstName: 'Robert',
     relationship: 'father',
   });
+  if (opts.activate !== false) {
+    await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyer });
+    await parentRepo.activate(q, parent.id, buyer);
+  }
   if (consented) {
     await consentRepo.record(q, { parentId: parent.id, kind: 'parent_conversation' });
   }
@@ -75,6 +82,11 @@ describe('parent access tokens', () => {
 });
 
 describe('conversation consent gate + lifecycle', () => {
+  it('BLOCKS opening a session for an un-activated parent (403)', async () => {
+    const parentId = await makeParent(true, { activate: false });
+    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it('BLOCKS opening a session without parent_conversation consent (403)', async () => {
     const parentId = await makeParent(false);
     await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(ForbiddenError);

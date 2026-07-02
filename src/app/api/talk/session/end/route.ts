@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { resolveParentFromRequest, errorToResponse } from '@/lib/auth';
+import { resolveParentFromRequest, readJsonBody, errorToResponse } from '@/lib/auth';
 import { conversationRepo } from '@/lib/repos/conversation';
 
 const unauthorized = () =>
@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
     const parentId = await resolveParentFromRequest(req, pool);
     if (!parentId) return unauthorized();
 
-    const body = await req.json();
-    const conversation = await conversationRepo.end(pool, body.conversation_id, parentId);
+    const body = await readJsonBody(req);
+    const conversation = await conversationRepo.end(pool, body.conversation_id as string, parentId);
     return NextResponse.json({ conversation_id: conversation.id, ended_at: conversation.ended_at });
   } catch (err) {
     const { status, body } = errorToResponse(err);

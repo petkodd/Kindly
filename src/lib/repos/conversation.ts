@@ -9,6 +9,7 @@ import {
   ValidationError,
 } from '../types';
 import { consentRepo } from './consent';
+import { parentRepo } from './parent';
 
 /**
  * Conversation lifecycle for parent talk. Two hard gates live here:
@@ -17,15 +18,20 @@ import { consentRepo } from './consent';
  */
 export const conversationRepo = {
   /**
-   * Open a session. Requires parent_conversation consent (recorded on the
-   * parent's first visit) — without it we refuse with a PreconditionError so the
-   * API returns 403 before any message is processed.
+   * Open a session. Two gates, both → 403 (ForbiddenError):
+   *  - the parent must be activated (the buyer_attestation → activation gate);
+   *  - a parent_conversation consent must exist (recorded on the first visit).
+   * getById also excludes soft-deleted parents.
    */
   async openSession(
     q: Querier,
     parentId: string,
     channel: 'voice' | 'text' = 'text',
   ): Promise<Conversation> {
+    const parent = await parentRepo.getById(q, parentId);
+    if (!parent.activated_at) {
+      throw new ForbiddenError('Parent is not activated.');
+    }
     const hasConsent = await consentRepo.has(q, parentId, 'parent_conversation');
     if (!hasConsent) {
       throw new ForbiddenError('Parent conversation consent is required.');
@@ -45,6 +51,13 @@ export const conversationRepo = {
     );
     if (rows.length === 0) throw new NotFoundError('Conversation not found');
     return rows[0];
+  },
+
+  /** Fetch a conversation the parent owns, asserting it is still open. */
+  async requireOpen(q: Querier, conversationId: string, parentId: string): Promise<Conversation> {
+    const convo = await conversationRepo.getForParent(q, conversationId, parentId);
+    if (convo.ended_at) throw new PreconditionError('Conversation has ended.');
+    return convo;
   },
 
   /** Append a turn to an open session the parent owns. */
