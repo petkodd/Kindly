@@ -95,6 +95,25 @@ export const memoryRepo = {
     return rows;
   },
 
+  /**
+   * Memories to inject into the companion context. Same hard rule as the family
+   * view — confirmed only, never restricted — but ordered for recency and
+   * capped, since context has a token budget (semantic retrieval via embeddings
+   * comes later; recency is the alpha proxy).
+   */
+  async retrieveForCompanion(q: Querier, parentId: string, limit = 12): Promise<Memory[]> {
+    const { rows } = await q.query<Memory>(
+      `SELECT * FROM memories
+       WHERE parent_id = $1
+         AND status = 'confirmed'
+         AND sensitivity <> 'restricted'
+       ORDER BY COALESCE(last_used_at, created_at) DESC
+       LIMIT $2`,
+      [parentId, limit],
+    );
+    return rows;
+  },
+
   /** Confirm a proposed memory (parent or buyer approval). */
   async confirm(q: Querier, memoryId: string): Promise<Memory> {
     const { rows } = await q.query<Memory>(

@@ -68,6 +68,19 @@ export const parentRepo = {
     return rows[0];
   },
 
+  /**
+   * Fetch a parent by id alone — for parent-authenticated talk routes, where the
+   * caller is the parent (resolved from an access token), not the owning buyer.
+   */
+  async getById(q: Querier, parentId: string): Promise<Parent> {
+    const { rows } = await q.query<Parent>(
+      `SELECT * FROM parents WHERE id = $1 AND deleted_at IS NULL`,
+      [parentId],
+    );
+    if (rows.length === 0) throw new NotFoundError('Parent not found');
+    return rows[0];
+  },
+
   async update(
     q: Querier,
     parentId: string,

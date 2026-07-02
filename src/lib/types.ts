@@ -78,6 +78,29 @@ export interface SummaryDelivery {
   status: string;
 }
 
+export type ConversationChannel = 'voice' | 'text';
+export type TurnRole = 'parent' | 'kindly';
+
+export interface Conversation {
+  id: string;
+  parent_id: string;
+  started_at: string;
+  ended_at: string | null;
+  channel: ConversationChannel;
+  voice_minutes: string;
+  summary_text: string | null;
+  mood_signal: string | null;
+}
+
+export interface ConversationTurnRecord {
+  id: string;
+  conversation_id: string;
+  role: TurnRole;
+  content: string;
+  created_at: string;
+  retention_purge_at: string | null;
+}
+
 /** Thrown when a caller tries to reach a parent they don't own. API maps this to 404. */
 export class NotFoundError extends Error {
   constructor(message = 'Not found') {
@@ -99,5 +122,13 @@ export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ValidationError';
+  }
+}
+
+/** Thrown when a consent/authorization gate blocks an action. API maps to 403. */
+export class ForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ForbiddenError';
   }
 }
