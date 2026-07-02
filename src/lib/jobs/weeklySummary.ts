@@ -1,9 +1,14 @@
 import type { Querier } from '../querier';
 import { summaryRepo, weekBounds } from '../repos/summary';
 
-/** Keyset resume point: the last parent a run processed, ordered by (created_at, id). */
+/**
+ * Keyset resume point: the last parent id a run processed. We page by `id`
+ * (a uuid — an exact, total order) rather than `created_at`, because node-pg
+ * truncates timestamptz to millisecond-precision Dates while Postgres stores
+ * microseconds; a created_at cursor would re-match the boundary row and could
+ * stall a full page. Creation order is irrelevant for a full sweep.
+ */
 export interface WeeklySummaryCursor {
-  createdAt: string;
   id: string;
 }
 
@@ -36,7 +41,6 @@ const DEFAULT_BATCH_SIZE = 100;
 interface ParentRow {
   id: string;
   first_name: string;
-  created_at: string | Date;
 }
 
 /**
@@ -60,10 +64,10 @@ export function lastCompletedWeekRef(now: Date = new Date()): Date {
  * a summary that has already been sent. One parent's failure is recorded and
  * does not abort the batch.
  *
- * Parents are walked with keyset pagination over `(created_at, id)`, so paging
- * stays O(n) (no growing OFFSET re-scan) and a run capped by `maxParents`
- * returns a `nextCursor` that a later run resumes from without re-processing or
- * skipping anyone.
+ * Parents are walked with keyset pagination over `id`, so paging stays O(n)
+ * (no growing OFFSET re-scan) and a run capped by `maxParents` returns a
+ * `nextCursor` that a later run resumes from without re-processing or skipping
+ * anyone.
  */
 export async function generateWeeklySummaries(
   q: Querier,
@@ -85,29 +89,22 @@ export async function generateWeeklySummaries(
     failed: [],
   };
 
-  // Cursor on the last processed parent. Seeded from a prior run's nextCursor.
-  let cursor: { createdAt: Date; id: string } | null = opts.after
-    ? { createdAt: new Date(opts.after.createdAt), id: opts.after.id }
-    : null;
-  const serialize = (c: { createdAt: Date; id: string }): WeeklySummaryCursor => ({
-    createdAt: c.createdAt.toISOString(),
-    id: c.id,
-  });
+  // Cursor on the last processed parent id. Seeded from a prior run's nextCursor.
+  let cursorId: string | null = opts.after?.id ?? null;
 
   for (;;) {
-    const { rows: parents } = cursor
+    const { rows: parents } = cursorId
       ? await q.query<ParentRow>(
-          `SELECT id, first_name, created_at FROM parents
-            WHERE activated_at IS NOT NULL AND deleted_at IS NULL
-              AND (created_at > $2 OR (created_at = $2 AND id > $3))
-            ORDER BY created_at ASC, id ASC
+          `SELECT id, first_name FROM parents
+            WHERE activated_at IS NOT NULL AND deleted_at IS NULL AND id > $2
+            ORDER BY id ASC
             LIMIT $1`,
-          [batchSize, cursor.createdAt, cursor.id],
+          [batchSize, cursorId],
         )
       : await q.query<ParentRow>(
-          `SELECT id, first_name, created_at FROM parents
+          `SELECT id, first_name FROM parents
             WHERE activated_at IS NOT NULL AND deleted_at IS NULL
-            ORDER BY created_at ASC, id ASC
+            ORDER BY id ASC
             LIMIT $1`,
           [batchSize],
         );
@@ -116,7 +113,7 @@ export async function generateWeeklySummaries(
     for (const p of parents) {
       if (result.processed >= maxParents) {
         result.done = false;
-        result.nextCursor = cursor ? serialize(cursor) : null;
+        result.nextCursor = cursorId ? { id: cursorId } : null;
         return result;
       }
       try {
@@ -129,7 +126,7 @@ export async function generateWeeklySummaries(
         });
       }
       result.processed += 1;
-      cursor = { createdAt: new Date(p.created_at), id: p.id };
+      cursorId = p.id;
     }
 
     if (parents.length < batchSize) break;

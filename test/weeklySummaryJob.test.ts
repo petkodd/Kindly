@@ -139,15 +139,10 @@ describe('generate_weekly_summary job', () => {
     expect(new Set([...firstSet, ...secondSet])).toEqual(ids);
   });
 
-  it('resuming past the last parent yields an empty, finished run', async () => {
+  it('resuming after the last parent yields an empty, finished run', async () => {
     const id = await makeActiveParent('only@example.com', 'Robert');
-    const { rows } = await q.query<{ created_at: string | Date }>(
-      `SELECT created_at FROM parents WHERE id = $1`,
-      [id],
-    );
-    const beyond = { createdAt: new Date(rows[0].created_at).toISOString(), id };
-
-    const res = await generateWeeklySummaries(q, REF, { after: beyond });
+    // Resume after this parent's own id → nothing sorts after it.
+    const res = await generateWeeklySummaries(q, REF, { after: { id } });
     expect(res.done).toBe(true);
     expect(res.processed).toBe(0);
     expect(res.nextCursor).toBeNull();
