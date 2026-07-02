@@ -1,14 +1,22 @@
 import type { Querier } from '../querier';
 import { summaryRepo, weekBounds } from '../repos/summary';
 
+/** Keyset resume point: the last parent a run processed, ordered by (created_at, id). */
+export interface WeeklySummaryCursor {
+  createdAt: string;
+  id: string;
+}
+
 export interface WeeklySummaryJobResult {
   /** The week the run targeted (inclusive Monday … Sunday). */
   periodStart: string;
   periodEnd: string;
-  /** Number of active parents processed (generated + failed). */
+  /** Number of active parents processed (generated + failed) this run. */
   processed: number;
   /** False if the run hit `maxParents` before exhausting active parents. */
   done: boolean;
+  /** Resume point to pass back as `after` when `done` is false; null when finished. */
+  nextCursor: WeeklySummaryCursor | null;
   generated: { parentId: string; summaryId: string }[];
   failed: { parentId: string; error: string }[];
 }
@@ -17,11 +25,19 @@ export interface WeeklySummaryJobOptions {
   /** Parents fetched per page; bounds memory and query size. */
   batchSize?: number;
   /** Safety cap on parents processed in one invocation (guards the cron's
-   *  max duration). When hit, the run returns `done: false`. */
+   *  max duration). When hit, the run returns `done: false` + `nextCursor`. */
   maxParents?: number;
+  /** Resume after this parent (a `nextCursor` from a previous run). */
+  after?: WeeklySummaryCursor | null;
 }
 
 const DEFAULT_BATCH_SIZE = 100;
+
+interface ParentRow {
+  id: string;
+  first_name: string;
+  created_at: string | Date;
+}
 
 /**
  * A reference timestamp inside the most recently *completed* ISO week. The
@@ -44,10 +60,10 @@ export function lastCompletedWeekRef(now: Date = new Date()): Date {
  * a summary that has already been sent. One parent's failure is recorded and
  * does not abort the batch.
  *
- * Parents are processed in pages of `batchSize` so a single invocation never
- * loads the whole cohort into memory, and `maxParents` caps how much one run
- * attempts — at scale, split the cohort across runs / a queue rather than risk
- * the cron function's max duration.
+ * Parents are walked with keyset pagination over `(created_at, id)`, so paging
+ * stays O(n) (no growing OFFSET re-scan) and a run capped by `maxParents`
+ * returns a `nextCursor` that a later run resumes from without re-processing or
+ * skipping anyone.
  */
 export async function generateWeeklySummaries(
   q: Querier,
@@ -64,24 +80,43 @@ export async function generateWeeklySummaries(
     periodEnd: bounds.periodEnd,
     processed: 0,
     done: true,
+    nextCursor: null,
     generated: [],
     failed: [],
   };
 
-  let offset = 0;
+  // Cursor on the last processed parent. Seeded from a prior run's nextCursor.
+  let cursor: { createdAt: Date; id: string } | null = opts.after
+    ? { createdAt: new Date(opts.after.createdAt), id: opts.after.id }
+    : null;
+  const serialize = (c: { createdAt: Date; id: string }): WeeklySummaryCursor => ({
+    createdAt: c.createdAt.toISOString(),
+    id: c.id,
+  });
+
   for (;;) {
-    const { rows: parents } = await q.query<{ id: string; first_name: string }>(
-      `SELECT id, first_name FROM parents
-        WHERE activated_at IS NOT NULL AND deleted_at IS NULL
-        ORDER BY created_at ASC, id ASC
-        LIMIT $1 OFFSET $2`,
-      [batchSize, offset],
-    );
+    const { rows: parents } = cursor
+      ? await q.query<ParentRow>(
+          `SELECT id, first_name, created_at FROM parents
+            WHERE activated_at IS NOT NULL AND deleted_at IS NULL
+              AND (created_at > $2 OR (created_at = $2 AND id > $3))
+            ORDER BY created_at ASC, id ASC
+            LIMIT $1`,
+          [batchSize, cursor.createdAt, cursor.id],
+        )
+      : await q.query<ParentRow>(
+          `SELECT id, first_name, created_at FROM parents
+            WHERE activated_at IS NOT NULL AND deleted_at IS NULL
+            ORDER BY created_at ASC, id ASC
+            LIMIT $1`,
+          [batchSize],
+        );
     if (parents.length === 0) break;
 
     for (const p of parents) {
       if (result.processed >= maxParents) {
         result.done = false;
+        result.nextCursor = cursor ? serialize(cursor) : null;
         return result;
       }
       try {
@@ -94,10 +129,10 @@ export async function generateWeeklySummaries(
         });
       }
       result.processed += 1;
+      cursor = { createdAt: new Date(p.created_at), id: p.id };
     }
 
     if (parents.length < batchSize) break;
-    offset += parents.length;
   }
 
   return result;

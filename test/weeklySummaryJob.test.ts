@@ -111,17 +111,45 @@ describe('generate_weekly_summary job', () => {
     expect(new Set(res.generated.map((g) => g.parentId))).toEqual(ids);
   });
 
-  it('stops at maxParents and reports done=false (resumable on a later run)', async () => {
-    for (let i = 0; i < 4; i++) {
-      await makeActiveParent(`p${i}@example.com`, `Parent${i}`);
+  it('stops at maxParents with a nextCursor and resumes exactly where it left off', async () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 5; i++) {
+      ids.add(await makeActiveParent(`p${i}@example.com`, `Parent${i}`));
     }
-    const capped = await generateWeeklySummaries(q, REF, { batchSize: 5, maxParents: 2 });
-    expect(capped.done).toBe(false);
-    expect(capped.processed).toBe(2);
 
-    // A subsequent uncapped run finishes the rest; idempotent for the first two.
-    const full = await generateWeeklySummaries(q, REF);
-    expect(full.done).toBe(true);
-    expect(full.processed).toBe(4);
+    // First run: cap at 2, expect a resume cursor.
+    const first = await generateWeeklySummaries(q, REF, { batchSize: 10, maxParents: 2 });
+    expect(first.done).toBe(false);
+    expect(first.processed).toBe(2);
+    expect(first.nextCursor).not.toBeNull();
+
+    // Resume from the cursor: the remaining 3, no overlap, then finished.
+    const second = await generateWeeklySummaries(q, REF, {
+      after: first.nextCursor,
+      batchSize: 10,
+    });
+    expect(second.done).toBe(true);
+    expect(second.nextCursor).toBeNull();
+    expect(second.processed).toBe(3);
+
+    const firstSet = new Set(first.generated.map((g) => g.parentId));
+    const secondSet = new Set(second.generated.map((g) => g.parentId));
+    // Disjoint halves (no parent processed twice) whose union is the whole cohort.
+    for (const id of secondSet) expect(firstSet.has(id)).toBe(false);
+    expect(new Set([...firstSet, ...secondSet])).toEqual(ids);
+  });
+
+  it('resuming past the last parent yields an empty, finished run', async () => {
+    const id = await makeActiveParent('only@example.com', 'Robert');
+    const { rows } = await q.query<{ created_at: string | Date }>(
+      `SELECT created_at FROM parents WHERE id = $1`,
+      [id],
+    );
+    const beyond = { createdAt: new Date(rows[0].created_at).toISOString(), id };
+
+    const res = await generateWeeklySummaries(q, REF, { after: beyond });
+    expect(res.done).toBe(true);
+    expect(res.processed).toBe(0);
+    expect(res.nextCursor).toBeNull();
   });
 });
