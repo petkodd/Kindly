@@ -12,12 +12,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const pool = db();
     await parentRepo.getOwned(pool, params.id, buyerId); // isolation check
     const body = await req.json();
-    const consent = await consentRepo.record(pool, {
-      parentId: params.id,
-      kind: body.kind,
-      grantedBy: buyerId,
-      detail: body.detail ?? null,
-    });
+    const input = { parentId: params.id, kind: body.kind, grantedBy: buyerId, detail: body.detail ?? null };
+    // buyer_attestation is a singleton per parent — idempotent so an onboarding
+    // retry can't insert duplicates. summary_recipient stays one row per recipient.
+    const consent =
+      body.kind === 'buyer_attestation'
+        ? await consentRepo.ensure(pool, input)
+        : await consentRepo.record(pool, input);
     return NextResponse.json({ consent }, { status: 201 });
   } catch (err) {
     const { status, body } = errorToResponse(err);
