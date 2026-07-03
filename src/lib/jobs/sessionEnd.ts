@@ -1,6 +1,7 @@
 import type { Querier } from '../querier';
 import type { AiClient, ConversationTurn, MoodSignal } from '../ai';
 import { getAiClient } from '../ai';
+import { sanitizeFamilySummary } from '../ai/prompts';
 import { conversationRepo } from '../repos/conversation';
 import { memoryRepo } from '../repos/memory';
 import { parentRepo } from '../repos/parent';
@@ -20,6 +21,7 @@ import { parentRepo } from '../repos/parent';
 
 export interface SessionEndResult {
   summarized: boolean;
+  extracted: boolean;
   moodSignal: MoodSignal | null;
   memoriesProposed: number;
 }
@@ -38,14 +40,30 @@ export async function runSessionEndJobs(
   const ai = opts.ai ?? getAiClient();
   const minConfidence = opts.minConfidence ?? 0.5;
 
-  const { rows } = await q.query<{ parent_id: string; summary_text: string | null }>(
-    `SELECT parent_id, summary_text FROM conversations WHERE id = $1`,
+  const { rows } = await q.query<{
+    parent_id: string;
+    summary_text: string | null;
+    mood_signal: string | null;
+    memories_extracted_at: string | null;
+  }>(
+    `SELECT parent_id, summary_text, mood_signal, memories_extracted_at
+     FROM conversations WHERE id = $1`,
     [conversationId],
   );
   const convo = rows[0];
-  // Unknown conversation, or already processed → no-op (idempotent).
-  if (!convo || convo.summary_text !== null) {
-    return { summarized: false, moodSignal: null, memoriesProposed: 0 };
+  if (!convo) return { summarized: false, extracted: false, moodSignal: null, memoriesProposed: 0 };
+
+  // The two sub-jobs are guarded independently, so a retry after a partial
+  // failure finishes only the half that hasn't run yet.
+  const needsSummary = convo.summary_text === null;
+  const needsExtraction = convo.memories_extracted_at === null;
+  if (!needsSummary && !needsExtraction) {
+    return {
+      summarized: false,
+      extracted: false,
+      moodSignal: convo.mood_signal as MoodSignal | null,
+      memoriesProposed: 0,
+    };
   }
 
   const parent = await parentRepo.getById(q, convo.parent_id);
@@ -53,25 +71,39 @@ export async function runSessionEndJobs(
     (t) => ({ role: t.role, content: t.content }),
   );
 
-  // summarize_conversation
-  const summary = await ai.summarizeConversation({ firstName: parent.first_name, turns });
-  await conversationRepo.recordSummary(q, conversationId, summary.summaryText, summary.moodSignal);
+  let moodSignal: MoodSignal | null = convo.mood_signal as MoodSignal | null;
 
-  // extract_memory_candidates — proposed memories await parent/buyer confirmation.
-  const candidates = await ai.extractMemories({ turns });
-  let memoriesProposed = 0;
-  for (const c of candidates) {
-    if (c.confidence < minConfidence) continue;
-    await memoryRepo.add(q, {
-      parentId: convo.parent_id,
-      layer: c.layer,
-      key: c.key,
-      value: c.value,
-      source: 'conversation',
-      sensitivity: c.sensitivity,
-    });
-    memoriesProposed += 1;
+  // summarize_conversation
+  if (needsSummary) {
+    const summary = await ai.summarizeConversation({ firstName: parent.first_name, turns });
+    // Code-level backstop: never surface restricted detail to family, even if
+    // the model ignored the prompt.
+    const safe = sanitizeFamilySummary(summary.summaryText, parent.first_name);
+    if (safe.redacted) {
+      console.warn(`session-end: redacted restricted content from summary of ${conversationId}`);
+    }
+    await conversationRepo.recordSummary(q, conversationId, safe.text, summary.moodSignal);
+    moodSignal = summary.moodSignal;
   }
 
-  return { summarized: true, moodSignal: summary.moodSignal, memoriesProposed };
+  // extract_memory_candidates — proposed memories await parent/buyer confirmation.
+  let memoriesProposed = 0;
+  if (needsExtraction) {
+    const candidates = await ai.extractMemories({ turns });
+    for (const c of candidates) {
+      if (c.confidence < minConfidence) continue;
+      await memoryRepo.add(q, {
+        parentId: convo.parent_id,
+        layer: c.layer,
+        key: c.key,
+        value: c.value,
+        source: 'conversation',
+        sensitivity: c.sensitivity,
+      });
+      memoriesProposed += 1;
+    }
+    await conversationRepo.markMemoriesExtracted(q, conversationId);
+  }
+
+  return { summarized: needsSummary, extracted: needsExtraction, moodSignal, memoriesProposed };
 }

@@ -7,6 +7,8 @@ import { memoryRepo } from '../src/lib/repos/memory';
 import { conversationRepo } from '../src/lib/repos/conversation';
 import { summaryRepo } from '../src/lib/repos/summary';
 import { runSessionEndJobs } from '../src/lib/jobs/sessionEnd';
+import { fakeAiClient } from '../src/lib/ai/fake';
+import type { AiClient } from '../src/lib/ai';
 
 let q: Querier;
 
@@ -88,7 +90,35 @@ describe('session-end jobs', () => {
 
   it('no-op on an unknown conversation', async () => {
     const result = await runSessionEndJobs(q, '00000000-0000-0000-0000-000000000000');
-    expect(result).toEqual({ summarized: false, moodSignal: null, memoriesProposed: 0 });
+    expect(result).toEqual({ summarized: false, extracted: false, moodSignal: null, memoriesProposed: 0 });
+  });
+
+  it('recovers extraction after it fails post-summarize (independent markers)', async () => {
+    const parentId = await makeTalkingParent();
+    const convoId = await haveConversation(parentId);
+
+    // Extraction throws — summarize has already run and persisted the summary.
+    const extractFails: AiClient = {
+      ...fakeAiClient,
+      extractMemories: async () => {
+        throw new Error('extract boom');
+      },
+    };
+    await expect(runSessionEndJobs(q, convoId, { ai: extractFails })).rejects.toThrow();
+
+    const mid = await q.query<{ summary_text: string | null; memories_extracted_at: string | null }>(
+      `SELECT summary_text, memories_extracted_at FROM conversations WHERE id = $1`,
+      [convoId],
+    );
+    expect(mid.rows[0].summary_text).not.toBeNull(); // summarize succeeded
+    expect(mid.rows[0].memories_extracted_at).toBeNull(); // extraction did not
+
+    // A retry with a working client finishes extraction without re-summarizing.
+    const retry = await runSessionEndJobs(q, convoId);
+    expect(retry.summarized).toBe(false); // summary marker already set
+    expect(retry.extracted).toBe(true);
+    expect(retry.memoriesProposed).toBeGreaterThanOrEqual(1);
+    expect((await memoryRepo.list(q, parentId, { status: 'proposed' })).length).toBeGreaterThanOrEqual(1);
   });
 });
 

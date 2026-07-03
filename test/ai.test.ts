@@ -3,6 +3,7 @@ import type { Message } from '@anthropic-ai/sdk/resources/messages';
 import { fakeAiClient } from '../src/lib/ai/fake';
 import { getAiClient, resetAiClient } from '../src/lib/ai';
 import { AiError } from '../src/lib/ai/types';
+import { sanitizeFamilySummary } from '../src/lib/ai/prompts';
 import { parseJson, requireText, buildCompanionMessages } from '../src/lib/ai/anthropic';
 
 // Minimal Message stand-in for testing the response guards.
@@ -154,6 +155,22 @@ describe('buildCompanionMessages (real-client assembly)', () => {
       message: 'second',
     });
     expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
+  });
+});
+
+describe('sanitizeFamilySummary (restricted backstop)', () => {
+  it('redacts a summary that leaks restricted content to a neutral line', () => {
+    const r = sanitizeFamilySummary('Robert seemed depressed and asked about his medication.', 'Robert');
+    expect(r.redacted).toBe(true);
+    expect(r.text).toBe('Robert had a warm conversation with Kindly.');
+    expect(r.text.toLowerCase()).not.toContain('depress');
+  });
+
+  it('leaves an ordinary warm summary untouched', () => {
+    const clean = 'Robert had a lovely chat about gardening and his grandkids.';
+    const r = sanitizeFamilySummary(clean, 'Robert');
+    expect(r.redacted).toBe(false);
+    expect(r.text).toBe(clean);
   });
 });
 

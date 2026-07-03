@@ -5,6 +5,9 @@ import { conversationRepo } from '@/lib/repos/conversation';
 import { runSessionEndJobs } from '@/lib/jobs/sessionEnd';
 import { ValidationError } from '@/lib/types';
 
+// Runs two model calls (summarize + extract) inline; give it headroom.
+export const maxDuration = 60;
+
 const unauthorized = () =>
   NextResponse.json({ error: { code: 'unauthorized', message: 'Valid access token required.' } }, { status: 401 });
 

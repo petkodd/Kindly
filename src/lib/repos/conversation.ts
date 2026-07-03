@@ -102,6 +102,14 @@ export const conversationRepo = {
     );
   },
 
+  /** Mark memory extraction complete (independent of the summary marker). */
+  async markMemoriesExtracted(q: Querier, conversationId: string): Promise<void> {
+    await q.query(
+      `UPDATE conversations SET memories_extracted_at = now() WHERE id = $1`,
+      [conversationId],
+    );
+  },
+
   /** End a session (idempotent). Session-end jobs (summarize/extract) run separately. */
   async end(q: Querier, conversationId: string, parentId: string): Promise<Conversation> {
     const convo = await conversationRepo.getForParent(q, conversationId, parentId);
