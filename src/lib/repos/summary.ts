@@ -177,7 +177,9 @@ export const summaryRepo = {
     firstName: string,
     ref: Date = new Date(),
   ): Promise<{ summary: WeeklySummary; deliveries: SummaryDelivery[] }> {
-    const recipients = await consentRepo.list(q, parentId, 'summary_recipient');
+    // Only ACCEPTED recipients — a pending (unaccepted) invite must never
+    // receive a summary.
+    const recipients = await consentRepo.listAcceptedRecipients(q, parentId);
     if (recipients.length === 0) {
       throw new PreconditionError(
         'No consented summary recipient. Invite a recipient before sending.',

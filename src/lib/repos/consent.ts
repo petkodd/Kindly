@@ -1,5 +1,12 @@
+import { createHash, randomBytes } from 'node:crypto';
 import type { Querier } from '../querier';
-import { type Consent, type ConsentKind, ValidationError } from '../types';
+import { type Consent, type ConsentKind, NotFoundError, ValidationError } from '../types';
+
+function hashToken(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
  * Consent is the spine of Kindly's privacy model. Two gates matter most:
@@ -79,5 +86,67 @@ export const consentRepo = {
       `UPDATE consents SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`,
       [consentId],
     );
+  },
+
+  /**
+   * Invite a sibling as a summary recipient. Creates a summary_recipient consent
+   * in a PENDING state — the recipient must accept before any summary is
+   * delivered — and returns a raw invite token ONCE (only its hash is stored).
+   */
+  async recordRecipientInvite(
+    q: Querier,
+    input: { parentId: string; grantedBy?: string | null; recipientEmail: string },
+  ): Promise<{ consent: Consent; inviteToken: string }> {
+    const email = (input.recipientEmail ?? '').trim();
+    if (!EMAIL_RE.test(email)) throw new ValidationError('a valid recipient email is required');
+    const inviteToken = randomBytes(24).toString('base64url');
+    const { rows } = await q.query<Consent>(
+      `INSERT INTO consents (parent_id, kind, granted_by, detail)
+       VALUES ($1, 'summary_recipient', $2, $3)
+       RETURNING *`,
+      [
+        input.parentId,
+        input.grantedBy ?? null,
+        JSON.stringify({ recipient_email: email, status: 'pending', invite_token_hash: hashToken(inviteToken) }),
+      ],
+    );
+    return { consent: rows[0], inviteToken };
+  },
+
+  /** Accept a pending recipient invite by its raw token. Idempotent-ish: an
+   *  unknown/used token is a NotFound so the endpoint never reveals validity. */
+  async acceptRecipientInvite(q: Querier, rawToken: string): Promise<Consent> {
+    if (!rawToken) throw new NotFoundError('Invite not found');
+    const { rows } = await q.query<Consent>(
+      `SELECT * FROM consents
+       WHERE kind = 'summary_recipient' AND revoked_at IS NULL
+         AND detail->>'invite_token_hash' = $1
+         AND detail->>'status' = 'pending'`,
+      [hashToken(rawToken)],
+    );
+    const consent = rows[0];
+    if (!consent) throw new NotFoundError('Invite not found');
+    const detail = { ...(consent.detail ?? {}), status: 'accepted' };
+    const { rows: updated } = await q.query<Consent>(
+      `UPDATE consents SET detail = $2 WHERE id = $1 RETURNING *`,
+      [consent.id, JSON.stringify(detail)],
+    );
+    return updated[0];
+  },
+
+  /**
+   * Summary recipients eligible for delivery: active, and NOT pending. Legacy
+   * consents recorded without a status (e.g. seeded directly) count as eligible;
+   * only an explicit 'pending' status is excluded.
+   */
+  async listAcceptedRecipients(q: Querier, parentId: string): Promise<Consent[]> {
+    const { rows } = await q.query<Consent>(
+      `SELECT * FROM consents
+       WHERE parent_id = $1 AND kind = 'summary_recipient' AND revoked_at IS NULL
+         AND (detail->>'status' IS NULL OR detail->>'status' <> 'pending')
+       ORDER BY granted_at ASC`,
+      [parentId],
+    );
+    return rows;
   },
 };
