@@ -148,3 +148,19 @@ export class ForbiddenError extends Error {
     this.name = 'ForbiddenError';
   }
 }
+
+/** Thrown when a unique resource already exists (e.g. duplicate email). API maps to 409. */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+/** Thrown when a caller exceeds a rate limit. API maps to 429. */
+export class RateLimitError extends Error {
+  constructor(message = 'Too many requests. Please try again later.') {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}

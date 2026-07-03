@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import type { Querier } from './querier';
 import { accessTokenRepo } from './repos/accessToken';
 import { NotFoundError, ValidationError } from './types';
+import { SESSION_COOKIE, verifySession } from './session';
 
 /** Parse a JSON request body, mapping malformed JSON to a 400 (not a 500). */
 export async function readJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
@@ -13,18 +14,21 @@ export async function readJsonBody(req: NextRequest): Promise<Record<string, unk
 }
 
 /**
- * Alpha auth shim. Resolves the current buyer's user id.
- *
- * ⚠️ REPLACE on feature/parent-profile (auth): this currently trusts a
- * `x-kindly-buyer` header / `buyer` cookie for local development only.
- * Production must derive identity from a verified session — never from a
- * client-supplied id used for authorization.
+ * Resolve the current buyer's user id from the verified session cookie. The
+ * cookie is HMAC-signed (see session.ts), so a client cannot forge it — this
+ * replaces the old spoofable `x-kindly-buyer` header shim.
  */
 export function getBuyerId(req: NextRequest): string | null {
-  const header = req.headers.get('x-kindly-buyer');
-  if (header) return header;
-  const cookie = req.cookies.get('buyer')?.value;
-  return cookie ?? null;
+  return verifySession(req.cookies.get(SESSION_COOKIE)?.value)?.uid ?? null;
+}
+
+/**
+ * Resolve the current admin's user id — the session must be valid AND carry the
+ * admin claim (set at login from users.is_admin). Non-admins resolve to null.
+ */
+export function getAdminId(req: NextRequest): string | null {
+  const claims = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  return claims?.adm ? claims.uid : null;
 }
 
 /**
@@ -75,6 +79,10 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       return { status: 404, body: { error: { code: 'not_found', message: 'Not found.' } } };
     case 'ForbiddenError':
       return { status: 403, body: { error: { code: 'forbidden', message: (err as Error).message } } };
+    case 'ConflictError':
+      return { status: 409, body: { error: { code: 'conflict', message: (err as Error).message } } };
+    case 'RateLimitError':
+      return { status: 429, body: { error: { code: 'rate_limited', message: (err as Error).message } } };
     case 'AiError':
       // Upstream model failure (refusal, empty, truncated, network) — not a bug
       // in our server. Surface as 502 so callers can distinguish + retry.
