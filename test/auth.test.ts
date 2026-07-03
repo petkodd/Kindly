@@ -4,7 +4,7 @@ import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { userRepo } from '../src/lib/repos/user';
 import { rateLimitRepo } from '../src/lib/repos/rateLimit';
-import { getBuyerId, getAdminId } from '../src/lib/auth';
+import { getBuyerId, getAdminId, resolveBuyer, resolveAdmin } from '../src/lib/auth';
 import { signSession, verifySession, SESSION_COOKIE } from '../src/lib/session';
 import { ConflictError, ValidationError } from '../src/lib/types';
 
@@ -99,6 +99,56 @@ describe('session-based auth resolvers', () => {
     const forged = requestWithSession('u-attacker.forged-signature');
     expect(getBuyerId(forged)).toBeNull();
     expect(getAdminId(forged)).toBeNull();
+  });
+});
+
+describe('server-side session revocation (resolveBuyer / resolveAdmin)', () => {
+  async function makeUser(isAdmin = false): Promise<string> {
+    const u = await userRepo.create(q, { email: `u${Math.random()}@example.com`, password: 'originalpass' });
+    if (isAdmin) await q.query(`UPDATE users SET is_admin = true WHERE id = $1`, [u.id]);
+    return u.id;
+  }
+
+  it('resolves a valid session to the user id', async () => {
+    const id = await makeUser();
+    expect(await resolveBuyer(requestWithSession(signSession(id)), q)).toBe(id);
+  });
+
+  it('rejects a session for a deleted account', async () => {
+    const id = await makeUser();
+    const token = signSession(id);
+    await userRepo.softDelete(q, id);
+    expect(await resolveBuyer(requestWithSession(token), q)).toBeNull();
+  });
+
+  it('rejects a token issued before sessions_valid_from (revoked)', async () => {
+    const id = await makeUser();
+    const token = signSession(id); // iat = now
+    // Move the watermark into the future → the token is now "old".
+    await q.query(`UPDATE users SET sessions_valid_from = $2 WHERE id = $1`, [
+      id,
+      new Date(Date.now() + 60_000),
+    ]);
+    expect(await resolveBuyer(requestWithSession(token), q)).toBeNull();
+  });
+
+  it('changePassword and softDelete bump the revocation watermark', async () => {
+    const id = await makeUser();
+    await q.query(`UPDATE users SET sessions_valid_from = $2 WHERE id = $1`, [id, new Date(0)]);
+    await userRepo.changePassword(q, id, 'originalpass', 'brandnewpass');
+    const after = (await userRepo.sessionAuth(q, id))!.sessions_valid_from;
+    expect(new Date(after).getTime()).toBeGreaterThan(0);
+  });
+
+  it('resolveAdmin requires the admin claim AND live is_admin', async () => {
+    const id = await makeUser(true);
+    // Non-admin claim → null even though the DB says admin.
+    expect(await resolveAdmin(requestWithSession(signSession(id, { isAdmin: false })), q)).toBeNull();
+    // Admin claim + is_admin → admin id.
+    expect(await resolveAdmin(requestWithSession(signSession(id, { isAdmin: true })), q)).toBe(id);
+    // Admin claim but is_admin revoked in the DB → null (stale claim can't win).
+    await q.query(`UPDATE users SET is_admin = false WHERE id = $1`, [id]);
+    expect(await resolveAdmin(requestWithSession(signSession(id, { isAdmin: true })), q)).toBeNull();
   });
 });
 

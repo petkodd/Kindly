@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import type { Querier } from './querier';
+import { db } from './db';
 import { accessTokenRepo } from './repos/accessToken';
+import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
 import { SESSION_COOKIE, verifySession } from './session';
 
@@ -29,6 +31,31 @@ export function getBuyerId(req: NextRequest): string | null {
 export function getAdminId(req: NextRequest): string | null {
   const claims = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   return claims?.adm ? claims.uid : null;
+}
+
+/**
+ * Authoritative buyer auth: verify the signed cookie AND confirm server-side
+ * that the account isn't deleted and the token wasn't revoked (issued before
+ * users.sessions_valid_from). Routes MUST use this — the sync getBuyerId only
+ * checks the signature and can't see a revoked/deleted account.
+ */
+export async function resolveBuyer(req: NextRequest, q?: Querier): Promise<string | null> {
+  const claims = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (!claims) return null; // no valid cookie → never touch the DB (keeps build-time render db-free)
+  const info = await userRepo.sessionAuth(q ?? db(), claims.uid);
+  if (!info || info.deleted_at) return null;
+  if (claims.iat < Math.floor(new Date(info.sessions_valid_from).getTime() / 1000)) return null;
+  return claims.uid;
+}
+
+/** Authoritative admin auth: resolveBuyer + the admin claim + live is_admin. */
+export async function resolveAdmin(req: NextRequest, q?: Querier): Promise<string | null> {
+  const claims = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (!claims || !claims.adm) return null;
+  const info = await userRepo.sessionAuth(q ?? db(), claims.uid);
+  if (!info || info.deleted_at || !info.is_admin) return null;
+  if (claims.iat < Math.floor(new Date(info.sessions_valid_from).getTime() / 1000)) return null;
+  return claims.uid;
 }
 
 /**

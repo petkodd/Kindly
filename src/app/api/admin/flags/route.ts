@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getAdminId, errorToResponse } from '@/lib/auth';
+import { resolveAdmin, errorToResponse } from '@/lib/auth';
 import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
 import { auditRepo } from '@/lib/repos/audit';
 
@@ -9,7 +9,7 @@ const forbidden = () =>
 
 /** Safety flag review queue (open + reviewing), highest severity first. */
 export async function GET(req: NextRequest) {
-  const adminId = getAdminId(req);
+  const adminId = await resolveAdmin(req);
   if (!adminId) return forbidden();
   try {
     const pool = db();

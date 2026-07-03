@@ -18,6 +18,7 @@ const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 export interface SessionClaims {
   uid: string;
   adm: boolean;
+  iat: number; // issued-at, unix seconds — checked against users.sessions_valid_from
   exp: number; // unix seconds
 }
 
@@ -40,8 +41,9 @@ export function signSession(
   uid: string,
   opts: { isAdmin?: boolean; ttlSeconds?: number } = {},
 ): string {
-  const exp = Math.floor(Date.now() / 1000) + (opts.ttlSeconds ?? DEFAULT_TTL_SECONDS);
-  const claims: SessionClaims = { uid, adm: opts.isAdmin ?? false, exp };
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + (opts.ttlSeconds ?? DEFAULT_TTL_SECONDS);
+  const claims: SessionClaims = { uid, adm: opts.isAdmin ?? false, iat, exp };
   const body = b64url(Buffer.from(JSON.stringify(claims)));
   return `${body}.${sign(body)}`;
 }
