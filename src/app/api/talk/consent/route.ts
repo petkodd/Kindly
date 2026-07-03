@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
     const pool = db();
     const parentId = await resolveParentFromRequest(req, pool);
     if (!parentId) return unauthorized();
-    const consent = await consentRepo.record(pool, { parentId, kind: 'parent_conversation' });
+    // Idempotent: recording twice returns the existing consent, not a duplicate.
+    const consent = await consentRepo.ensure(pool, { parentId, kind: 'parent_conversation' });
     return NextResponse.json({ consent }, { status: 201 });
   } catch (err) {
     const { status, body } = errorToResponse(err);

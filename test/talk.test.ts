@@ -62,6 +62,14 @@ describe('parent access tokens', () => {
     expect(rows[0].token_hash).toHaveLength(64); // sha256 hex
   });
 
+  it('re-issuing revokes the previous token (single active link)', async () => {
+    const parentId = await makeParent(false);
+    const first = await accessTokenRepo.issue(q, parentId);
+    const second = await accessTokenRepo.issue(q, parentId);
+    await expect(accessTokenRepo.resolveParentId(q, first.token)).rejects.toBeInstanceOf(NotFoundError);
+    expect(await accessTokenRepo.resolveParentId(q, second.token)).toBe(parentId);
+  });
+
   it('rejects revoked, expired, and unknown tokens (NotFound, no oracle)', async () => {
     const parentId = await makeParent(false);
     const { token } = await accessTokenRepo.issue(q, parentId);
@@ -78,6 +86,16 @@ describe('parent access tokens', () => {
     await expect(accessTokenRepo.resolveParentId(q, 'not-a-real-token')).rejects.toBeInstanceOf(
       NotFoundError,
     );
+  });
+});
+
+describe('consent idempotency', () => {
+  it('recording parent_conversation twice returns the same consent, not a duplicate', async () => {
+    const parentId = await makeParent(false);
+    const c1 = await consentRepo.ensure(q, { parentId, kind: 'parent_conversation' });
+    const c2 = await consentRepo.ensure(q, { parentId, kind: 'parent_conversation' });
+    expect(c2.id).toBe(c1.id);
+    expect(await consentRepo.list(q, parentId, 'parent_conversation')).toHaveLength(1);
   });
 });
 

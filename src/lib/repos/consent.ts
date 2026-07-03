@@ -43,6 +43,26 @@ export const consentRepo = {
     return (rows[0]?.n ?? 0) > 0;
   },
 
+  /**
+   * Record a consent at most once for a parent+kind. For singleton kinds
+   * (buyer_attestation, parent_conversation) this keeps repeated calls
+   * idempotent instead of accumulating duplicate rows. Do NOT use for
+   * summary_recipient — that kind is intentionally one row per recipient.
+   */
+  async ensure(
+    q: Querier,
+    input: {
+      parentId: string;
+      kind: ConsentKind;
+      grantedBy?: string | null;
+      detail?: Record<string, unknown> | null;
+    },
+  ): Promise<Consent> {
+    const existing = await consentRepo.list(q, input.parentId, input.kind);
+    if (existing.length > 0) return existing[0];
+    return consentRepo.record(q, input);
+  },
+
   /** List active consents of a kind (e.g. all summary recipients). */
   async list(q: Querier, parentId: string, kind: ConsentKind): Promise<Consent[]> {
     const { rows } = await q.query<Consent>(

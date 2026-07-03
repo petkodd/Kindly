@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
     const body = await readJsonBody(req);
     const conversationId = body.conversation_id as string;
+    if (!conversationId) throw new ValidationError('conversation_id is required');
     const content = ((body.content as string) ?? '').trim();
     if (!content) throw new ValidationError('message content is required');
 

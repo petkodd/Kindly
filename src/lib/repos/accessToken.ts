@@ -14,12 +14,18 @@ function hashToken(raw: string): string {
 }
 
 export const accessTokenRepo = {
-  /** Issue a token for a parent. Returns the raw token ONCE; only the hash is stored. */
+  /**
+   * Issue a token for a parent. Returns the raw token ONCE; only the hash is
+   * stored. Revokes any prior active tokens first (single active link per
+   * parent) so re-issuing invalidates the old link instead of accumulating
+   * valid tokens — pass `keepExisting: true` to opt out.
+   */
   async issue(
     q: Querier,
     parentId: string,
-    opts: { expiresAt?: string | null } = {},
+    opts: { expiresAt?: string | null; keepExisting?: boolean } = {},
   ): Promise<{ token: string; id: string }> {
+    if (!opts.keepExisting) await accessTokenRepo.revokeAll(q, parentId);
     const raw = randomBytes(32).toString('base64url');
     const { rows } = await q.query<{ id: string }>(
       `INSERT INTO parent_access_tokens (parent_id, token_hash, expires_at)
