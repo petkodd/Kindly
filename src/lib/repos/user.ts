@@ -88,6 +88,27 @@ export const userRepo = {
     return { id: user.id, email: user.email, is_admin: user.is_admin };
   },
 
+  /**
+   * Minimal fields the auth path needs to validate a session: whether the user
+   * is deleted, the revocation watermark, and admin status. Returns null when
+   * the user doesn't exist.
+   */
+  async sessionAuth(
+    q: Querier,
+    userId: string,
+  ): Promise<{ deleted_at: string | null; sessions_valid_from: string; is_admin: boolean } | null> {
+    const { rows } = await q.query<{ deleted_at: string | null; sessions_valid_from: string; is_admin: boolean }>(
+      `SELECT deleted_at, sessions_valid_from, is_admin FROM users WHERE id = $1`,
+      [userId],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Invalidate every outstanding session for a user (bumps the watermark). */
+  async revokeSessions(q: Querier, userId: string): Promise<void> {
+    await q.query(`UPDATE users SET sessions_valid_from = now() WHERE id = $1`, [userId]);
+  },
+
   /** The owner's own account (password hash never selected). */
   async getAccount(q: Querier, userId: string): Promise<Account> {
     const { rows } = await q.query<Account>(
@@ -139,11 +160,20 @@ export const userRepo = {
     if ((newPassword ?? '').length < MIN_PASSWORD) {
       throw new ValidationError(`password must be at least ${MIN_PASSWORD} characters`);
     }
-    await q.query(`UPDATE users SET password_hash = $2 WHERE id = $1`, [userId, hashPassword(newPassword)]);
+    // Set the new hash AND revoke all existing sessions (a changed password must
+    // invalidate any token an attacker may hold).
+    await q.query(
+      `UPDATE users SET password_hash = $2, sessions_valid_from = now() WHERE id = $1`,
+      [userId, hashPassword(newPassword)],
+    );
   },
 
-  /** Soft-delete the owner's account (a purge job honors it within retention). */
+  /** Soft-delete the owner's account + revoke its sessions immediately. */
   async softDelete(q: Querier, userId: string): Promise<void> {
-    await q.query(`UPDATE users SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [userId]);
+    await q.query(
+      `UPDATE users SET deleted_at = now(), sessions_valid_from = now()
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
   },
 };

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getBuyerId, readJsonBody, errorToResponse } from '@/lib/auth';
+import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { consentRepo } from '@/lib/repos/consent';
 
@@ -12,7 +12,7 @@ type Ctx = { params: { id: string } };
  * summary is delivered to them.
  */
 export async function POST(req: NextRequest, { params }: Ctx) {
-  const buyerId = getBuyerId(req);
+  const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
     const pool = db();

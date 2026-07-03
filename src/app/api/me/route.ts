@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getBuyerId, readJsonBody, errorToResponse } from '@/lib/auth';
+import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { userRepo } from '@/lib/repos/user';
 import { clearSession } from '@/lib/session';
 
@@ -9,7 +9,7 @@ const unauthorized = () =>
 
 /** Read the signed-in buyer's own account. */
 export async function GET(req: NextRequest) {
-  const userId = getBuyerId(req);
+  const userId = await resolveBuyer(req);
   if (!userId) return unauthorized();
   try {
     const account = await userRepo.getAccount(db(), userId);
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
 /** Update the buyer's own profile (display name). */
 export async function PATCH(req: NextRequest) {
-  const userId = getBuyerId(req);
+  const userId = await resolveBuyer(req);
   if (!userId) return unauthorized();
   try {
     const body = await readJsonBody(req);
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest) {
 
 /** Soft-delete the buyer's own account and end the session. */
 export async function DELETE(req: NextRequest) {
-  const userId = getBuyerId(req);
+  const userId = await resolveBuyer(req);
   if (!userId) return unauthorized();
   try {
     await userRepo.softDelete(db(), userId);

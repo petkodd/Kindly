@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getBuyerId, errorToResponse } from '@/lib/auth';
+import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 
 // POST /api/parents — create a parent profile (onboarding). Not yet activated.
 export async function POST(req: NextRequest) {
-  const buyerId = getBuyerId(req);
+  const buyerId = await resolveBuyer(req);
   if (!buyerId) {
     return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   }

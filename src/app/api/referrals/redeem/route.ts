@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getBuyerId, readJsonBody, errorToResponse } from '@/lib/auth';
+import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { referralRepo } from '@/lib/repos/referral';
 import { ValidationError } from '@/lib/types';
 
@@ -11,7 +11,7 @@ import { ValidationError } from '@/lib/types';
  * address/payment) and passed in.
  */
 export async function POST(req: NextRequest) {
-  const buyerId = getBuyerId(req);
+  const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
     const pool = db();
