@@ -133,3 +133,11 @@ export class ForbiddenError extends Error {
     this.name = 'ForbiddenError';
   }
 }
+
+/** Thrown when a unique resource already exists (e.g. duplicate email). API maps to 409. */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
