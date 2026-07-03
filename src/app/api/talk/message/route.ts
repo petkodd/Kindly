@@ -5,7 +5,9 @@ import { parentRepo } from '@/lib/repos/parent';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { memoryRepo } from '@/lib/repos/memory';
 import { getAiClient } from '@/lib/ai';
-import type { ConversationTurn, RetrievedMemory } from '@/lib/ai';
+import type { ConversationTurn, RetrievedMemory, SafetyScan } from '@/lib/ai';
+import { crisisResourceV1 } from '@/lib/ai/prompts';
+import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
 import { ValidationError } from '@/lib/types';
 
 const unauthorized = () =>
@@ -13,13 +15,16 @@ const unauthorized = () =>
 
 /**
  * Process a parent turn: assemble the companion context (profile + confirmed
- * non-restricted memories + rolling history), get the reply, then record BOTH
- * turns. Turns are written only after a successful reply, so a model failure
- * never leaves an orphaned parent turn (and a client retry can't duplicate it).
+ * non-restricted memories + rolling history), run the safety pre-scan and the
+ * companion reply, then record BOTH turns. Turns are written only after a
+ * successful reply, so a model failure never leaves an orphaned parent turn (and
+ * a client retry can't duplicate it).
  *
- * NOTE: the per-message safety scan (detect_safety_flags → safety_flags + alert
- * routing) lands in the safety-escalation slice; the hook is intentionally not
- * wired here to avoid a half-integrated safety path.
+ * Safety: the scan runs in parallel with the reply. A flagged turn (P0–P3)
+ * writes a minimized safety_flag for human review; P0/P1 additionally prepend
+ * deterministic crisis resources (988/911) to the reply so they always surface.
+ * If the scan itself errors, we fail SAFE — route it to human review as P2
+ * rather than silently clearing — without blocking the reply.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -45,24 +50,51 @@ export async function POST(req: NextRequest) {
       await memoryRepo.retrieveForCompanion(pool, parentId)
     ).map((m) => ({ layer: m.layer, key: m.mem_key, value: m.mem_value }));
 
-    const reply = await getAiClient().companionReply({
-      profile: {
-        firstName: parent.first_name,
-        pronouns: parent.pronouns,
-        city: parent.city,
-        speechRate: parent.speech_rate,
-      },
-      memories,
-      history,
-      message: content,
-      isSessionOpen: false,
-    });
+    const ai = getAiClient();
+    // Scan and reply run concurrently. A scan failure fails SAFE (route to human
+    // review as P2); a reply failure rejects → 502.
+    const [scan, reply] = await Promise.all([
+      ai
+        .safetyScan({ message: content })
+        .catch(
+          (): SafetyScan => ({ severity: 'p2', rationale: 'safety scan unavailable — manual review' }),
+        ),
+      ai.companionReply({
+        profile: {
+          firstName: parent.first_name,
+          pronouns: parent.pronouns,
+          city: parent.city,
+          speechRate: parent.speech_rate,
+        },
+        memories,
+        history,
+        message: content,
+        isSessionOpen: false,
+      }),
+    ]);
+
+    // A flagged turn is recorded for human review (minimized detail — rationale,
+    // never the raw message).
+    if (scan.severity !== 'none') {
+      await safetyFlagRepo.record(pool, {
+        parentId,
+        conversationId,
+        severity: scan.severity,
+        detail: scan.rationale,
+      });
+    }
+
+    // P0/P1 always surface crisis resources, regardless of what the model wrote.
+    const replyText =
+      scan.severity === 'p0' || scan.severity === 'p1'
+        ? `${crisisResourceV1(scan.severity)}\n\n${reply.text}`
+        : reply.text;
 
     // Persist the exchange only now that we have a reply.
     await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', content);
-    await conversationRepo.addTurn(pool, conversationId, parentId, 'kindly', reply.text);
+    await conversationRepo.addTurn(pool, conversationId, parentId, 'kindly', replyText);
 
-    return NextResponse.json({ conversation_id: conversationId, reply: reply.text });
+    return NextResponse.json({ conversation_id: conversationId, reply: replyText });
   } catch (err) {
     const { status, body } = errorToResponse(err);
     return NextResponse.json(body, { status });

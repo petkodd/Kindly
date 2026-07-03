@@ -81,6 +81,21 @@ export interface SummaryDelivery {
 export type ConversationChannel = 'voice' | 'text';
 export type TurnRole = 'parent' | 'kindly';
 
+export type FlagSeverity = 'p0_crisis' | 'p1_acute_medical' | 'p2_welfare' | 'p3_abuse';
+export type FlagStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
+
+export interface SafetyFlag {
+  id: string;
+  parent_id: string;
+  conversation_id: string | null;
+  severity: FlagSeverity;
+  status: FlagStatus;
+  detail: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
 export interface Conversation {
   id: string;
   parent_id: string;

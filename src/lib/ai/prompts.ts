@@ -41,6 +41,20 @@ export function companionGreetingV1(firstName: string): string {
   return `Hello ${firstName}, I'm Kindly — an AI companion, not a real person. I'm here to keep you company and chat whenever you'd like. How are you feeling today?`;
 }
 
+/**
+ * Crisis resources surfaced to the parent for P0/P1. Like the greeting
+ * disclosure, this is DETERMINISTIC copy prepended to the companion reply — the
+ * model can never fail to surface 988/911. Hard rule (prompt_architecture_v1):
+ * Kindly surfaces resources and flags humans; it never claims to have contacted
+ * emergency services. Versioned.
+ */
+export function crisisResourceV1(severity: 'p0' | 'p1'): string {
+  if (severity === 'p0') {
+    return "I'm really glad you told me, and I care about you. Please reach out to someone right now — you can call or text 988, the Suicide & Crisis Lifeline, any time. If you can, please call a family member or someone you trust to be with you.";
+  }
+  return "This sounds serious and I want you to be safe. If this is a medical emergency, please call 911 now, and reach out to a family member if you can.";
+}
+
 export const SAFETY_SCAN_SYSTEM_V1 = `You classify a single message from an older adult for safety escalation. Reply only with the classification.
 
 Severity levels:
