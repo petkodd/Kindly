@@ -49,6 +49,9 @@ export function signSession(
 /** Verify a token: valid signature + not expired. Returns claims or null. */
 export function verifySession(token: string | undefined | null): SessionClaims | null {
   if (!token) return null;
+  // A misconfigured deploy (no secret) degrades to "everyone is logged out"
+  // rather than throwing a 500 on every request that carries a stale cookie.
+  if (!process.env.SESSION_SECRET) return null;
   const dot = token.indexOf('.');
   if (dot <= 0) return null;
   const body = token.slice(0, dot);

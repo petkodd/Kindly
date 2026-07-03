@@ -141,3 +141,11 @@ export class ConflictError extends Error {
     this.name = 'ConflictError';
   }
 }
+
+/** Thrown when a caller exceeds a rate limit. API maps to 429. */
+export class RateLimitError extends Error {
+  constructor(message = 'Too many requests. Please try again later.') {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}

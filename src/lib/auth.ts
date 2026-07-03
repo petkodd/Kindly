@@ -72,6 +72,8 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       return { status: 403, body: { error: { code: 'forbidden', message: (err as Error).message } } };
     case 'ConflictError':
       return { status: 409, body: { error: { code: 'conflict', message: (err as Error).message } } };
+    case 'RateLimitError':
+      return { status: 429, body: { error: { code: 'rate_limited', message: (err as Error).message } } };
     case 'AiError':
       // Upstream model failure (refusal, empty, truncated, network) — not a bug
       // in our server. Surface as 502 so callers can distinguish + retry.

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { userRepo } from '../src/lib/repos/user';
+import { rateLimitRepo } from '../src/lib/repos/rateLimit';
 import { getBuyerId, getAdminId } from '../src/lib/auth';
 import { signSession, verifySession, SESSION_COOKIE } from '../src/lib/session';
 import { ConflictError, ValidationError } from '../src/lib/types';
@@ -44,6 +45,42 @@ describe('session tokens', () => {
   it('rejects junk', () => {
     expect(verifySession(undefined)).toBeNull();
     expect(verifySession('nonsense')).toBeNull();
+  });
+
+  it('resolves to null when SESSION_SECRET is unset (degrades to logged-out, no 500)', () => {
+    const token = signSession('user-1');
+    const saved = process.env.SESSION_SECRET;
+    delete process.env.SESSION_SECRET;
+    expect(verifySession(token)).toBeNull();
+    process.env.SESSION_SECRET = saved;
+  });
+});
+
+describe('login rate limiter', () => {
+  it('allows up to the limit, then blocks; reset clears the counter', async () => {
+    const key = 'login:ip:1.2.3.4';
+    const opts = { limit: 3, windowMs: 60_000 };
+    for (let i = 0; i < 3; i++) {
+      expect((await rateLimitRepo.hit(q, key, opts)).allowed).toBe(true);
+    }
+    expect((await rateLimitRepo.hit(q, key, opts)).allowed).toBe(false); // 4th over limit
+
+    await rateLimitRepo.reset(q, key);
+    expect((await rateLimitRepo.hit(q, key, opts)).allowed).toBe(true);
+  });
+
+  it('starts a fresh window once the old one elapses', async () => {
+    const key = 'login:ip:5.6.7.8';
+    const opts = { limit: 1, windowMs: 60_000 };
+    expect((await rateLimitRepo.hit(q, key, opts)).allowed).toBe(true); // count 1
+    expect((await rateLimitRepo.hit(q, key, opts)).allowed).toBe(false); // count 2 blocked
+
+    // Age the window past its length.
+    await q.query(`UPDATE auth_rate_limit SET window_start = $2 WHERE key = $1`, [
+      key,
+      new Date(Date.now() - 120_000),
+    ]);
+    expect((await rateLimitRepo.hit(q, key, opts)).allowed).toBe(true); // fresh window
   });
 });
 
