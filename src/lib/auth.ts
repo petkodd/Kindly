@@ -58,6 +58,15 @@ export async function resolveParentFromRequest(
   }
 }
 
+/**
+ * Alpha admin auth shim. Resolves the current admin's user id from an
+ * `x-kindly-admin` header. ⚠️ REPLACE with a verified session + `users.is_admin`
+ * check — this trusts a client-supplied id for local development only.
+ */
+export function getAdminId(req: NextRequest): string | null {
+  return req.headers.get('x-kindly-admin');
+}
+
 /** Map a thrown domain error to an HTTP status + safe message. */
 export function errorToResponse(err: unknown): { status: number; body: { error: { code: string; message: string } } } {
   const name = err instanceof Error ? err.name : 'Error';
