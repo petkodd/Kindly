@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { resolveParentFromRequest, readJsonBody, errorToResponse } from '@/lib/auth';
 import { conversationRepo } from '@/lib/repos/conversation';
+import { runSessionEndJobs } from '@/lib/jobs/sessionEnd';
 import { ValidationError } from '@/lib/types';
 
 const unauthorized = () =>
@@ -21,7 +22,22 @@ export async function POST(req: NextRequest) {
     const conversationId = body.conversation_id as string;
     if (!conversationId) throw new ValidationError('conversation_id is required');
     const conversation = await conversationRepo.end(pool, conversationId, parentId);
-    return NextResponse.json({ conversation_id: conversation.id, ended_at: conversation.ended_at });
+
+    // Best-effort session-end jobs (summarize + memory extraction). A model
+    // failure must not fail the end — the session is already closed. Awaited so
+    // the work actually runs (serverless kills the function after the response).
+    let summarized = false;
+    try {
+      ({ summarized } = await runSessionEndJobs(pool, conversationId));
+    } catch (jobErr) {
+      console.error('session-end jobs failed', jobErr);
+    }
+
+    return NextResponse.json({
+      conversation_id: conversation.id,
+      ended_at: conversation.ended_at,
+      summarized,
+    });
   } catch (err) {
     const { status, body } = errorToResponse(err);
     return NextResponse.json(body, { status });

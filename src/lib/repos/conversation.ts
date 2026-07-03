@@ -89,6 +89,19 @@ export const conversationRepo = {
     return rows;
   },
 
+  /** Write the per-conversation summary + coarse mood (from the summarize job). */
+  async recordSummary(
+    q: Querier,
+    conversationId: string,
+    summaryText: string,
+    moodSignal: string | null,
+  ): Promise<void> {
+    await q.query(
+      `UPDATE conversations SET summary_text = $2, mood_signal = $3 WHERE id = $1`,
+      [conversationId, summaryText, moodSignal],
+    );
+  },
+
   /** End a session (idempotent). Session-end jobs (summarize/extract) run separately. */
   async end(q: Querier, conversationId: string, parentId: string): Promise<Conversation> {
     const convo = await conversationRepo.getForParent(q, conversationId, parentId);
