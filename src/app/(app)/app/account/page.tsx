@@ -67,8 +67,9 @@ function NameSection({ account, onUpdated }: { account: Account; onUpdated: (a: 
   }
   return (
     <Card title="Display name">
+      <label htmlFor="acc-name" className="block text-base font-semibold text-ink">Your name</label>
       <input
-        value={name} onChange={(e) => setName(e.target.value)}
+        id="acc-name" value={name} onChange={(e) => setName(e.target.value)}
         className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
         placeholder="Your name"
       />
@@ -94,14 +95,16 @@ function PasswordSection() {
   }
   return (
     <Card title="Change password">
+      <label htmlFor="acc-current-pw" className="block text-base font-semibold text-ink">Current password</label>
       <input
-        type="password" autoComplete="current-password" value={current}
+        id="acc-current-pw" type="password" autoComplete="current-password" value={current}
         onChange={(e) => setCurrent(e.target.value)} placeholder="Current password"
         className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
       />
+      <label htmlFor="acc-new-pw" className="block text-base font-semibold text-ink">New password</label>
       <input
-        type="password" autoComplete="new-password" value={next}
-        onChange={(e) => setNext(e.target.value)} placeholder="New password (min 8)"
+        id="acc-new-pw" type="password" autoComplete="new-password" value={next}
+        onChange={(e) => setNext(e.target.value)} placeholder="At least 8 characters"
         className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
       />
       <button type="button" onClick={change} className="btn-primary">Change password</button>
