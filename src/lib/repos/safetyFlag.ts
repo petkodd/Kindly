@@ -19,6 +19,13 @@ const SCAN_TO_SEVERITY: Record<Exclude<SafetySeverity, 'none'>, FlagSeverity> = 
 const STATUSES: FlagStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
 
 /**
+ * Cap on `detail`. The schema requires a minimized rationale, not a transcript,
+ * but the rationale is model output — enforce the bound in code so a verbose or
+ * misbehaving model can't dump the parent's message (PII) into the flag.
+ */
+const MAX_DETAIL_LEN = 280;
+
+/**
  * Safety flags from detect_safety_flags. detail is MINIMIZED (the classifier's
  * short rationale — never the raw transcript, per the schema comment). Open +
  * reviewing flags form the admin queue.
@@ -33,11 +40,12 @@ export const safetyFlagRepo = {
       detail: string;
     },
   ): Promise<SafetyFlag> {
+    const detail = (input.detail ?? '').trim().slice(0, MAX_DETAIL_LEN);
     const { rows } = await q.query<SafetyFlag>(
       `INSERT INTO safety_flags (parent_id, conversation_id, severity, detail)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [input.parentId, input.conversationId ?? null, SCAN_TO_SEVERITY[input.severity], input.detail],
+      [input.parentId, input.conversationId ?? null, SCAN_TO_SEVERITY[input.severity], detail],
     );
     return rows[0];
   },

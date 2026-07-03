@@ -77,6 +77,16 @@ describe('safety flag repo', () => {
     expect((await safetyFlagRepo.queue(q)).some((f) => f.id === flag.id)).toBe(true);
   });
 
+  it('truncates an over-long detail to the cap (no transcript dumps)', async () => {
+    const parentId = await makeParentId();
+    const flag = await safetyFlagRepo.record(q, {
+      parentId,
+      severity: 'p2',
+      detail: 'x'.repeat(500),
+    });
+    expect(flag.detail).toHaveLength(280);
+  });
+
   it('rejects an invalid status and an unknown flag', async () => {
     const parentId = await makeParentId();
     const flag = await safetyFlagRepo.record(q, { parentId, severity: 'p2', detail: 'x' });
@@ -116,5 +126,17 @@ describe('message safety hook (mirrors the route)', () => {
   it('an ordinary message is not flagged', async () => {
     const scan = await fakeAiClient.safetyScan({ message: 'The garden looks lovely today' });
     expect(scan.severity).toBe('none');
+  });
+
+  it('records the flag from the scan before the reply — survives a reply failure', async () => {
+    const parentId = await makeParentId();
+    // The route now records the flag from the scan result BEFORE awaiting the
+    // companion reply, so a reply failure can't lose it.
+    const scan = await fakeAiClient.safetyScan({ message: 'I want to kill myself' });
+    if (scan.severity !== 'none') {
+      await safetyFlagRepo.record(q, { parentId, severity: scan.severity, detail: scan.rationale });
+    }
+    // (companion reply would throw here — irrelevant to the persisted flag)
+    expect(await safetyFlagRepo.queue(q)).toHaveLength(1);
   });
 });

@@ -51,30 +51,31 @@ export async function POST(req: NextRequest) {
     ).map((m) => ({ layer: m.layer, key: m.mem_key, value: m.mem_value }));
 
     const ai = getAiClient();
-    // Scan and reply run concurrently. A scan failure fails SAFE (route to human
-    // review as P2); a reply failure rejects → 502.
-    const [scan, reply] = await Promise.all([
-      ai
-        .safetyScan({ message: content })
-        .catch(
-          (): SafetyScan => ({ severity: 'p2', rationale: 'safety scan unavailable — manual review' }),
-        ),
-      ai.companionReply({
-        profile: {
-          firstName: parent.first_name,
-          pronouns: parent.pronouns,
-          city: parent.city,
-          speechRate: parent.speech_rate,
-        },
-        memories,
-        history,
-        message: content,
-        isSessionOpen: false,
-      }),
-    ]);
+    // Scan and reply run concurrently, but the flag is persisted from the scan
+    // BEFORE we await the reply — safety detection must not depend on the reply
+    // succeeding. A scan failure fails SAFE (route to human review as P2); a
+    // reply failure rejects → 502, with the flag already recorded.
+    const scanPromise = ai
+      .safetyScan({ message: content })
+      .catch(
+        (): SafetyScan => ({ severity: 'p2', rationale: 'safety scan unavailable — manual review' }),
+      );
+    const replyPromise = ai.companionReply({
+      profile: {
+        firstName: parent.first_name,
+        pronouns: parent.pronouns,
+        city: parent.city,
+        speechRate: parent.speech_rate,
+      },
+      memories,
+      history,
+      message: content,
+      isSessionOpen: false,
+    });
 
     // A flagged turn is recorded for human review (minimized detail — rationale,
-    // never the raw message).
+    // never the raw message). Recorded first so a reply failure can't lose it.
+    const scan = await scanPromise;
     if (scan.severity !== 'none') {
       await safetyFlagRepo.record(pool, {
         parentId,
@@ -83,6 +84,8 @@ export async function POST(req: NextRequest) {
         detail: scan.rationale,
       });
     }
+
+    const reply = await replyPromise;
 
     // P0/P1 always surface crisis resources, regardless of what the model wrote.
     const replyText =
