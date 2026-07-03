@@ -18,10 +18,9 @@ export async function POST(req: NextRequest) {
     const body = await readJsonBody(req);
     const code = body.code as string;
     if (!code) throw new ValidationError('code is required');
-    await referralRepo.redeem(pool, code, {
-      redeemerId: buyerId,
-      householdHash: (body.household_hash as string) ?? null,
-    });
+    const householdHash = body.household_hash as string;
+    if (!householdHash) throw new ValidationError('household_hash is required');
+    await referralRepo.redeem(pool, code, { redeemerId: buyerId, householdHash });
     return NextResponse.json({ ok: true });
   } catch (err) {
     const { status, body } = errorToResponse(err);

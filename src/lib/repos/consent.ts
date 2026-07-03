@@ -6,6 +6,8 @@ function hashToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
 
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 /**
  * Consent is the spine of Kindly's privacy model. Two gates matter most:
  *  - buyer_attestation must exist before a parent profile can be activated.
@@ -96,7 +98,7 @@ export const consentRepo = {
     input: { parentId: string; grantedBy?: string | null; recipientEmail: string },
   ): Promise<{ consent: Consent; inviteToken: string }> {
     const email = (input.recipientEmail ?? '').trim();
-    if (!email) throw new ValidationError('recipient email is required');
+    if (!EMAIL_RE.test(email)) throw new ValidationError('a valid recipient email is required');
     const inviteToken = randomBytes(24).toString('base64url');
     const { rows } = await q.query<Consent>(
       `INSERT INTO consents (parent_id, kind, granted_by, detail)

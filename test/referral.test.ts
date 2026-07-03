@@ -58,6 +58,13 @@ describe('sibling invite (pending → accepted)', () => {
     await expect(consentRepo.acceptRecipientInvite(q, 'bogus')).rejects.toBeInstanceOf(NotFoundError);
   });
 
+  it('rejects a malformed recipient email up front', async () => {
+    const parentId = await makeParent();
+    await expect(
+      consentRepo.recordRecipientInvite(q, { parentId, recipientEmail: 'not-an-email' }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
   it('a directly-seeded recipient (no status) still counts as accepted', async () => {
     const parentId = await makeParent();
     await consentRepo.record(q, { parentId, kind: 'summary_recipient' });
@@ -72,21 +79,35 @@ describe('referral codes', () => {
     const referral = await referralRepo.generate(q, referrer);
     expect(referral.code).toHaveLength(8);
 
-    const redeemed = await referralRepo.redeem(q, referral.code, { redeemerId: redeemer });
+    const redeemed = await referralRepo.redeem(q, referral.code, {
+      redeemerId: redeemer,
+      householdHash: 'hh-1',
+    });
     expect(redeemed.redeemed_by).toBe(redeemer);
     expect(redeemed.redeemed_at).not.toBeNull();
 
     // Second redemption of the same code fails.
     await expect(
-      referralRepo.redeem(q, referral.code, { redeemerId: await makeUser('other@example.com') }),
+      referralRepo.redeem(q, referral.code, {
+        redeemerId: await makeUser('other@example.com'),
+        householdHash: 'hh-2',
+      }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('requires a household hash (the guard cannot be disabled by omission)', async () => {
+    const referral = await referralRepo.generate(q, await makeUser('ref@example.com'));
+    await expect(
+      // @ts-expect-error omitting householdHash at runtime
+      referralRepo.redeem(q, referral.code, { redeemerId: await makeUser('x@example.com') }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('rejects redeeming your own code', async () => {
     const referrer = await makeUser('ref@example.com');
     const referral = await referralRepo.generate(q, referrer);
     await expect(
-      referralRepo.redeem(q, referral.code, { redeemerId: referrer }),
+      referralRepo.redeem(q, referral.code, { redeemerId: referrer, householdHash: 'hh' }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 

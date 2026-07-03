@@ -51,12 +51,18 @@ export const referralRepo = {
   /**
    * Redeem a code. Guards: code must exist and be unredeemed; a buyer can't
    * redeem their own code; at most one redemption per household.
+   *
+   * `householdHash` is REQUIRED — without it the one-per-household guard could be
+   * disabled by simply omitting it. For real fraud resistance it must be derived
+   * SERVER-SIDE from something the redeemer doesn't control (verified address /
+   * payment fingerprint); a client-supplied value can still be spoofed per call.
    */
   async redeem(
     q: Querier,
     code: string,
-    input: { redeemerId: string; householdHash?: string | null },
+    input: { redeemerId: string; householdHash: string },
   ): Promise<Referral> {
+    if (!input.householdHash) throw new ValidationError('householdHash is required');
     const { rows } = await q.query<Referral>(
       `SELECT * FROM referrals WHERE code = $1`,
       [(code ?? '').trim().toUpperCase()],
@@ -68,15 +74,13 @@ export const referralRepo = {
     if (referral.referrer_id === input.redeemerId) {
       throw new ValidationError('You cannot redeem your own referral code.');
     }
-    if (input.householdHash) {
-      const { rows: prior } = await q.query<{ n: number }>(
-        `SELECT COUNT(*)::int AS n FROM referrals
-         WHERE household_hash = $1 AND redeemed_at IS NOT NULL`,
-        [input.householdHash],
-      );
-      if ((prior[0]?.n ?? 0) > 0) {
-        throw new PreconditionError('A referral has already been redeemed for this household.');
-      }
+    const { rows: prior } = await q.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM referrals
+       WHERE household_hash = $1 AND redeemed_at IS NOT NULL`,
+      [input.householdHash],
+    );
+    if ((prior[0]?.n ?? 0) > 0) {
+      throw new PreconditionError('A referral has already been redeemed for this household.');
     }
     // The `redeemed_at IS NULL` guard makes concurrent double-redeem safe.
     const { rows: updated } = await q.query<Referral>(
@@ -84,7 +88,7 @@ export const referralRepo = {
           SET redeemed_by = $2, redeemed_at = now(), household_hash = $3
         WHERE id = $1 AND redeemed_at IS NULL
         RETURNING *`,
-      [referral.id, input.redeemerId, input.householdHash ?? null],
+      [referral.id, input.redeemerId, input.householdHash],
     );
     if (updated.length === 0) throw new NotFoundError('Referral code not found or already redeemed');
     return updated[0];
