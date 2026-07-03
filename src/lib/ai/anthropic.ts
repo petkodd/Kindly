@@ -87,6 +87,23 @@ function renderContext(input: CompanionReplyInput): string {
   return lines.join('\n');
 }
 
+/**
+ * Assemble the Messages API `messages` array for a companion turn. The Messages
+ * API requires the first message to be from the user, but the session-open
+ * greeting is stored as a `kindly` turn — so on the first parent message the
+ * history starts with an assistant turn. Drop any leading assistant turns (they
+ * carry no user context to alternate against) so the request never 400s.
+ * Exported for unit testing without the SDK/network.
+ */
+export function buildCompanionMessages(input: CompanionReplyInput): MessageParam[] {
+  const history: MessageParam[] = input.history.map((t) => ({
+    role: t.role === 'parent' ? 'user' : 'assistant',
+    content: t.content,
+  }));
+  while (history.length > 0 && history[0].role === 'assistant') history.shift();
+  return [...history, { role: 'user', content: input.message }];
+}
+
 export function createAnthropicAiClient(apiKey: string): AiClient {
   const client = new Anthropic({ apiKey });
 
@@ -109,15 +126,11 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
 
   return {
     async companionReply(input: CompanionReplyInput): Promise<CompanionReply> {
-      const history: MessageParam[] = input.history.map((t) => ({
-        role: t.role === 'parent' ? 'user' : 'assistant',
-        content: t.content,
-      }));
       const message = await client.messages.create({
         model: MODEL,
         max_tokens: 1024,
         system: `${COMPANION_SYSTEM_V1}\n\n${renderContext(input)}`,
-        messages: [...history, { role: 'user', content: input.message }],
+        messages: buildCompanionMessages(input),
       });
       return { text: requireText(message, 'companionReply') };
     },

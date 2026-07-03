@@ -32,6 +32,15 @@ export const BANNED_OUTPUT_PATTERNS_V1 = {
   credentialRequest: /\b(password|social security|ssn|bank details|pin number)\b/i,
 } as const;
 
+/**
+ * Session-open greeting. The AI-identity disclosure at session start is a
+ * compliance requirement, so it is a deterministic template (not a model call)
+ * — the model can never omit it. Versioned like the prompts.
+ */
+export function companionGreetingV1(firstName: string): string {
+  return `Hello ${firstName}, I'm Kindly — an AI companion, not a real person. I'm here to keep you company and chat whenever you'd like. How are you feeling today?`;
+}
+
 export const SAFETY_SCAN_SYSTEM_V1 = `You classify a single message from an older adult for safety escalation. Reply only with the classification.
 
 Severity levels:

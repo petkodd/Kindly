@@ -3,7 +3,7 @@ import type { Message } from '@anthropic-ai/sdk/resources/messages';
 import { fakeAiClient } from '../src/lib/ai/fake';
 import { getAiClient, resetAiClient } from '../src/lib/ai';
 import { AiError } from '../src/lib/ai/types';
-import { parseJson, requireText } from '../src/lib/ai/anthropic';
+import { parseJson, requireText, buildCompanionMessages } from '../src/lib/ai/anthropic';
 
 // Minimal Message stand-in for testing the response guards.
 function msg(text: string, stopReason: Message['stop_reason'] = 'end_turn'): Message {
@@ -127,6 +127,33 @@ describe('anthropic client response guards', () => {
   it('parseJson returns the value on well-formed output', () => {
     const out = parseJson<{ severity: string }>(msg('{"severity":"none"}'), 'safetyScan');
     expect(out.severity).toBe('none');
+  });
+});
+
+describe('buildCompanionMessages (real-client assembly)', () => {
+  it('starts the messages array with the user, dropping a leading greeting turn', () => {
+    // First parent message of a session: history is just the stored kindly greeting.
+    const messages = buildCompanionMessages({
+      profile: { firstName: 'Robert' },
+      memories: [],
+      history: [{ role: 'kindly', content: 'Hello, I am Kindly (an AI).' }],
+      message: 'Hi there',
+    });
+    expect(messages[0].role).toBe('user'); // never assistant-led → no Anthropic 400
+    expect(messages[messages.length - 1]).toEqual({ role: 'user', content: 'Hi there' });
+  });
+
+  it('preserves an alternating history that already starts with the parent', () => {
+    const messages = buildCompanionMessages({
+      profile: { firstName: 'Robert' },
+      memories: [],
+      history: [
+        { role: 'parent', content: 'first' },
+        { role: 'kindly', content: 'reply' },
+      ],
+      message: 'second',
+    });
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
   });
 });
 
