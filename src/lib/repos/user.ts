@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Querier } from '../querier';
-import { ConflictError, ValidationError } from '../types';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../types';
 
 /**
  * Buyer accounts. Passwords are stored as scrypt(salt, password) — never
@@ -11,6 +11,15 @@ export interface AuthUser {
   id: string;
   email: string;
   is_admin: boolean;
+}
+
+/** Account view returned to the owner — never includes the password hash. */
+export interface Account {
+  id: string;
+  email: string;
+  full_name: string | null;
+  is_admin: boolean;
+  created_at: string;
 }
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -77,5 +86,64 @@ export const userRepo = {
     if (!verifyPasswordHash(password, user.password_hash)) return null;
     await q.query(`UPDATE users SET last_login_at = now() WHERE id = $1`, [user.id]);
     return { id: user.id, email: user.email, is_admin: user.is_admin };
+  },
+
+  /** The owner's own account (password hash never selected). */
+  async getAccount(q: Querier, userId: string): Promise<Account> {
+    const { rows } = await q.query<Account>(
+      `SELECT id, email, full_name, is_admin, created_at FROM users
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    if (rows.length === 0) throw new NotFoundError('Account not found');
+    return rows[0];
+  },
+
+  /** Update the owner's display name. */
+  async updateProfile(q: Querier, userId: string, patch: { fullName?: string | null }): Promise<Account> {
+    await userRepo.getAccount(q, userId); // ensures the account exists / not deleted
+    const fullName = patch.fullName === undefined ? undefined : (patch.fullName ?? '').trim();
+    if (fullName !== undefined && fullName.length > 120) {
+      throw new ValidationError('name is too long');
+    }
+    const { rows } = await q.query<Account>(
+      `UPDATE users SET full_name = COALESCE($2, full_name)
+       WHERE id = $1
+       RETURNING id, email, full_name, is_admin, created_at`,
+      [userId, fullName ?? null],
+    );
+    return rows[0];
+  },
+
+  /**
+   * Change the owner's password. Requires the current password (defends against
+   * a hijacked session silently taking over the account). Magic-only accounts
+   * (no password) can't use this path.
+   */
+  async changePassword(
+    q: Querier,
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const { rows } = await q.query<{ password_hash: string | null }>(
+      `SELECT password_hash FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    if (rows.length === 0) throw new NotFoundError('Account not found');
+    const hash = rows[0].password_hash;
+    if (!hash) throw new ForbiddenError('This account has no password set.');
+    if (!verifyPasswordHash(currentPassword ?? '', hash)) {
+      throw new ForbiddenError('Current password is incorrect.');
+    }
+    if ((newPassword ?? '').length < MIN_PASSWORD) {
+      throw new ValidationError(`password must be at least ${MIN_PASSWORD} characters`);
+    }
+    await q.query(`UPDATE users SET password_hash = $2 WHERE id = $1`, [userId, hashPassword(newPassword)]);
+  },
+
+  /** Soft-delete the owner's account (a purge job honors it within retention). */
+  async softDelete(q: Querier, userId: string): Promise<void> {
+    await q.query(`UPDATE users SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [userId]);
   },
 };
