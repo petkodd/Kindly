@@ -61,6 +61,32 @@ Rules:
 - confidence is 0..1 — how sure you are this is a real, durable fact.
 - Do NOT invent facts. If nothing durable was shared, return an empty list.`;
 
+/**
+ * High-signal restricted terms that must never appear in a family-facing
+ * summary. This is a CODE-LEVEL BACKSTOP, not the primary control — the summary
+ * prompt already instructs against clinical/mood detail. It catches egregious
+ * prompt violations (diagnoses, self-harm, medication) before `summary_text` can
+ * be surfaced to family, matching the code-level exclusion of restricted memories.
+ * Deliberately narrow to avoid over-redacting ordinary conversation.
+ */
+export const RESTRICTED_SUMMARY_PATTERN =
+  /\b(depress\w*|dementia|alzheimer\w*|suicid\w*|self-harm|anxiety|diagnos\w*|medication|prescription|overdose)\b/i;
+
+/**
+ * Redact a summary that leaks restricted content down to a neutral line. Returns
+ * `redacted: true` so the caller can log it (a redaction means the model ignored
+ * the prompt, which the red-team suite should catch).
+ */
+export function sanitizeFamilySummary(
+  summaryText: string,
+  firstName: string,
+): { text: string; redacted: boolean } {
+  if (RESTRICTED_SUMMARY_PATTERN.test(summaryText)) {
+    return { text: `${firstName} had a warm conversation with Kindly.`, redacted: true };
+  }
+  return { text: summaryText, redacted: false };
+}
+
 export const CONVERSATION_SUMMARY_SYSTEM_V1 = `You write a short, warm summary of a conversation between an older adult and their AI companion, for their family to read.
 
 Rules:

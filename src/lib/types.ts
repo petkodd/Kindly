@@ -90,6 +90,7 @@ export interface Conversation {
   voice_minutes: string;
   summary_text: string | null;
   mood_signal: string | null;
+  memories_extracted_at: string | null;
 }
 
 export interface ConversationTurnRecord {
