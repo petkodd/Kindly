@@ -128,4 +128,100 @@ describe('referral codes', () => {
       }),
     ).rejects.toBeInstanceOf(PreconditionError);
   });
+
+  it('getForBuyer returns null before generating, then the buyer’s code', async () => {
+    const buyer = await makeUser('code-owner@example.com');
+    expect(await referralRepo.getForBuyer(q, buyer)).toBeNull();
+    const created = await referralRepo.generate(q, buyer);
+    expect((await referralRepo.getForBuyer(q, buyer))?.code).toBe(created.code);
+  });
+});
+
+describe('consent revoke (buyer-scoped)', () => {
+  it('revokes a recipient the buyer owns, stopping delivery', async () => {
+    const buyer = await makeUser('owner@example.com');
+    const parent = await parentRepo.create(q, {
+      buyerId: buyer,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    const { inviteToken } = await consentRepo.recordRecipientInvite(q, {
+      parentId: parent.id,
+      grantedBy: buyer,
+      recipientEmail: 'mike@example.com',
+    });
+    await consentRepo.acceptRecipientInvite(q, inviteToken);
+    const [recipient] = await consentRepo.list(q, parent.id, 'summary_recipient');
+
+    await consentRepo.revokeForBuyer(q, recipient.id, buyer);
+
+    expect(await consentRepo.list(q, parent.id, 'summary_recipient')).toHaveLength(0);
+    expect(await consentRepo.listAcceptedRecipients(q, parent.id)).toHaveLength(0);
+  });
+
+  it('ISOLATION: a stranger cannot revoke your recipient (NotFound, stays active)', async () => {
+    const owner = await makeUser('owner2@example.com');
+    const stranger = await makeUser('stranger@example.com');
+    const parent = await parentRepo.create(q, {
+      buyerId: owner,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    const { consent } = await consentRepo.recordRecipientInvite(q, {
+      parentId: parent.id,
+      grantedBy: owner,
+      recipientEmail: 'mike@example.com',
+    });
+
+    await expect(consentRepo.revokeForBuyer(q, consent.id, stranger)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    // The owner's recipient is untouched.
+    expect(await consentRepo.list(q, parent.id, 'summary_recipient')).toHaveLength(1);
+  });
+
+  it('revoking an unknown consent id is NotFound', async () => {
+    const buyer = await makeUser('owner3@example.com');
+    await expect(
+      consentRepo.revokeForBuyer(q, '00000000-0000-0000-0000-000000000000', buyer),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('refuses to revoke a non-recipient consent (e.g. buyer_attestation)', async () => {
+    const buyer = await makeUser('owner4@example.com');
+    const parent = await parentRepo.create(q, {
+      buyerId: buyer,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    const attestation = await consentRepo.record(q, {
+      parentId: parent.id,
+      kind: 'buyer_attestation',
+      grantedBy: buyer,
+    });
+    // This route/method is recipient-only; the attestation gate must survive.
+    await expect(consentRepo.revokeForBuyer(q, attestation.id, buyer)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    expect(await consentRepo.has(q, parent.id, 'buyer_attestation')).toBe(true);
+  });
+});
+
+describe('listRecipients (safe view)', () => {
+  it('returns { id, email, status } only — never the invite token hash', async () => {
+    const parentId = await makeParent();
+    const { inviteToken } = await consentRepo.recordRecipientInvite(q, {
+      parentId,
+      recipientEmail: 'mike@example.com',
+    });
+
+    let view = await consentRepo.listRecipients(q, parentId);
+    expect(view).toEqual([{ id: expect.any(String), email: 'mike@example.com', status: 'pending' }]);
+    // The token hash must not surface in the safe view.
+    expect(JSON.stringify(view)).not.toContain('invite_token_hash');
+
+    await consentRepo.acceptRecipientInvite(q, inviteToken);
+    view = await consentRepo.listRecipients(q, parentId);
+    expect(view[0].status).toBe('accepted');
+  });
 });

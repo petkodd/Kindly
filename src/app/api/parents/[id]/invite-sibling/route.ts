@@ -3,8 +3,15 @@ import { db } from '@/lib/db';
 import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { consentRepo } from '@/lib/repos/consent';
+import { rateLimitRepo } from '@/lib/repos/rateLimit';
+import { RateLimitError } from '@/lib/types';
 
 type Ctx = { params: { id: string } };
+
+// Invites (mock-)email an arbitrary recipient address, so cap per buyer to keep
+// this from becoming an email-spam vector.
+const INVITE_LIMIT = 20;
+const INVITE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Invite a sibling as a summary recipient. Creates a PENDING summary_recipient
@@ -16,6 +23,11 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
     const pool = db();
+    const rl = await rateLimitRepo.hit(pool, `invite:buyer:${buyerId}`, {
+      limit: INVITE_LIMIT,
+      windowMs: INVITE_WINDOW_MS,
+    });
+    if (!rl.allowed) throw new RateLimitError('Too many invitations. Please try again later.');
     await parentRepo.getOwned(pool, params.id, buyerId); // isolation
     const body = await readJsonBody(req);
     const { consent } = await consentRepo.recordRecipientInvite(pool, {

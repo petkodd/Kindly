@@ -3,6 +3,19 @@ import { db } from '@/lib/db';
 import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { referralRepo } from '@/lib/repos/referral';
 
+/** Return the signed-in buyer's referral code (or null if none yet). */
+export async function GET(req: NextRequest) {
+  const buyerId = await resolveBuyer(req);
+  if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
+  try {
+    const referral = await referralRepo.getForBuyer(db(), buyerId);
+    return NextResponse.json({ code: referral?.code ?? null });
+  } catch (err) {
+    const { status, body } = errorToResponse(err);
+    return NextResponse.json(body, { status });
+  }
+}
+
 /** Generate a unique referral code for the signed-in buyer. */
 export async function POST(req: NextRequest) {
   const buyerId = await resolveBuyer(req);
