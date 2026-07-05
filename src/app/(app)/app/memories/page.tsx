@@ -91,6 +91,9 @@ function MemoriesPanel({ parentId }: { parentId: string }) {
   const [memories, setMemories] = useState<Memory[] | null>(null);
   const [error, setError] = useState('');
 
+  // Mutations refetch (rather than apply locally like family-summary does) on
+  // purpose: confirm/dismiss move a row between the proposed and confirmed
+  // sections, so a full reload is simpler and less error-prone than re-grouping.
   const load = useCallback(async () => {
     setError('');
     try {
@@ -163,17 +166,22 @@ function MemoryRow({
   kind: 'proposed' | 'confirmed';
 }) {
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState('');
 
   async function act(run: () => Promise<unknown>, confirmMsg?: string) {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
-    setFailed(false);
+    setError('');
     setBusy(true);
     try {
       await run();
+      // On success the row leaves this list (confirm → confirmed section,
+      // dismiss → retired, remove → gone), so onChanged() refetches and this
+      // row unmounts — that's why busy is intentionally not reset here.
       onChanged();
-    } catch {
-      setFailed(true);
+    } catch (err) {
+      // Surface the server's reason (e.g. a 409 "not in a proposed state" from a
+      // concurrent tab) rather than a generic, misleading "try again".
+      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
       setBusy(false);
     }
   }
@@ -235,7 +243,7 @@ function MemoryRow({
           )}
         </div>
       </div>
-      {failed && <p className="mt-2 text-xs text-clay">Something went wrong. Please try again.</p>}
+      {error && <p className="mt-2 text-xs text-clay">{error}</p>}
     </li>
   );
 }
