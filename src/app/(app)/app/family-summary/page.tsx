@@ -164,10 +164,10 @@ function SummaryPanel({ parentId }: { parentId: string }) {
       <PreviewCard
         parentId={parentId}
         summary={preview}
-        onSent={(updated) => {
-          setPreview(updated);
-          void load();
-        }}
+        // send() already returns the updated summary; applying it locally avoids
+        // two redundant GETs (the refetched current-week row is filtered from
+        // `past` anyway, and its sent status is already reflected here).
+        onSent={setPreview}
       />
       <PastSummaries summaries={past} />
     </div>

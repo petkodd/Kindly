@@ -27,6 +27,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
+| GET | `/api/parents` | buyer | List own parents (newest first) | 200; buyer-scoped, excludes soft-deleted |
 | POST | `/api/parents` | buyer | Create parent profile (onboarding) | 201; not activated until consent gate |
 | GET | `/api/parents/:id` | buyer | Read own parent | 200; 403 if not owner (isolation test) |
 | PATCH | `/api/parents/:id` | buyer | Update profile/accessibility | 200 |
