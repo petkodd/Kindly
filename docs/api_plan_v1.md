@@ -69,7 +69,9 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
+| GET | `/api/parents/:id/recipients` | buyer | List summary recipients (pending + accepted) | 200; safe view — no invite token hash |
 | POST | `/api/parents/:id/invite-sibling` | buyer | Invite sibling as summary recipient `{email}` | 201; creates pending consent + email |
+| GET | `/api/referrals` | buyer | Read own referral code (or null) | 200 |
 | POST | `/api/referrals` | buyer | Generate referral code | 201; unique code; emits `referral_created` |
 | POST | `/api/referrals/redeem` | public | Redeem code at signup | 200; fraud guard one/household |
 

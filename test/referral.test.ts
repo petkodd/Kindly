@@ -128,4 +128,62 @@ describe('referral codes', () => {
       }),
     ).rejects.toBeInstanceOf(PreconditionError);
   });
+
+  it('getForBuyer returns null before generating, then the buyer’s code', async () => {
+    const buyer = await makeUser('code-owner@example.com');
+    expect(await referralRepo.getForBuyer(q, buyer)).toBeNull();
+    const created = await referralRepo.generate(q, buyer);
+    expect((await referralRepo.getForBuyer(q, buyer))?.code).toBe(created.code);
+  });
+});
+
+describe('consent revoke (buyer-scoped)', () => {
+  it('revokes a recipient the buyer owns, stopping delivery', async () => {
+    const buyer = await makeUser('owner@example.com');
+    const parent = await parentRepo.create(q, {
+      buyerId: buyer,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    const { inviteToken } = await consentRepo.recordRecipientInvite(q, {
+      parentId: parent.id,
+      grantedBy: buyer,
+      recipientEmail: 'mike@example.com',
+    });
+    await consentRepo.acceptRecipientInvite(q, inviteToken);
+    const [recipient] = await consentRepo.list(q, parent.id, 'summary_recipient');
+
+    await consentRepo.revokeForBuyer(q, recipient.id, buyer);
+
+    expect(await consentRepo.list(q, parent.id, 'summary_recipient')).toHaveLength(0);
+    expect(await consentRepo.listAcceptedRecipients(q, parent.id)).toHaveLength(0);
+  });
+
+  it('ISOLATION: a stranger cannot revoke your recipient (NotFound, stays active)', async () => {
+    const owner = await makeUser('owner2@example.com');
+    const stranger = await makeUser('stranger@example.com');
+    const parent = await parentRepo.create(q, {
+      buyerId: owner,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    const { consent } = await consentRepo.recordRecipientInvite(q, {
+      parentId: parent.id,
+      grantedBy: owner,
+      recipientEmail: 'mike@example.com',
+    });
+
+    await expect(consentRepo.revokeForBuyer(q, consent.id, stranger)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    // The owner's recipient is untouched.
+    expect(await consentRepo.list(q, parent.id, 'summary_recipient')).toHaveLength(1);
+  });
+
+  it('revoking an unknown consent id is NotFound', async () => {
+    const buyer = await makeUser('owner3@example.com');
+    await expect(
+      consentRepo.revokeForBuyer(q, '00000000-0000-0000-0000-000000000000', buyer),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
 });

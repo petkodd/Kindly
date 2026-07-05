@@ -30,6 +30,16 @@ function newCode(): string {
 }
 
 export const referralRepo = {
+  /** The referrer's most recent code, or null if they've never generated one. */
+  async getForBuyer(q: Querier, referrerId: string): Promise<Referral | null> {
+    if (!referrerId) throw new ValidationError('referrerId is required');
+    const { rows } = await q.query<Referral>(
+      `SELECT * FROM referrals WHERE referrer_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [referrerId],
+    );
+    return rows[0] ?? null;
+  },
+
   /** Generate a unique referral code for a referrer (retries on the rare collision). */
   async generate(q: Querier, referrerId: string): Promise<Referral> {
     if (!referrerId) throw new ValidationError('referrerId is required');

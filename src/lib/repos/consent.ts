@@ -89,6 +89,25 @@ export const consentRepo = {
   },
 
   /**
+   * Revoke a consent, enforcing tenant isolation in the same statement: the
+   * consent must belong to a parent owned by `buyerId`. A consent that doesn't
+   * exist, is already revoked, or belongs to another buyer throws NotFound —
+   * never distinguishing 403 from 404 (same rule as parentRepo.getOwned).
+   */
+  async revokeForBuyer(q: Querier, consentId: string, buyerId: string): Promise<void> {
+    const { rows } = await q.query<{ id: string }>(
+      `UPDATE consents SET revoked_at = now()
+        WHERE id = $1 AND revoked_at IS NULL
+          AND parent_id IN (
+            SELECT id FROM parents WHERE buyer_id = $2 AND deleted_at IS NULL
+          )
+        RETURNING id`,
+      [consentId, buyerId],
+    );
+    if (rows.length === 0) throw new NotFoundError('Consent not found');
+  },
+
+  /**
    * Invite a sibling as a summary recipient. Creates a summary_recipient consent
    * in a PENDING state — the recipient must accept before any summary is
    * delivered — and returns a raw invite token ONCE (only its hash is stored).
