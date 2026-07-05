@@ -3,6 +3,21 @@ import { db } from '@/lib/db';
 import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 
+// GET /api/parents — list the signed-in buyer's parents (newest first).
+export async function GET(req: NextRequest) {
+  const buyerId = await resolveBuyer(req);
+  if (!buyerId) {
+    return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
+  }
+  try {
+    const parents = await parentRepo.listForBuyer(db(), buyerId);
+    return NextResponse.json({ parents });
+  } catch (err) {
+    const { status, body } = errorToResponse(err);
+    return NextResponse.json(body, { status });
+  }
+}
+
 // POST /api/parents — create a parent profile (onboarding). Not yet activated.
 export async function POST(req: NextRequest) {
   const buyerId = await resolveBuyer(req);

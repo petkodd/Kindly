@@ -61,6 +61,39 @@ describe('parent profile + isolation', () => {
       NotFoundError,
     );
   });
+
+  it('listForBuyer returns the buyer’s non-deleted parents and isolates tenants', async () => {
+    const sarah = await makeBuyer('sarah@example.com');
+    const mallory = await makeBuyer('mallory@example.com');
+    const robert = await parentRepo.create(q, {
+      buyerId: sarah,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    await parentRepo.create(q, {
+      buyerId: sarah,
+      firstName: 'Nadia',
+      relationship: 'mother',
+    });
+    // Another tenant's parent must never appear in sarah's list.
+    await parentRepo.create(q, {
+      buyerId: mallory,
+      firstName: 'Eve',
+      relationship: 'other',
+    });
+
+    expect((await parentRepo.listForBuyer(q, sarah)).map((p) => p.first_name).sort()).toEqual([
+      'Nadia',
+      'Robert',
+    ]);
+
+    // A soft-deleted parent drops out of the list.
+    await parentRepo.softDelete(q, robert.id, sarah);
+    expect((await parentRepo.listForBuyer(q, sarah)).map((p) => p.first_name)).toEqual(['Nadia']);
+
+    // Isolation: mallory sees only her own parent.
+    expect((await parentRepo.listForBuyer(q, mallory)).map((p) => p.first_name)).toEqual(['Eve']);
+  });
 });
 
 describe('consent-gated activation', () => {
