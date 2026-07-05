@@ -37,8 +37,8 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 | POST | `/api/parents/:id/access-link/revoke` | buyer | Revoke token | 200 |
 | GET | `/api/parents/:id/memories` | buyer | List memories | 200; supports `?layer=&status=` |
 | POST | `/api/parents/:id/memories` | buyer | Add memory (onboarding seed) | 201; `source=onboarding`, `status=confirmed` |
-| PATCH | `/api/memories/:mid` | buyer | Confirm/edit/retire a proposed memory | 200; status transition validated |
-| DELETE | `/api/memories/:mid` | buyer | Hard-delete memory | 200; removed from active store |
+| PATCH | `/api/memories/:mid` | buyer | Confirm/retire a proposed memory `{action}` | 200/204; buyer-scoped (404 if not owned) |
+| DELETE | `/api/memories/:mid` | buyer | Hard-delete memory | 204; buyer-scoped (404 if not owned) |
 
 ## Consent
 

@@ -6,6 +6,7 @@ import {
   type Sensitivity,
   ValidationError,
   PreconditionError,
+  NotFoundError,
 } from '../types';
 
 const LAYERS: MemoryLayer[] = ['profile', 'core', 'interest', 'episodic', 'sensitive'];
@@ -114,8 +115,25 @@ export const memoryRepo = {
     return rows;
   },
 
-  /** Confirm a proposed memory (parent or buyer approval). */
-  async confirm(q: Querier, memoryId: string): Promise<Memory> {
+  /**
+   * Fetch a memory scoped to the owning buyer. ISOLATION RULE (same as
+   * parentRepo.getOwned): a memory under another buyer's parent — or under a
+   * deleted parent — is NotFound, never distinguishing 403 from 404.
+   */
+  async getOwned(q: Querier, memoryId: string, buyerId: string): Promise<Memory> {
+    const { rows } = await q.query<Memory>(
+      `SELECT * FROM memories
+       WHERE id = $1
+         AND parent_id IN (SELECT id FROM parents WHERE buyer_id = $2 AND deleted_at IS NULL)`,
+      [memoryId, buyerId],
+    );
+    if (rows.length === 0) throw new NotFoundError('Memory not found');
+    return rows[0];
+  },
+
+  /** Confirm a proposed memory (buyer approval). Buyer-scoped for isolation. */
+  async confirm(q: Querier, memoryId: string, buyerId: string): Promise<Memory> {
+    await memoryRepo.getOwned(q, memoryId, buyerId); // isolation (NotFound if not owned)
     const { rows } = await q.query<Memory>(
       `UPDATE memories SET status = 'confirmed'
        WHERE id = $1 AND status = 'proposed'
@@ -123,17 +141,19 @@ export const memoryRepo = {
       [memoryId],
     );
     if (rows.length === 0) {
-      throw new PreconditionError('Memory not found or not in a proposed state.');
+      throw new PreconditionError('Memory is not in a proposed state.');
     }
     return rows[0];
   },
 
-  async retire(q: Querier, memoryId: string): Promise<void> {
+  async retire(q: Querier, memoryId: string, buyerId: string): Promise<void> {
+    await memoryRepo.getOwned(q, memoryId, buyerId); // isolation
     await q.query(`UPDATE memories SET status = 'retired' WHERE id = $1`, [memoryId]);
   },
 
-  /** Hard-delete a memory (honors the user's delete request). */
-  async hardDelete(q: Querier, memoryId: string): Promise<void> {
+  /** Hard-delete a memory (honors the user's delete request). Buyer-scoped. */
+  async hardDelete(q: Querier, memoryId: string, buyerId: string): Promise<void> {
+    await memoryRepo.getOwned(q, memoryId, buyerId); // isolation
     await q.query(`DELETE FROM memories WHERE id = $1`, [memoryId]);
   },
 };
