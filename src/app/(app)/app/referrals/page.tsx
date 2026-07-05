@@ -147,25 +147,32 @@ function RecipientsPanel({ parentId }: { parentId: string }) {
 
 function RevokeButton({ consentId, onRevoked }: { consentId: string; onRevoked: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   async function revoke() {
     if (!window.confirm('Remove this recipient? They will stop receiving summaries.')) return;
+    setFailed(false);
     setBusy(true);
     try {
       await api.post(`/api/consent/${consentId}/revoke`);
       onRevoked();
+    } catch {
+      setFailed(true);
     } finally {
       setBusy(false);
     }
   }
   return (
-    <button
-      type="button"
-      onClick={revoke}
-      disabled={busy}
-      className="text-sm text-clay underline disabled:opacity-60"
-    >
-      Remove
-    </button>
+    <span className="flex items-center gap-2">
+      {failed && <span className="text-xs text-clay">Couldn’t remove</span>}
+      <button
+        type="button"
+        onClick={revoke}
+        disabled={busy}
+        className="text-sm text-clay underline disabled:opacity-60"
+      >
+        Remove
+      </button>
+    </span>
   );
 }
 
@@ -224,6 +231,7 @@ function ReferralCodeSection() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     api
@@ -236,10 +244,13 @@ function ReferralCodeSection() {
   }, []);
 
   async function generate() {
+    setError('');
     setBusy(true);
     try {
       const r = await api.post<{ code: string }>('/api/referrals');
       setCode(r.code);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not generate a code.');
     } finally {
       setBusy(false);
     }
@@ -283,6 +294,7 @@ function ReferralCodeSection() {
           {busy ? 'Generating…' : 'Generate a code'}
         </button>
       )}
+      {error && <p className="mt-3 text-sm text-clay">{error}</p>}
     </section>
   );
 }

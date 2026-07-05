@@ -96,8 +96,11 @@ export const consentRepo = {
    */
   async revokeForBuyer(q: Querier, consentId: string, buyerId: string): Promise<void> {
     const { rows } = await q.query<{ id: string }>(
+      // Scoped to summary_recipient on purpose: this route only removes
+      // recipients. Revoking a buyer_attestation / parent_conversation consent
+      // here would silently break the activation and first-message gates.
       `UPDATE consents SET revoked_at = now()
-        WHERE id = $1 AND revoked_at IS NULL
+        WHERE id = $1 AND revoked_at IS NULL AND kind = 'summary_recipient'
           AND parent_id IN (
             SELECT id FROM parents WHERE buyer_id = $2 AND deleted_at IS NULL
           )
@@ -168,4 +171,29 @@ export const consentRepo = {
     );
     return rows;
   },
+
+  /**
+   * Safe recipient view for the buyer UI: { id, email, status } only. The token
+   * hash in detail never leaves the repo boundary. Status normalization mirrors
+   * listAcceptedRecipients — a legacy consent with no explicit status counts as
+   * accepted; only an explicit 'pending' is pending.
+   */
+  async listRecipients(q: Querier, parentId: string): Promise<SummaryRecipientView[]> {
+    const rows = await consentRepo.list(q, parentId, 'summary_recipient');
+    return rows.map((c) => {
+      const detail = (c.detail ?? {}) as { recipient_email?: string; status?: string };
+      return {
+        id: c.id,
+        email: detail.recipient_email ?? '',
+        status: detail.status === 'pending' ? 'pending' : 'accepted',
+      };
+    });
+  },
 };
+
+/** The only recipient fields the buyer UI needs — never the invite token hash. */
+export interface SummaryRecipientView {
+  id: string;
+  email: string;
+  status: 'pending' | 'accepted';
+}
