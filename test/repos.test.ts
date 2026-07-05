@@ -149,18 +149,18 @@ describe('consent-gated activation', () => {
 });
 
 describe('memory approval semantics + restricted exclusion', () => {
-  async function seedParent(): Promise<string> {
-    const buyer = await makeBuyer('sarah@example.com');
+  async function seedParent(email = 'sarah@example.com'): Promise<{ parentId: string; buyerId: string }> {
+    const buyer = await makeBuyer(email);
     const parent = await parentRepo.create(q, {
       buyerId: buyer,
       firstName: 'Robert',
       relationship: 'father',
     });
-    return parent.id;
+    return { parentId: parent.id, buyerId: buyer };
   }
 
   it('onboarding memories are confirmed; conversation memories are proposed', async () => {
-    const parentId = await seedParent();
+    const { parentId } = await seedParent();
     const seeded = await memoryRepo.add(q, {
       parentId,
       layer: 'core',
@@ -180,7 +180,7 @@ describe('memory approval semantics + restricted exclusion', () => {
   });
 
   it('confirm() promotes a proposed memory exactly once', async () => {
-    const parentId = await seedParent();
+    const { parentId, buyerId } = await seedParent();
     const m = await memoryRepo.add(q, {
       parentId,
       layer: 'interest',
@@ -188,14 +188,32 @@ describe('memory approval semantics + restricted exclusion', () => {
       value: 'Tigers',
       source: 'conversation',
     });
-    const confirmed = await memoryRepo.confirm(q, m.id);
+    const confirmed = await memoryRepo.confirm(q, m.id, buyerId);
     expect(confirmed.status).toBe('confirmed');
     // Second confirm fails — it's no longer in a proposed state.
-    await expect(memoryRepo.confirm(q, m.id)).rejects.toBeInstanceOf(PreconditionError);
+    await expect(memoryRepo.confirm(q, m.id, buyerId)).rejects.toBeInstanceOf(PreconditionError);
+  });
+
+  it('ISOLATION: a stranger cannot confirm/retire/delete another buyer’s memory', async () => {
+    const { parentId } = await seedParent('owner@example.com');
+    const stranger = await makeBuyer('stranger@example.com');
+    const m = await memoryRepo.add(q, {
+      parentId,
+      layer: 'interest',
+      key: 'team',
+      value: 'Tigers',
+      source: 'conversation',
+    });
+    await expect(memoryRepo.confirm(q, m.id, stranger)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(memoryRepo.retire(q, m.id, stranger)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(memoryRepo.hardDelete(q, m.id, stranger)).rejects.toBeInstanceOf(NotFoundError);
+    // The memory is untouched — still proposed and present.
+    const [still] = await memoryRepo.list(q, parentId, { status: 'proposed' });
+    expect(still?.id).toBe(m.id);
   });
 
   it('FAMILY VIEW never includes restricted memories or unconfirmed ones', async () => {
-    const parentId = await seedParent();
+    const { parentId } = await seedParent();
     // Confirmed, normal — should appear.
     await memoryRepo.add(q, {
       parentId, layer: 'core', key: 'hometown', value: 'Detroit', source: 'onboarding',
@@ -222,11 +240,11 @@ describe('memory approval semantics + restricted exclusion', () => {
   });
 
   it('hardDelete removes a memory from the store', async () => {
-    const parentId = await seedParent();
+    const { parentId, buyerId } = await seedParent();
     const m = await memoryRepo.add(q, {
       parentId, layer: 'core', key: 'pet', value: 'Buddy', source: 'onboarding',
     });
-    await memoryRepo.hardDelete(q, m.id);
+    await memoryRepo.hardDelete(q, m.id, buyerId);
     const all = await memoryRepo.list(q, parentId);
     expect(all.find((x) => x.id === m.id)).toBeUndefined();
   });
