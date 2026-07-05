@@ -93,13 +93,7 @@ export default function FamilySummaryPage() {
           {parents.length > 1 && (
             <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
           )}
-          {selected && (
-            <SummaryPanel
-              key={selected}
-              parentId={selected}
-              parentName={parents.find((p) => p.id === selected)?.first_name ?? ''}
-            />
-          )}
+          {selected && <SummaryPanel key={selected} parentId={selected} />}
         </>
       )}
     </div>
@@ -136,7 +130,7 @@ function ParentPicker({
   );
 }
 
-function SummaryPanel({ parentId, parentName }: { parentId: string; parentName: string }) {
+function SummaryPanel({ parentId }: { parentId: string }) {
   const [preview, setPreview] = useState<WeeklySummary | null>(null);
   const [history, setHistory] = useState<WeeklySummary[] | null>(null);
   const [error, setError] = useState('');
@@ -170,7 +164,6 @@ function SummaryPanel({ parentId, parentName }: { parentId: string; parentName: 
       <PreviewCard
         parentId={parentId}
         summary={preview}
-        parentName={parentName}
         onSent={(updated) => {
           setPreview(updated);
           void load();
@@ -197,12 +190,10 @@ function StatusBadge({ status }: { status: WeeklySummary['status'] }) {
 function PreviewCard({
   parentId,
   summary,
-  parentName,
   onSent,
 }: {
   parentId: string;
   summary: WeeklySummary;
-  parentName: string;
   onSent: (updated: WeeklySummary) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -245,9 +236,8 @@ function PreviewCard({
       </div>
 
       {summary.has_concern && (
-        <p className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3 text-base text-ink">
-          A gentle heads-up: {parentName} seemed a little low this week. Nothing alarming — you may
-          simply want to check in.
+        <p className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3 text-sm font-semibold text-ink">
+          This week includes a gentle heads-up — see the note below.
         </p>
       )}
 
