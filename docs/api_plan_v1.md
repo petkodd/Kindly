@@ -92,7 +92,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 | `extract_memory_candidates` | session end | Insert `proposed` memories from transcript |
 | `embed_memories` | new/confirmed memory | Populate `embedding` |
 | `generate_weekly_summary` | weekly cron | Build `weekly_summaries` rows in `preview` |
-| `purge_hard_deletes` | daily cron | Honor delete within 30 days; purge expired transcripts |
+| `purge_hard_deletes` | daily cron | Hard-delete users/parents soft-deleted >30 days ago (anonymizes non-cascading refs first); purge turns past `retention_purge_at` (stamping that column is a pending product decision) |
 | `detect_safety_flags` | each message | Classify P0–P3, write `safety_flags`, route alerts |
 
 **Error contract:** `{ error: { code, message } }`; never leak another parent's existence (404 not 403 on cross-tenant). **Rate limits:** auth + talk endpoints throttled. **PII in URLs:** never — all sensitive payloads in body.

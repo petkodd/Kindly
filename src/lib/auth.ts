@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import type { Querier } from './querier';
 import { db } from './db';
@@ -6,6 +7,19 @@ import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
 import { SESSION_COOKIE, verifySession } from './session';
 import { PARENT_TOKEN_COOKIE } from './parentSession';
+
+/**
+ * True when the request carries `Authorization: Bearer $CRON_SECRET`. Fails
+ * closed when the secret isn't configured, and compares timing-safe — cron
+ * routes trigger destructive/batch work, so the secret check is the only gate.
+ */
+export function isAuthorizedCron(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const given = Buffer.from(req.headers.get('authorization') ?? '');
+  const expected = Buffer.from(`Bearer ${secret}`);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 
 /** Standard 401 for admin-only routes when the caller isn't a live admin. */
 export function adminForbidden(): NextResponse {
