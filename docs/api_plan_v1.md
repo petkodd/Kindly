@@ -79,7 +79,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
-| GET | `/api/admin/overview` | admin | Signups, active users, cost/active user, cost/voice min, retention | 200; audit-logged |
+| GET | `/api/admin/overview` | admin | Buyers, parents (active/total), conversations (total/7d), open flags, summaries sent, waitlist | 200; audit-logged. Cost/retention deferred until billing + usage tracking land |
 | GET | `/api/admin/flags` | admin | Safety flag queue | 200; audit-logged |
 | PATCH | `/api/admin/flags/:fid` | admin | Update flag status | 200; audit-logged |
 

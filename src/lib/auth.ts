@@ -1,10 +1,18 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import type { Querier } from './querier';
 import { db } from './db';
 import { accessTokenRepo } from './repos/accessToken';
 import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
 import { SESSION_COOKIE, verifySession } from './session';
+
+/** Standard 401 for admin-only routes when the caller isn't a live admin. */
+export function adminForbidden(): NextResponse {
+  return NextResponse.json(
+    { error: { code: 'unauthorized', message: 'Admin access required.' } },
+    { status: 401 },
+  );
+}
 
 /** Parse a JSON request body, mapping malformed JSON to a 400 (not a 500). */
 export async function readJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
