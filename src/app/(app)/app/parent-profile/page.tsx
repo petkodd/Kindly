@@ -117,6 +117,15 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
         speech_rate: speechRate,
       });
       onSaved(r.parent);
+      // Re-seed the inputs from the persisted record so the form reflects the
+      // server-normalized values (e.g. trimmed text) rather than the raw typed
+      // text — the panel's key doesn't change on save, so useState won't re-init.
+      setPronouns(r.parent.pronouns ?? '');
+      setCity(r.parent.city ?? '');
+      setLanguage(r.parent.language);
+      setLargeText(r.parent.large_text);
+      setVoiceFirst(r.parent.voice_first);
+      setSpeechRate(r.parent.speech_rate);
       setStatus('Saved.');
     } catch (err) {
       setStatus(err instanceof ApiError ? err.message : 'Could not save.');
