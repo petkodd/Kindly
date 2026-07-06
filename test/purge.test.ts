@@ -169,6 +169,36 @@ describe('purgeHardDeletes', () => {
     expect(rows.map((r) => r.content).sort()).toEqual(['no stamp', 'not yet']);
   });
 
+  it('anonymizes analytics events (no FK — they would silently outlive the purge)', async () => {
+    const gone = await makeUser('tracked@example.com');
+    const alive = await makeUser('still-here@example.com');
+    // The purged buyer's parent was never individually soft-deleted — it goes
+    // via the user cascade, so its analytics ref must still be anonymized.
+    const parent = await parentRepo.create(q, {
+      buyerId: gone,
+      firstName: 'Robert',
+      relationship: 'father',
+    });
+    await q.query(
+      `INSERT INTO analytics_events (event_name, user_id, parent_id)
+       VALUES ('talk_session_started', $1, $2), ('signup', $3, NULL)`,
+      [gone, parent.id, alive],
+    );
+
+    await softDeleteUser(gone, daysAgo(31));
+    await purgeHardDeletes(q, { now: NOW });
+
+    const { rows } = await q.query<{ event_name: string; user_id: string | null; parent_id: string | null }>(
+      `SELECT event_name, user_id, parent_id FROM analytics_events ORDER BY event_name`,
+    );
+    expect(rows).toHaveLength(2);
+    const started = rows.find((r) => r.event_name === 'talk_session_started')!;
+    expect(started.user_id).toBeNull();
+    expect(started.parent_id).toBeNull();
+    // The live user's event keeps its identity link.
+    expect(rows.find((r) => r.event_name === 'signup')!.user_id).toBe(alive);
+  });
+
   it('is a no-op on a clean database', async () => {
     const result = await purgeHardDeletes(q, { now: NOW });
     expect(result).toMatchObject({ purgedUsers: 0, purgedParents: 0, purgedTurns: 0 });

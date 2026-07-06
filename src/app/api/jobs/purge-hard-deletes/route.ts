@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { isAuthorizedCron } from '@/lib/auth';
 import { purgeHardDeletes } from '@/lib/jobs/purge';
 
 // This route triggers DB work and must never be statically cached.
@@ -13,8 +14,7 @@ export const maxDuration = 300;
  * destructive deletes on demand.
  */
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!isAuthorizedCron(req)) {
     return NextResponse.json(
       { error: { code: 'unauthorized', message: 'Forbidden.' } },
       { status: 401 },
@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await purgeHardDeletes(db());
-    if (result.purgedUsers > 0 || result.purgedParents > 0) {
+    if (result.purgedUsers > 0 || result.purgedParents > 0 || result.purgedTurns > 0) {
       // The cron response body is discarded; log so purges are visible in the
       // platform logs (counts only — never identities).
       console.info(
-        `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents (cutoff ${result.cutoff})`,
+        `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents, ${result.purgedTurns} turns (cutoff ${result.cutoff})`,
       );
     }
     return NextResponse.json({ ok: true, ...result });

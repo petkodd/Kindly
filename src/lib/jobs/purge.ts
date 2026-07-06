@@ -18,12 +18,19 @@ import type { Querier } from '../querier';
  *     anonymized — the identity link is what's purged.
  *  2. DELETE the users; parents and everything beneath them (tokens, consents,
  *     memories, conversations + turns/transcripts, flags, summaries) cascade.
+ *  2b. Anonymize analytics_events.user_id/parent_id for everything being
+ *     purged — those columns have NO foreign keys, so without this the ids
+ *     would silently outlive the delete (no error would ever surface it).
  *  3. DELETE any remaining soft-deleted parents past the window (their buyer
  *     is alive), cascading their subtree the same way.
  *  4. DELETE expired transcript turns — rows whose retention_purge_at has
  *     passed. Nothing sets that column yet (the product retention period is
  *     undecided), so this honors the schema's own mechanism without inventing
  *     a policy: once something stamps retention_purge_at, the purge is live.
+ *
+ * Deliberate carve-out: waitlist_signups.email is NOT purged — it predates the
+ * account and isn't linked to it. Whether the deletion promise should cover
+ * the marketing funnel is a pending privacy decision; revisit when decided.
  */
 
 export interface PurgeResult {
@@ -54,7 +61,8 @@ export async function purgeHardDeletes(
   opts: { retentionDays?: number; now?: Date } = {},
 ): Promise<PurgeResult> {
   const retentionDays = opts.retentionDays ?? DEFAULT_RETENTION_DAYS;
-  const cutoff = new Date((opts.now ?? new Date()).getTime() - retentionDays * DAY_MS);
+  const now = opts.now ?? new Date();
+  const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
 
   for (const { table, column } of USER_REF_NULLIFICATIONS) {
     // Table/column names come from the constant above — never from input.
@@ -67,10 +75,36 @@ export async function purgeHardDeletes(
     );
   }
 
+  // analytics_events has NO foreign keys, so a purge would never error — the
+  // ids would just silently outlive the delete. Anonymize them explicitly:
+  // events of purgeable users, and events of parents that are about to go
+  // (soft-deleted past the window, or belonging to a purgeable buyer — a
+  // buyer's parents cascade even when never individually soft-deleted).
+  await q.query(
+    `UPDATE analytics_events SET user_id = NULL
+      WHERE user_id IN (
+        SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1
+      )`,
+    [cutoff],
+  );
+  await q.query(
+    `UPDATE analytics_events SET parent_id = NULL
+      WHERE parent_id IN (
+        SELECT id FROM parents
+         WHERE (deleted_at IS NOT NULL AND deleted_at < $1)
+            OR buyer_id IN (SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1)
+      )`,
+    [cutoff],
+  );
+
+  // NOTE: the statements in this run auto-commit individually (Querier exposes
+  // no transaction). A mid-run crash leaves refs anonymized with the user row
+  // still present; every statement re-derives its set from deleted_at, so the
+  // next daily run completes the purge — self-healing, at the cost of possibly
+  // anonymizing a run early.
   const users = await q.query(
     `DELETE FROM users
-      WHERE deleted_at IS NOT NULL AND deleted_at < $1
-      RETURNING id`,
+      WHERE deleted_at IS NOT NULL AND deleted_at < $1`,
     [cutoff],
   );
 
@@ -78,23 +112,22 @@ export async function purgeHardDeletes(
   // parents are already gone via the cascade above).
   const parents = await q.query(
     `DELETE FROM parents
-      WHERE deleted_at IS NOT NULL AND deleted_at < $1
-      RETURNING id`,
+      WHERE deleted_at IS NOT NULL AND deleted_at < $1`,
     [cutoff],
   );
 
-  // Expired transcripts: honor per-turn retention stamps when present.
+  // Expired transcripts: honor per-turn retention stamps when present. Compared
+  // against `now` (an absolute expiry), not the retention cutoff.
   const turns = await q.query(
     `DELETE FROM conversation_turns
-      WHERE retention_purge_at IS NOT NULL AND retention_purge_at < $1
-      RETURNING id`,
-    [opts.now ?? new Date()],
+      WHERE retention_purge_at IS NOT NULL AND retention_purge_at < $1`,
+    [now],
   );
 
   return {
     cutoff: cutoff.toISOString(),
-    purgedUsers: users.rows.length,
-    purgedParents: parents.rows.length,
-    purgedTurns: turns.rows.length,
+    purgedUsers: users.rowCount ?? 0,
+    purgedParents: parents.rowCount ?? 0,
+    purgedTurns: turns.rowCount ?? 0,
   };
 }

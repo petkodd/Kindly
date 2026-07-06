@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { isAuthorizedCron } from '@/lib/auth';
 import { generateWeeklySummaries } from '@/lib/jobs/weeklySummary';
 
 // This route triggers DB work and must never be statically cached.
@@ -14,8 +15,7 @@ export const maxDuration = 300;
  * let anyone trigger a full regeneration pass.
  */
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!isAuthorizedCron(req)) {
     return NextResponse.json(
       { error: { code: 'unauthorized', message: 'Forbidden.' } },
       { status: 401 },

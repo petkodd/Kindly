@@ -1,10 +1,17 @@
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { userRepo } from '../src/lib/repos/user';
 import { rateLimitRepo } from '../src/lib/repos/rateLimit';
-import { getBuyerId, getAdminId, getParentToken, resolveBuyer, resolveAdmin } from '../src/lib/auth';
+import {
+  getBuyerId,
+  getAdminId,
+  getParentToken,
+  isAuthorizedCron,
+  resolveBuyer,
+  resolveAdmin,
+} from '../src/lib/auth';
 import { signSession, verifySession, SESSION_COOKIE } from '../src/lib/session';
 import {
   PARENT_TOKEN_COOKIE,
@@ -29,6 +36,24 @@ describe('getParentToken (talk auth)', () => {
     expect(
       getParentToken(talkReq({ authorization: 'Bearer abc', cookie: `${PARENT_TOKEN_COOKIE}=ghi` })),
     ).toBe('abc');
+  });
+});
+
+describe('isAuthorizedCron', () => {
+  const prev = process.env.CRON_SECRET;
+  afterAll(() => {
+    if (prev === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = prev;
+  });
+
+  it('fails closed without a configured secret, and rejects a wrong one', () => {
+    delete process.env.CRON_SECRET;
+    expect(isAuthorizedCron(talkReq({ authorization: 'Bearer anything' }))).toBe(false);
+
+    process.env.CRON_SECRET = 'cron-secret-123';
+    expect(isAuthorizedCron(talkReq({})).valueOf()).toBe(false);
+    expect(isAuthorizedCron(talkReq({ authorization: 'Bearer wrong' }))).toBe(false);
+    expect(isAuthorizedCron(talkReq({ authorization: 'Bearer cron-secret-123' }))).toBe(true);
   });
 });
 
