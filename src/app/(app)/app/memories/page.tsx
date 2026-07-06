@@ -1,14 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
-
-interface Parent {
-  id: string;
-  first_name: string;
-}
+import { useParents, ParentPicker, NoParents } from '@/components/parents';
 
 interface Memory {
   id: string;
@@ -20,23 +14,7 @@ interface Memory {
 }
 
 export default function MemoriesPage() {
-  const router = useRouter();
-  const [parents, setParents] = useState<Parent[] | null>(null);
-  const [selected, setSelected] = useState<string>('');
-  const [loadError, setLoadError] = useState('');
-
-  useEffect(() => {
-    api
-      .get<{ parents: Parent[] }>('/api/parents')
-      .then((r) => {
-        setParents(r.parents);
-        if (r.parents.length > 0) setSelected(r.parents[0].id);
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) router.replace('/login');
-        else setLoadError('Could not load your family.');
-      });
-  }, [router]);
+  const { parents, selected, setSelected, loadError } = useParents();
 
   if (loadError) return <p className="text-base text-clay">{loadError}</p>;
   if (!parents) return <p className="text-base text-muted">Loading…</p>;
@@ -53,33 +31,10 @@ export default function MemoriesPage() {
       </div>
 
       {parents.length === 0 ? (
-        <div className="rounded-xl border border-line bg-cloud p-6">
-          <p className="text-base text-ink">You haven&rsquo;t set up a parent yet.</p>
-          <Link href="/app/onboarding" className="btn-primary mt-4 inline-block">
-            Set up the gift
-          </Link>
-        </div>
+        <NoParents />
       ) : (
         <>
-          {parents.length > 1 && (
-            <div className="flex flex-wrap gap-2">
-              {parents.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelected(p.id)}
-                  aria-pressed={p.id === selected}
-                  className={`rounded-full border px-4 py-2 text-base ${
-                    p.id === selected
-                      ? 'border-sage bg-sage text-cloud'
-                      : 'border-line bg-cloud text-ink hover:border-sage'
-                  }`}
-                >
-                  {p.first_name}
-                </button>
-              ))}
-            </div>
-          )}
+          <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
           {selected && <MemoriesPanel key={selected} parentId={selected} />}
         </>
       )}

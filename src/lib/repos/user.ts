@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Querier } from '../querier';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../types';
+import { EMAIL_RE } from '../validation';
 
 /**
  * Buyer accounts. Passwords are stored as scrypt(salt, password) — never
@@ -22,7 +23,6 @@ export interface Account {
   created_at: string;
 }
 
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MIN_PASSWORD = 8;
 
 function hashPassword(password: string): string {

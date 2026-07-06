@@ -1,12 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Querier } from '../querier';
 import { type Consent, type ConsentKind, NotFoundError, ValidationError } from '../types';
+import { EMAIL_RE } from '../validation';
 
 function hashToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
-
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
  * Consent is the spine of Kindly's privacy model. Two gates matter most:
