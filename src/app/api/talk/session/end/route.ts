@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { resolveParentFromRequest, readJsonBody, errorToResponse } from '@/lib/auth';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { runSessionEndJobs } from '@/lib/jobs/sessionEnd';
+import { clearParentToken } from '@/lib/parentSession';
 import { ValidationError } from '@/lib/types';
 
 // Runs two model calls (summarize + extract) inline; give it headroom.
@@ -36,11 +37,16 @@ export async function POST(req: NextRequest) {
       console.error('session-end jobs failed', jobErr);
     }
 
-    return NextResponse.json({
-      conversation_id: conversation.id,
-      ended_at: conversation.ended_at,
-      summarized,
-    });
+    // Ending the session is the parent's "logout" — clear the talk cookie so a
+    // shared device doesn't keep an ambient credential. Their original link
+    // still works: opening it re-runs the token→cookie exchange.
+    return clearParentToken(
+      NextResponse.json({
+        conversation_id: conversation.id,
+        ended_at: conversation.ended_at,
+        summarized,
+      }),
+    );
   } catch (err) {
     const { status, body } = errorToResponse(err);
     return NextResponse.json(body, { status });

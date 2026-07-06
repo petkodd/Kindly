@@ -26,25 +26,48 @@ export default function TalkPage() {
   );
 }
 
-function TalkEntry() {
-  const token = useSearchParams().get('token');
-
-  if (!token) {
-    return (
-      <div className="mx-auto max-w-md text-center">
-        <h1 className="font-display text-3xl font-semibold text-ink">This link isn&rsquo;t valid</h1>
-        <p className="mt-4 text-lg text-muted">
-          Please open Kindly from the link that was shared with you.
-        </p>
-      </div>
-    );
-  }
-
-  return <TalkFlow token={token} />;
+function InvalidLink() {
+  return (
+    <div className="mx-auto max-w-md text-center">
+      <h1 className="font-display text-3xl font-semibold text-ink">This link isn&rsquo;t valid</h1>
+      <p className="mt-4 text-lg text-muted">
+        Please open Kindly from the link that was shared with you.
+      </p>
+    </div>
+  );
 }
 
-function TalkFlow({ token }: { token: string }) {
-  const auth = { Authorization: `Bearer ${token}` };
+function TalkEntry() {
+  const token = useSearchParams().get('token');
+  // With a token in the URL we exchange it for an httpOnly cookie first; without
+  // one we optimistically proceed (a returning visit relies on that cookie).
+  const [state, setState] = useState<'checking' | 'ready' | 'invalid'>(token ? 'checking' : 'ready');
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    api
+      .post('/api/talk/auth', { token })
+      .then(() => {
+        if (!active) return;
+        // Drop the raw token from the URL so it doesn't linger in history/logs.
+        window.history.replaceState(null, '', '/app/talk');
+        setState('ready');
+      })
+      .catch(() => {
+        if (active) setState('invalid');
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  if (state === 'checking') return <p className="text-center text-base text-muted">Connecting…</p>;
+  if (state === 'invalid') return <InvalidLink />;
+  return <TalkFlow />;
+}
+
+function TalkFlow() {
   const [phase, setPhase] = useState<Phase>('intro');
   const [conversationId, setConversationId] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -62,18 +85,19 @@ function TalkFlow({ token }: { token: string }) {
     setError('');
     setBusy(true);
     try {
-      // Consent first (idempotent) — the session refuses without it.
-      await api.post('/api/talk/consent', undefined, auth);
-      const r = await api.post<{ conversation_id: string; greeting: string }>(
-        '/api/talk/session',
-        undefined,
-        auth,
-      );
+      // Consent first (idempotent) — the session refuses without it. Auth rides
+      // on the httpOnly talk cookie set by the /api/talk/auth exchange.
+      await api.post('/api/talk/consent');
+      const r = await api.post<{ conversation_id: string; greeting: string }>('/api/talk/session');
       setConversationId(r.conversation_id);
       add('kindly', r.greeting);
       setPhase('active');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'We couldn’t start the conversation.');
+      if (err instanceof ApiError && err.status === 401) {
+        setError('This link isn’t valid or has expired. Please open Kindly from a fresh link.');
+      } else {
+        setError(err instanceof ApiError ? err.message : 'We couldn’t start the conversation.');
+      }
     } finally {
       setBusy(false);
     }
@@ -115,7 +139,6 @@ function TalkFlow({ token }: { token: string }) {
 
   return (
     <Conversation
-      auth={auth}
       conversationId={conversationId}
       turns={turns}
       add={add}
@@ -126,14 +149,12 @@ function TalkFlow({ token }: { token: string }) {
 }
 
 function Conversation({
-  auth,
   conversationId,
   turns,
   add,
   removeTurn,
   onEnded,
 }: {
-  auth: Record<string, string>;
   conversationId: string;
   turns: Turn[];
   add: (role: Role, content: string) => number;
@@ -158,11 +179,10 @@ function Conversation({
     const pending = add('parent', content);
     setSending(true);
     try {
-      const r = await api.post<{ reply: string }>(
-        '/api/talk/message',
-        { conversation_id: conversationId, content },
-        auth,
-      );
+      const r = await api.post<{ reply: string }>('/api/talk/message', {
+        conversation_id: conversationId,
+        content,
+      });
       add('kindly', r.reply);
     } catch (err) {
       // The server persists turns only after a successful reply, so on failure
@@ -180,7 +200,7 @@ function Conversation({
     setError('');
     setEnding(true);
     try {
-      await api.post('/api/talk/session/end', { conversation_id: conversationId }, auth);
+      await api.post('/api/talk/session/end', { conversation_id: conversationId });
       onEnded();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'We couldn’t end the conversation.');
