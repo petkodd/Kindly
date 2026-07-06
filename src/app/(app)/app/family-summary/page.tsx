@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/apiClient';
-import { useParents } from '@/hooks/useParents';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
+import { ParentGate } from '@/components/ParentGate';
 
 interface WeeklySummary {
   id: string;
@@ -44,35 +44,32 @@ const STATUS_LABEL: Record<WeeklySummary['status'], string> = {
 };
 
 export default function FamilySummaryPage() {
-  const { parents, selected, setSelected, loadError } = useParents();
-
-  if (loadError) return <p className="text-base text-clay">{loadError}</p>;
-  if (!parents) return <p className="text-base text-muted">Loading…</p>;
-
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <p className="eyebrow">Weekly family summary</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
-          The week in your family
-        </h1>
-        <p className="mt-2 text-base text-muted">
-          A warm, family-safe recap built only from this week&rsquo;s conversations. Preview it,
-          then send it to the people who&rsquo;ve been invited.
-        </p>
-      </div>
+    <ParentGate>
+      {({ parents, selected, setSelected }) => (
+        <div className="mx-auto max-w-2xl space-y-8">
+          <div>
+            <p className="eyebrow">Weekly family summary</p>
+            <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
+              The week in your family
+            </h1>
+            <p className="mt-2 text-base text-muted">
+              A warm, family-safe recap built only from this week&rsquo;s conversations. Preview it,
+              then send it to the people who&rsquo;ve been invited.
+            </p>
+          </div>
 
-      {parents.length === 0 ? (
-        <EmptyParentState />
-      ) : (
-        <>
-          {parents.length > 1 && (
-            <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+          {parents.length === 0 ? (
+            <EmptyParentState />
+          ) : (
+            <>
+              <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+              {selected && <SummaryPanel key={selected} parentId={selected} />}
+            </>
           )}
-          {selected && <SummaryPanel key={selected} parentId={selected} />}
-        </>
+        </div>
       )}
-    </div>
+    </ParentGate>
   );
 }
 
