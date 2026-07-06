@@ -76,6 +76,27 @@ describe('TalkPage', () => {
     expect(await screen.findByText('Tell me more about that.')).toBeTruthy();
   });
 
+  it('rolls back the optimistic bubble and restores the draft when a send fails', async () => {
+    stubFetch({
+      'POST /api/talk/consent': () => json({ consent: {} }, 201),
+      'POST /api/talk/session': () => json({ conversation_id: 'c1', greeting: 'Hi!' }, 201),
+      'POST /api/talk/message': () => json({ error: { code: 'server', message: 'Try again.' } }, 502),
+    });
+    render(<TalkPage />);
+    fireEvent.click(screen.getByRole('button', { name: /start talking/i }));
+    await screen.findByText('Hi!');
+
+    const input = screen.getByLabelText(/your message/i) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'I feel sad' } });
+    fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
+
+    expect(await screen.findByText('Try again.')).toBeTruthy();
+    // The optimistic message bubble (a <span>) is gone (no duplicate on retry),
+    // and the text is back in the textarea so the parent can resend.
+    expect(screen.queryByText('I feel sad', { selector: 'span' })).toBeNull();
+    expect(input.value).toBe('I feel sad');
+  });
+
   it('ends the conversation and shows a closing screen', async () => {
     stubFetch({
       'POST /api/talk/consent': () => json({ consent: {} }, 201),

@@ -12,6 +12,10 @@ interface Turn {
   content: string;
 }
 
+// Compliance-sensitive: Kindly must disclose it's an AI. Single-sourced so the
+// intro and in-conversation banners can't drift.
+const AI_DISCLOSURE = 'Kindly is an AI companion — not a real person.';
+
 // useSearchParams() opts the page out of static prerendering unless it sits under
 // a Suspense boundary (Next.js CSR-bailout rule).
 export default function TalkPage() {
@@ -47,8 +51,12 @@ function TalkFlow({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const nextId = useRef(0);
-  const add = (role: Role, content: string) =>
-    setTurns((prev) => [...prev, { id: nextId.current++, role, content }]);
+  const add = (role: Role, content: string): number => {
+    const id = nextId.current++;
+    setTurns((prev) => [...prev, { id, role, content }]);
+    return id;
+  };
+  const removeTurn = (id: number) => setTurns((prev) => prev.filter((t) => t.id !== id));
 
   async function start() {
     setError('');
@@ -75,7 +83,7 @@ function TalkFlow({ token }: { token: string }) {
     return (
       <div className="mx-auto max-w-md text-center">
         <p className="rounded-xl border border-line bg-cloud px-4 py-3 text-base text-muted">
-          Kindly is an AI companion — not a real person.
+          {AI_DISCLOSURE}
         </p>
         <h1 className="mt-8 font-display text-3xl font-semibold text-ink">Hello 👋</h1>
         <p className="mt-4 text-lg text-muted">
@@ -111,6 +119,7 @@ function TalkFlow({ token }: { token: string }) {
       conversationId={conversationId}
       turns={turns}
       add={add}
+      removeTurn={removeTurn}
       onEnded={() => setPhase('ended')}
     />
   );
@@ -121,12 +130,14 @@ function Conversation({
   conversationId,
   turns,
   add,
+  removeTurn,
   onEnded,
 }: {
   auth: Record<string, string>;
   conversationId: string;
   turns: Turn[];
-  add: (role: Role, content: string) => void;
+  add: (role: Role, content: string) => number;
+  removeTurn: (id: number) => void;
   onEnded: () => void;
 }) {
   const [draft, setDraft] = useState('');
@@ -141,10 +152,10 @@ function Conversation({
 
   async function send() {
     const content = draft.trim();
-    if (!content || sending) return;
+    if (!content || sending || ending) return;
     setError('');
     setDraft('');
-    add('parent', content);
+    const pending = add('parent', content);
     setSending(true);
     try {
       const r = await api.post<{ reply: string }>(
@@ -154,6 +165,11 @@ function Conversation({
       );
       add('kindly', r.reply);
     } catch (err) {
+      // The server persists turns only after a successful reply, so on failure
+      // roll back the optimistic bubble and restore the draft — otherwise a
+      // retry would show the parent's message twice.
+      removeTurn(pending);
+      setDraft(content);
       setError(err instanceof ApiError ? err.message : 'That didn’t send. Please try again.');
     } finally {
       setSending(false);
@@ -175,7 +191,7 @@ function Conversation({
   return (
     <div className="mx-auto flex max-w-lg flex-col">
       <p className="rounded-xl border border-line bg-cloud px-4 py-2 text-center text-sm text-muted">
-        Kindly is an AI companion — not a real person.
+        {AI_DISCLOSURE}
       </p>
 
       <div className="mt-6 space-y-4" aria-live="polite">
@@ -218,7 +234,7 @@ function Conversation({
           <button
             type="button"
             onClick={end}
-            disabled={ending}
+            disabled={ending || sending}
             className="text-base text-muted underline disabled:opacity-60"
           >
             {ending ? 'Ending…' : 'I’m done for now'}
@@ -226,7 +242,7 @@ function Conversation({
           <button
             type="button"
             onClick={send}
-            disabled={sending || !draft.trim()}
+            disabled={sending || ending || !draft.trim()}
             className="btn-primary px-8 py-3 text-lg disabled:opacity-60"
           >
             Send
