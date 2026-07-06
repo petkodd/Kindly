@@ -1,12 +1,53 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { userRepo } from '../src/lib/repos/user';
 import { rateLimitRepo } from '../src/lib/repos/rateLimit';
-import { getBuyerId, getAdminId, resolveBuyer, resolveAdmin } from '../src/lib/auth';
+import { getBuyerId, getAdminId, getParentToken, resolveBuyer, resolveAdmin } from '../src/lib/auth';
 import { signSession, verifySession, SESSION_COOKIE } from '../src/lib/session';
+import {
+  PARENT_TOKEN_COOKIE,
+  attachParentToken,
+  clearParentToken,
+} from '../src/lib/parentSession';
 import { ConflictError, ValidationError } from '../src/lib/types';
+
+function talkReq(headers: Record<string, string>): NextRequest {
+  return new NextRequest('http://localhost/api/talk/message', { headers });
+}
+
+describe('getParentToken (talk auth)', () => {
+  it('reads a Bearer header, the x-kindly-parent-token header, or the talk cookie', () => {
+    expect(getParentToken(talkReq({ authorization: 'Bearer abc' }))).toBe('abc');
+    expect(getParentToken(talkReq({ 'x-kindly-parent-token': 'def' }))).toBe('def');
+    expect(getParentToken(talkReq({ cookie: `${PARENT_TOKEN_COOKIE}=ghi` }))).toBe('ghi');
+    expect(getParentToken(talkReq({}))).toBeNull();
+  });
+
+  it('prefers the header over the cookie', () => {
+    expect(
+      getParentToken(talkReq({ authorization: 'Bearer abc', cookie: `${PARENT_TOKEN_COOKIE}=ghi` })),
+    ).toBe('abc');
+  });
+});
+
+describe('parent talk cookie (parentSession)', () => {
+  it('attach sets an httpOnly, SameSite=Lax, /api/talk-scoped cookie', () => {
+    const setCookie =
+      attachParentToken(NextResponse.json({ ok: true }), 'raw-token').headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('kindly_talk=raw-token');
+    expect(setCookie.toLowerCase()).toContain('httponly');
+    expect(setCookie.toLowerCase()).toContain('samesite=lax');
+    expect(setCookie).toContain('Path=/api/talk');
+  });
+
+  it('clear expires the cookie', () => {
+    const setCookie =
+      clearParentToken(NextResponse.json({ ok: true })).headers.get('set-cookie') ?? '';
+    expect(setCookie).toMatch(/kindly_talk=;|Max-Age=0/i);
+  });
+});
 
 beforeAll(() => {
   process.env.SESSION_SECRET = 'test-secret-value';

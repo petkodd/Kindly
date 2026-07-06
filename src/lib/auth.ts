@@ -5,6 +5,7 @@ import { accessTokenRepo } from './repos/accessToken';
 import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
 import { SESSION_COOKIE, verifySession } from './session';
+import { PARENT_TOKEN_COOKIE } from './parentSession';
 
 /** Standard 401 for admin-only routes when the caller isn't a live admin. */
 export function adminForbidden(): NextResponse {
@@ -75,7 +76,11 @@ export async function resolveAdmin(req: NextRequest, q?: Querier): Promise<strin
 export function getParentToken(req: NextRequest): string | null {
   const auth = req.headers.get('authorization');
   if (auth?.startsWith('Bearer ')) return auth.slice('Bearer '.length).trim() || null;
-  return req.headers.get('x-kindly-parent-token');
+  const header = req.headers.get('x-kindly-parent-token');
+  if (header) return header;
+  // The talk page exchanges the URL token for an httpOnly cookie (parentSession)
+  // and then authenticates via the cookie on subsequent requests.
+  return req.cookies.get(PARENT_TOKEN_COOKIE)?.value ?? null;
 }
 
 /**

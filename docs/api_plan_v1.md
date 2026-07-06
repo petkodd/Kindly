@@ -52,6 +52,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
+| POST | `/api/talk/auth` | parent | Exchange the URL access token for an httpOnly talk cookie | 200 + cookie; 401 if invalid/expired. Lets the page drop the token from the URL |
 | POST | `/api/talk/session` | parent | Open conversation; returns greeting w/ AI-identity disclosure | 201; 403 if no parent_conversation consent |
 | POST | `/api/talk/message` | parent | Send turn `{conversation_id, content}` → companion reply | 200; injects retrieved memories; runs safety scan |
 | POST | `/api/talk/voice` | parent | Voice turn (audio in → STT → reply → TTS url) | 200; logs `voice_minutes`; <2.5s perceived start |
