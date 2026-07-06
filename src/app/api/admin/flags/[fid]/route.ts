@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { resolveAdmin, readJsonBody, errorToResponse } from '@/lib/auth';
+import { resolveAdmin, adminForbidden, readJsonBody, errorToResponse } from '@/lib/auth';
 import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
 import { auditRepo } from '@/lib/repos/audit';
 import { ValidationError, type FlagStatus } from '@/lib/types';
 
 type Ctx = { params: { fid: string } };
 
-const forbidden = () =>
-  NextResponse.json({ error: { code: 'unauthorized', message: 'Admin access required.' } }, { status: 401 });
-
 /** Update a flag's status (reviewing / resolved / dismissed). Audit-logged. */
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   const adminId = await resolveAdmin(req);
-  if (!adminId) return forbidden();
+  if (!adminId) return adminForbidden();
   try {
     const pool = db();
     const body = await readJsonBody(req);

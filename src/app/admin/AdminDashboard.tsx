@@ -135,6 +135,9 @@ function FlagRow({ flag, onChanged }: { flag: SafetyFlag; onChanged: () => void 
       onChanged();
     } catch {
       setFailed(true);
+    } finally {
+      // Always reset — 'Start review' (open→reviewing) leaves this flag in the
+      // queue, so the row stays mounted and must not be left permanently busy.
       setBusy(false);
     }
   }

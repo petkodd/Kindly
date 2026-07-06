@@ -82,6 +82,29 @@ describe('AdminDashboard', () => {
     await waitFor(() => expect(screen.getByText(/nothing in the queue/i)).toBeTruthy());
   });
 
+  it('keeps actions enabled after Start review (flag stays in the queue)', async () => {
+    let status = 'open';
+    stubFetch({
+      'GET /api/admin/overview': () => json({ overview: OVERVIEW }),
+      'GET /api/admin/flags': () => json({ flags: [{ ...FLAG, status }] }),
+      'PATCH /api/admin/flags/f1': (init) => {
+        status = JSON.parse(String(init?.body)).status;
+        return json({ flag: { ...FLAG, status } });
+      },
+    });
+    render(<AdminDashboard />);
+    fireEvent.click(await screen.findByRole('button', { name: /start review/i }));
+
+    // The flag is now 'reviewing' — still in the queue, same row. Resolve must
+    // not be left permanently disabled (regression: busy stuck true on success).
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /start review/i })).toBeNull(),
+    );
+    expect((screen.getByRole('button', { name: /resolve/i }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
+
   it('redirects to login on a 401', async () => {
     stubFetch({
       'GET /api/admin/overview': () =>
