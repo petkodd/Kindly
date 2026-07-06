@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
-import { useParents } from '@/hooks/useParents';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
+import { ParentGate } from '@/components/ParentGate';
 import { EMAIL_RE } from '@/lib/validation';
 
 interface Recipient {
@@ -14,41 +14,40 @@ interface Recipient {
 }
 
 export default function ReferralsPage() {
-  const { parents, selected, setSelected, loadError } = useParents();
-
-  if (loadError) return <p className="text-base text-clay">{loadError}</p>;
-  if (!parents) return <p className="text-base text-muted">Loading…</p>;
-
   return (
-    <div className="mx-auto max-w-2xl space-y-10">
-      <div>
-        <p className="eyebrow">Invite &amp; share</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Family &amp; referrals</h1>
-        <p className="mt-2 text-base text-muted">
-          Invite family members to receive the weekly summary, and share Kindly with a referral
-          code.
-        </p>
-      </div>
-
-      {parents.length === 0 ? (
-        <EmptyParentState />
-      ) : (
-        <section className="space-y-4">
+    <ParentGate>
+      {({ parents, selected, setSelected }) => (
+        <div className="mx-auto max-w-2xl space-y-10">
           <div>
-            <h2 className="text-lg font-semibold text-ink">Summary recipients</h2>
-            <p className="mt-1 text-base text-muted">
-              People you invite here receive the weekly summary once they accept.
+            <p className="eyebrow">Invite &amp; share</p>
+            <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
+              Family &amp; referrals
+            </h1>
+            <p className="mt-2 text-base text-muted">
+              Invite family members to receive the weekly summary, and share Kindly with a referral
+              code.
             </p>
           </div>
-          {parents.length > 1 && (
-            <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
-          )}
-          {selected && <RecipientsPanel key={selected} parentId={selected} />}
-        </section>
-      )}
 
-      <ReferralCodeSection />
-    </div>
+          {parents.length === 0 ? (
+            <EmptyParentState />
+          ) : (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Summary recipients</h2>
+                <p className="mt-1 text-base text-muted">
+                  People you invite here receive the weekly summary once they accept.
+                </p>
+              </div>
+              <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+              {selected && <RecipientsPanel key={selected} parentId={selected} />}
+            </section>
+          )}
+
+          <ReferralCodeSection />
+        </div>
+      )}
+    </ParentGate>
   );
 }
 

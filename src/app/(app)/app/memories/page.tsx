@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
-import { useParents } from '@/hooks/useParents';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
+import { ParentGate } from '@/components/ParentGate';
 
 interface Memory {
   id: string;
@@ -16,33 +16,30 @@ interface Memory {
 }
 
 export default function MemoriesPage() {
-  const { parents, selected, setSelected, loadError } = useParents();
-
-  if (loadError) return <p className="text-base text-clay">{loadError}</p>;
-  if (!parents) return <p className="text-base text-muted">Loading…</p>;
-
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <p className="eyebrow">What Kindly remembers</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Memories</h1>
-        <p className="mt-2 text-base text-muted">
-          Review what Kindly has learned. Confirm the things it picked up from conversations, and
-          remove anything that isn&rsquo;t right.
-        </p>
-      </div>
+    <ParentGate>
+      {({ parents, selected, setSelected }) => (
+        <div className="mx-auto max-w-2xl space-y-8">
+          <div>
+            <p className="eyebrow">What Kindly remembers</p>
+            <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Memories</h1>
+            <p className="mt-2 text-base text-muted">
+              Review what Kindly has learned. Confirm the things it picked up from conversations, and
+              remove anything that isn&rsquo;t right.
+            </p>
+          </div>
 
-      {parents.length === 0 ? (
-        <EmptyParentState />
-      ) : (
-        <>
-          {parents.length > 1 && (
-            <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+          {parents.length === 0 ? (
+            <EmptyParentState />
+          ) : (
+            <>
+              <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+              {selected && <MemoriesPanel key={selected} parentId={selected} />}
+            </>
           )}
-          {selected && <MemoriesPanel key={selected} parentId={selected} />}
-        </>
+        </div>
       )}
-    </div>
+    </ParentGate>
   );
 }
 

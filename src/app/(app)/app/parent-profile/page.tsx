@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
-import { useParents } from '@/hooks/useParents';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
+import { ParentGate } from '@/components/ParentGate';
 
 interface Parent {
   id: string;
@@ -31,33 +31,30 @@ const inputCls =
   'mt-2 w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage';
 
 export default function ParentProfilePage() {
-  const { parents, selected, setSelected, loadError } = useParents();
-
-  if (loadError) return <p className="text-base text-clay">{loadError}</p>;
-  if (!parents) return <p className="text-base text-muted">Loading…</p>;
-
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <p className="eyebrow">Their profile</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Parent profile</h1>
-        <p className="mt-2 text-base text-muted">
-          Tune how Kindly speaks with your parent — the accessibility settings that make each
-          conversation comfortable for them.
-        </p>
-      </div>
+    <ParentGate>
+      {({ parents, selected, setSelected }) => (
+        <div className="mx-auto max-w-2xl space-y-8">
+          <div>
+            <p className="eyebrow">Their profile</p>
+            <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Parent profile</h1>
+            <p className="mt-2 text-base text-muted">
+              Tune how Kindly speaks with your parent — the accessibility settings that make each
+              conversation comfortable for them.
+            </p>
+          </div>
 
-      {parents.length === 0 ? (
-        <EmptyParentState />
-      ) : (
-        <>
-          {parents.length > 1 && (
-            <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+          {parents.length === 0 ? (
+            <EmptyParentState />
+          ) : (
+            <>
+              <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+              {selected && <ProfilePanel key={selected} parentId={selected} />}
+            </>
           )}
-          {selected && <ProfilePanel key={selected} parentId={selected} />}
-        </>
+        </div>
       )}
-    </div>
+    </ParentGate>
   );
 }
 
