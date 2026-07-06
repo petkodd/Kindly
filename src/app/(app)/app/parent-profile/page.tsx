@@ -5,6 +5,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
+import { inputCls } from '@/lib/formStyles';
 
 interface Parent {
   id: string;
@@ -27,8 +28,8 @@ const LANGUAGES = [
   { code: 'de-DE', label: 'German' },
 ];
 
-const inputCls =
-  'mt-2 w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage';
+// Labels sit above each field, so add top spacing to the shared in-card input.
+const fieldCls = `mt-2 ${inputCls}`;
 
 export default function ParentProfilePage() {
   return (
@@ -151,7 +152,7 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
             value={pronouns}
             onChange={(e) => setPronouns(e.target.value)}
             placeholder="she/her, he/him…"
-            className={inputCls}
+            className={fieldCls}
           />
         </div>
 
@@ -164,7 +165,7 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder="Where they live"
-            className={inputCls}
+            className={fieldCls}
           />
         </div>
 
@@ -176,7 +177,7 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
             id="pp-language"
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className={inputCls}
+            className={fieldCls}
           >
             {languages.map((l) => (
               <option key={l.code} value={l.code}>
@@ -194,7 +195,7 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
             id="pp-speech"
             value={speechRate}
             onChange={(e) => setSpeechRate(e.target.value as 'slow' | 'normal')}
-            className={inputCls}
+            className={fieldCls}
           >
             <option value="slow">Slow &amp; clear</option>
             <option value="normal">Normal</option>
