@@ -3,10 +3,20 @@ import { db } from '@/lib/db';
 import { readJsonBody, errorToResponse } from '@/lib/auth';
 import { accessTokenRepo } from '@/lib/repos/accessToken';
 import { attachParentToken } from '@/lib/parentSession';
-import { NotFoundError } from '@/lib/types';
+import { rateLimitRepo } from '@/lib/repos/rateLimit';
+import { NotFoundError, RateLimitError } from '@/lib/types';
 
 const unauthorized = () =>
   NextResponse.json({ error: { code: 'unauthorized', message: 'Invalid or expired link.' } }, { status: 401 });
+
+// Unauthenticated endpoint doing a DB lookup per call — throttle per IP. Tokens
+// are 256-bit random so guessing is infeasible; this just blunts hammering.
+const EXCHANGE_LIMIT = 20;
+const EXCHANGE_WINDOW_MS = 15 * 60 * 1000;
+
+function clientIp(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+}
 
 /**
  * Exchange a raw parent access token (from the talk link's ?token=) for an
@@ -16,6 +26,12 @@ const unauthorized = () =>
 export async function POST(req: NextRequest) {
   try {
     const pool = db();
+    const rl = await rateLimitRepo.hit(pool, `talkauth:ip:${clientIp(req)}`, {
+      limit: EXCHANGE_LIMIT,
+      windowMs: EXCHANGE_WINDOW_MS,
+    });
+    if (!rl.allowed) throw new RateLimitError('Too many attempts. Please try again later.');
+
     const body = await readJsonBody(req);
     const token = (body.token as string) ?? '';
     try {

@@ -22,7 +22,10 @@ function cookieBase() {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
+    // Strict costs nothing here: the cookie is only ever needed by same-site
+    // XHR from /app/talk (path-scoped to /api/talk), never on an inbound
+    // top-level navigation — and it hardens CSRF beyond Lax.
+    sameSite: 'strict' as const,
     path: '/api/talk',
   };
 }

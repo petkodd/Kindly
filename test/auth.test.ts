@@ -33,12 +33,12 @@ describe('getParentToken (talk auth)', () => {
 });
 
 describe('parent talk cookie (parentSession)', () => {
-  it('attach sets an httpOnly, SameSite=Lax, /api/talk-scoped cookie', () => {
+  it('attach sets an httpOnly, SameSite=Strict, /api/talk-scoped cookie', () => {
     const setCookie =
       attachParentToken(NextResponse.json({ ok: true }), 'raw-token').headers.get('set-cookie') ?? '';
     expect(setCookie).toContain('kindly_talk=raw-token');
     expect(setCookie.toLowerCase()).toContain('httponly');
-    expect(setCookie.toLowerCase()).toContain('samesite=lax');
+    expect(setCookie.toLowerCase()).toContain('samesite=strict');
     expect(setCookie).toContain('Path=/api/talk');
   });
 
