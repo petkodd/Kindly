@@ -24,4 +24,11 @@ describe('ParentPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mary' }));
     expect(onSelect).toHaveBeenCalledWith('p2');
   });
+
+  it('renders nothing (not even a wrapper) for a single parent', () => {
+    const { container } = render(
+      <ParentPicker parents={[PARENTS[0]]} selected="p1" onSelect={() => {}} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
 });
