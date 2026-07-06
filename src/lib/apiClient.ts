@@ -14,10 +14,19 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, method: string, body?: unknown): Promise<T> {
+/**
+ * Optional extra headers — used by the parent-facing talk flow, which
+ * authenticates with an `Authorization: Bearer <access-token>` header rather
+ * than the buyer session cookie.
+ */
+type Extra = Record<string, string> | undefined;
+
+async function request<T>(path: string, method: string, body?: unknown, headers?: Extra): Promise<T> {
+  const merged: Record<string, string> = { ...(headers ?? {}) };
+  if (body !== undefined) merged['Content-Type'] = 'application/json';
   const res = await fetch(path, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: Object.keys(merged).length > 0 ? merged : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (res.status === 204) return undefined as T;
@@ -35,8 +44,8 @@ async function request<T>(path: string, method: string, body?: unknown): Promise
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path, 'GET'),
-  post: <T>(path: string, body?: unknown) => request<T>(path, 'POST', body),
-  patch: <T>(path: string, body?: unknown) => request<T>(path, 'PATCH', body),
-  del: <T>(path: string, body?: unknown) => request<T>(path, 'DELETE', body),
+  get: <T>(path: string, headers?: Extra) => request<T>(path, 'GET', undefined, headers),
+  post: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'POST', body, headers),
+  patch: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PATCH', body, headers),
+  del: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'DELETE', body, headers),
 };
