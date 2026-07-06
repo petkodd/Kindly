@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
+import { inputCls } from '@/lib/formStyles';
 
 interface Account {
   id: string;
@@ -70,7 +71,7 @@ function NameSection({ account, onUpdated }: { account: Account; onUpdated: (a: 
       <label htmlFor="acc-name" className="block text-base font-semibold text-ink">Your name</label>
       <input
         id="acc-name" value={name} onChange={(e) => setName(e.target.value)}
-        className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
+        className={inputCls}
         placeholder="Your name"
       />
       <button type="button" onClick={save} className="btn-primary">Save name</button>
@@ -99,13 +100,13 @@ function PasswordSection() {
       <input
         id="acc-current-pw" type="password" autoComplete="current-password" value={current}
         onChange={(e) => setCurrent(e.target.value)} placeholder="Current password"
-        className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
+        className={inputCls}
       />
       <label htmlFor="acc-new-pw" className="block text-base font-semibold text-ink">New password</label>
       <input
         id="acc-new-pw" type="password" autoComplete="new-password" value={next}
         onChange={(e) => setNext(e.target.value)} placeholder="At least 8 characters"
-        className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
+        className={inputCls}
       />
       <button type="button" onClick={change} className="btn-primary">Change password</button>
       {status && <p className="text-sm text-muted">{status}</p>}

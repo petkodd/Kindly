@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
+import { inputOnPageCls } from '@/lib/formStyles';
 
 interface Parent {
   id: string;
@@ -11,8 +12,8 @@ interface Parent {
 
 const RELATIONSHIPS = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other'] as const;
 
-const inputCls =
-  'mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage';
+// Onboarding fields sit on the bare page (no card), and labels sit above them.
+const fieldCls = `mt-2 ${inputOnPageCls}`;
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
@@ -64,21 +65,21 @@ function ProfileStep({ onDone }: { onDone: (p: Parent) => void }) {
       <h1 className="font-display text-3xl font-semibold text-ink">Who is this for?</h1>
       <div>
         <label htmlFor="ob-name" className="block text-base font-semibold text-ink">Their first name</label>
-        <input id="ob-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} placeholder="e.g. Robert" />
+        <input id="ob-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={fieldCls} placeholder="e.g. Robert" />
       </div>
       <div>
         <label htmlFor="ob-rel" className="block text-base font-semibold text-ink">Your relationship</label>
-        <select id="ob-rel" value={relationship} onChange={(e) => setRelationship(e.target.value as typeof relationship)} className={inputCls}>
+        <select id="ob-rel" value={relationship} onChange={(e) => setRelationship(e.target.value as typeof relationship)} className={fieldCls}>
           {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
       <div>
         <label htmlFor="ob-pron" className="block text-base font-semibold text-ink">Pronouns (optional)</label>
-        <input id="ob-pron" value={pronouns} onChange={(e) => setPronouns(e.target.value)} className={inputCls} placeholder="she/her, he/him…" />
+        <input id="ob-pron" value={pronouns} onChange={(e) => setPronouns(e.target.value)} className={fieldCls} placeholder="she/her, he/him…" />
       </div>
       <div>
         <label htmlFor="ob-city" className="block text-base font-semibold text-ink">City (optional)</label>
-        <input id="ob-city" value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} placeholder="Where they live" />
+        <input id="ob-city" value={city} onChange={(e) => setCity(e.target.value)} className={fieldCls} placeholder="Where they live" />
       </div>
       {error && <p className="text-base text-clay">{error}</p>}
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
@@ -120,15 +121,15 @@ function MemoriesStep({ parent, onDone }: { parent: Parent; onDone: () => void }
       <p className="text-base text-muted">These help Kindly hold a warmer conversation. All optional — you can add more later.</p>
       <div>
         <label htmlFor="ob-person" className="block text-base font-semibold text-ink">Someone who matters to them</label>
-        <input id="ob-person" value={person} onChange={(e) => setPerson(e.target.value)} className={inputCls} placeholder="e.g. their late wife, Margaret" />
+        <input id="ob-person" value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder="e.g. their late wife, Margaret" />
       </div>
       <div>
         <label htmlFor="ob-home" className="block text-base font-semibold text-ink">Where they’re from</label>
-        <input id="ob-home" value={hometown} onChange={(e) => setHometown(e.target.value)} className={inputCls} placeholder="e.g. Detroit" />
+        <input id="ob-home" value={hometown} onChange={(e) => setHometown(e.target.value)} className={fieldCls} placeholder="e.g. Detroit" />
       </div>
       <div>
         <label htmlFor="ob-enjoys" className="block text-base font-semibold text-ink">Something they love</label>
-        <input id="ob-enjoys" value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={inputCls} placeholder="e.g. jazz, gardening" />
+        <input id="ob-enjoys" value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
       </div>
       {error && <p className="text-base text-clay">{error}</p>}
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
