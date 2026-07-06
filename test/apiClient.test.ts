@@ -38,4 +38,24 @@ describe('apiClient', () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err.message).toBe('Something went wrong.');
   });
+
+  it('forwards extra headers (e.g. the parent talk Bearer token) and still sets Content-Type for a body', async () => {
+    const fetchSpy = vi.fn(async (_i: RequestInfo | URL, _init?: RequestInit) =>
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    await api.post('/api/talk/message', { content: 'hi' }, { Authorization: 'Bearer tok123' });
+    const headers = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer tok123');
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+
+  it('sends no headers object when there is neither a body nor extra headers', async () => {
+    const fetchSpy = vi.fn(async (_i: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(null, { status: 204 }),
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    await api.get('/api/me');
+    expect((fetchSpy.mock.calls[0][1] as RequestInit).headers).toBeUndefined();
+  });
 });
