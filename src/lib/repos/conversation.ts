@@ -110,6 +110,20 @@ export const conversationRepo = {
     );
   },
 
+  /** Accumulate voice duration onto a session (additive, safe to call per-turn). */
+  async addVoiceMinutes(
+    q: Querier,
+    conversationId: string,
+    parentId: string,
+    durationSeconds: number,
+  ): Promise<void> {
+    await conversationRepo.getForParent(q, conversationId, parentId); // ownership check
+    await q.query(
+      `UPDATE conversations SET voice_minutes = voice_minutes + $2 WHERE id = $1`,
+      [conversationId, durationSeconds / 60],
+    );
+  },
+
   /** End a session (idempotent). Session-end jobs (summarize/extract) run separately. */
   async end(q: Querier, conversationId: string, parentId: string): Promise<Conversation> {
     const convo = await conversationRepo.getForParent(q, conversationId, parentId);
