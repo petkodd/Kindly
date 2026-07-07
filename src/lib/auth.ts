@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 import type { Querier } from './querier';
 import { db } from './db';
@@ -19,6 +20,15 @@ export function isAuthorizedCron(req: NextRequest): boolean {
   const given = Buffer.from(req.headers.get('authorization') ?? '');
   const expected = Buffer.from(`Bearer ${secret}`);
   return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+/**
+ * Best-effort caller IP for per-IP rate limiting. Trusts the first
+ * `x-forwarded-for` entry (set by the platform's edge proxy) — good enough for
+ * throttling abuse, not a hard identity check.
+ */
+export function clientIp(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 }
 
 /** Standard 401 for admin-only routes when the caller isn't a live admin. */
@@ -141,6 +151,9 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       return { status: 400, body: { error: { code: 'invalid_input', message: (err as Error).message } } };
     default:
       console.error('Unhandled error', err);
+      // Only truly unexpected errors (not the domain errors handled above)
+      // are worth paging on — those are already-classified 4xx/502 outcomes.
+      Sentry.captureException(err);
       return { status: 500, body: { error: { code: 'server_error', message: 'Something went wrong.' } } };
   }
 }
