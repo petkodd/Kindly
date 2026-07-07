@@ -16,8 +16,19 @@ function hashToken(raw: string): string {
 }
 
 export const magicLinkRepo = {
-  /** Issue a token for a user. Returns the raw token ONCE; only the hash is stored. */
+  /**
+   * Issue a token for a user. Returns the raw token ONCE; only the hash is
+   * stored. Invalidates any prior unused, unexpired tokens for the user first
+   * (single active link, same rationale as accessTokenRepo.issue) — a repeat
+   * "email me a link" click can't leave several simultaneously valid tokens
+   * outstanding for the same account.
+   */
   async issue(q: Querier, userId: string): Promise<{ token: string; id: string }> {
+    await q.query(
+      `UPDATE magic_link_tokens SET used_at = now()
+       WHERE user_id = $1 AND used_at IS NULL AND expires_at > now()`,
+      [userId],
+    );
     const raw = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + TTL_MS);
     const { rows } = await q.query<{ id: string }>(

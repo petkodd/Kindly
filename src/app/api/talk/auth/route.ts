@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readJsonBody, errorToResponse } from '@/lib/auth';
+import { readJsonBody, errorToResponse, clientIp } from '@/lib/auth';
 import { accessTokenRepo } from '@/lib/repos/accessToken';
 import { attachParentToken } from '@/lib/parentSession';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
@@ -13,10 +13,6 @@ const unauthorized = () =>
 // are 256-bit random so guessing is infeasible; this just blunts hammering.
 const EXCHANGE_LIMIT = 20;
 const EXCHANGE_WINDOW_MS = 15 * 60 * 1000;
-
-function clientIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-}
 
 /**
  * Exchange a raw parent access token (from the talk link's ?token=) for an

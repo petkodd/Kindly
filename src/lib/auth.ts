@@ -22,6 +22,15 @@ export function isAuthorizedCron(req: NextRequest): boolean {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
+/**
+ * Best-effort caller IP for per-IP rate limiting. Trusts the first
+ * `x-forwarded-for` entry (set by the platform's edge proxy) — good enough for
+ * throttling abuse, not a hard identity check.
+ */
+export function clientIp(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+}
+
 /** Standard 401 for admin-only routes when the caller isn't a live admin. */
 export function adminForbidden(): NextResponse {
   return NextResponse.json(

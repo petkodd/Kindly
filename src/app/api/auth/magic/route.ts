@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readJsonBody, errorToResponse } from '@/lib/auth';
+import { readJsonBody, errorToResponse, clientIp } from '@/lib/auth';
 import { userRepo } from '@/lib/repos/user';
 import { magicLinkRepo } from '@/lib/repos/magicLink';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
@@ -12,10 +12,6 @@ import { RateLimitError } from '@/lib/types';
 // Unauthenticated + triggers an email send — throttle per IP the same way login does.
 const MAGIC_LIMIT = 5;
 const MAGIC_WINDOW_MS = 15 * 60 * 1000;
-
-function clientIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-}
 
 /**
  * Send a magic sign-in link. ALWAYS returns 200 — never reveals whether the
@@ -32,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!rl.allowed) throw new RateLimitError('Too many requests. Please try again later.');
 
     const body = await readJsonBody(req);
-    const email = (body.email as string) ?? '';
+    const email = typeof body.email === 'string' ? body.email : '';
     const user = await userRepo.findByEmail(pool, email);
     if (user) {
       const { token } = await magicLinkRepo.issue(pool, user.id);

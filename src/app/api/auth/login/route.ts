@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readJsonBody, errorToResponse } from '@/lib/auth';
+import { readJsonBody, errorToResponse, clientIp } from '@/lib/auth';
 import { userRepo } from '@/lib/repos/user';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { signSession, attachSession } from '@/lib/session';
@@ -13,10 +13,6 @@ const invalid = () =>
 // attacker lock out a victim's account by spamming their address.
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-
-function clientIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-}
 
 /**
  * Log in with email + password. Returns 200 + session cookie, or a single 401

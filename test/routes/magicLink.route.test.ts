@@ -66,12 +66,57 @@ describe('POST /api/auth/magic', () => {
     for (let i = 0; i < 6; i++) last = await magicPOST(req());
     expect(last!.status).toBe(429);
   });
+
+  it('does not 500 on a non-string email (type confusion)', async () => {
+    const sendSpy = vi.spyOn(fakeEmailClient, 'send');
+    const res = await magicPOST(jsonReq('http://localhost/api/auth/magic', { email: 12345 }));
+    expect(res.status).toBe(200);
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it('re-issuing invalidates the previously issued, unused token', async () => {
+    const sendSpy = vi.spyOn(fakeEmailClient, 'send');
+    await userRepo.create(q, { email: 'sarah@example.com', password: 'hunter2horse' });
+
+    await magicPOST(jsonReq('http://localhost/api/auth/magic', { email: 'sarah@example.com' }));
+    const firstToken = new URL(sendSpy.mock.calls[0][0].html.match(/href="([^"]+)"/)![1]).searchParams.get('token')!;
+
+    await magicPOST(jsonReq('http://localhost/api/auth/magic', { email: 'sarah@example.com' }));
+    const secondToken = new URL(sendSpy.mock.calls[1][0].html.match(/href="([^"]+)"/)![1]).searchParams.get('token')!;
+
+    const staleAttempt = await magicVerifyPOST(
+      jsonReq('http://localhost/api/auth/magic/verify', { token: firstToken }),
+    );
+    expect(staleAttempt.status).toBe(404);
+
+    const freshAttempt = await magicVerifyPOST(
+      jsonReq('http://localhost/api/auth/magic/verify', { token: secondToken }),
+    );
+    expect(freshAttempt.status).toBe(200);
+  });
 });
 
 describe('POST /api/auth/magic/verify', () => {
   it('404s an unknown/invalid token', async () => {
     const res = await magicVerifyPOST(jsonReq('http://localhost/api/auth/magic/verify', { token: 'nope' }));
     expect(res.status).toBe(404);
+  });
+
+  it('does not 500 on a non-string token (type confusion)', async () => {
+    const res = await magicVerifyPOST(jsonReq('http://localhost/api/auth/magic/verify', { token: 12345 }));
+    expect(res.status).toBe(404);
+  });
+
+  it('429s once the per-IP rate limit is exceeded', async () => {
+    const req = () =>
+      new NextRequest('http://localhost/api/auth/magic/verify', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '8.8.8.8' },
+        body: JSON.stringify({ token: 'nope' }),
+      });
+    let last;
+    for (let i = 0; i < 21; i++) last = await magicVerifyPOST(req());
+    expect(last!.status).toBe(429);
   });
 
   it('issues a session cookie for a valid token, end-to-end from the emailed link', async () => {
