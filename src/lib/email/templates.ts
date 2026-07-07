@@ -22,3 +22,25 @@ export function inviteRecipientEmail(input: {
   `.trim();
   return { subject, html, text };
 }
+
+/** Plain, warm transactional copy for a passwordless sign-in link. */
+export function magicLinkEmail(input: { verifyUrl: string }): { subject: string; html: string; text: string } {
+  const { verifyUrl } = input;
+  const subject = 'Your Kindly sign-in link';
+  const text = [
+    'Use this link to sign in to Kindly:',
+    '',
+    verifyUrl,
+    '',
+    'This link expires in 15 minutes and can only be used once.',
+    '',
+    "If you didn't request this, you can ignore this email — your account is safe.",
+  ].join('\n');
+  const html = `
+    <p>Use this link to sign in to Kindly:</p>
+    <p><a href="${verifyUrl}">Sign in to Kindly</a></p>
+    <p style="color:#666;font-size:14px">This link expires in 15 minutes and can only be used once.</p>
+    <p style="color:#666;font-size:14px">If you didn't request this, you can ignore this email — your account is safe.</p>
+  `.trim();
+  return { subject, html, text };
+}

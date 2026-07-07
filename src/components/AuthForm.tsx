@@ -13,6 +13,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [magicSent, setMagicSent] = useState(false);
 
   const isSignup = mode === 'signup';
 
@@ -27,6 +28,20 @@ export function AuthForm({ mode }: { mode: Mode }) {
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+      setBusy(false);
+    }
+  }
+
+  async function sendMagicLink() {
+    setError('');
+    if (!email.includes('@')) return setError('Please enter a valid email address.');
+    setBusy(true);
+    try {
+      await api.post('/api/auth/magic', { email });
+      setMagicSent(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+    } finally {
       setBusy(false);
     }
   }
@@ -60,6 +75,20 @@ export function AuthForm({ mode }: { mode: Mode }) {
       <button type="button" onClick={submit} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}
       </button>
+      {!isSignup && (
+        magicSent ? (
+          <p className="text-sm text-muted">Check your email for a sign-in link. It expires in 15 minutes.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={sendMagicLink}
+            disabled={busy}
+            className="w-full text-sm text-sage underline disabled:opacity-60"
+          >
+            Email me a sign-in link instead
+          </button>
+        )
+      )}
       <p className="text-sm text-muted">
         {isSignup ? (
           <>Already have an account? <Link href="/login" className="text-sage underline">Sign in</Link></>
