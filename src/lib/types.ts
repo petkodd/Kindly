@@ -12,6 +12,9 @@ export type Sensitivity = 'normal' | 'sensitive' | 'restricted';
 
 export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary_recipient';
 
+export type SummaryStatus = 'draft' | 'preview' | 'sent';
+export type DeliveryChannel = 'email' | 'sms';
+
 export interface Parent {
   id: string;
   buyer_id: string;
@@ -53,6 +56,67 @@ export interface Consent {
   detail: Record<string, unknown> | null;
 }
 
+export interface WeeklySummary {
+  id: string;
+  parent_id: string;
+  period_start: string;
+  period_end: string;
+  status: SummaryStatus;
+  body_long: string | null;
+  body_short: string | null;
+  has_concern: boolean;
+  generated_at: string;
+}
+
+export interface SummaryDelivery {
+  id: string;
+  summary_id: string;
+  recipient_user: string | null;
+  channel: DeliveryChannel;
+  consent_id: string;
+  sent_at: string | null;
+  status: string;
+}
+
+export type ConversationChannel = 'voice' | 'text';
+export type TurnRole = 'parent' | 'kindly';
+
+export type FlagSeverity = 'p0_crisis' | 'p1_acute_medical' | 'p2_welfare' | 'p3_abuse';
+export type FlagStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
+
+export interface SafetyFlag {
+  id: string;
+  parent_id: string;
+  conversation_id: string | null;
+  severity: FlagSeverity;
+  status: FlagStatus;
+  detail: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
+export interface Conversation {
+  id: string;
+  parent_id: string;
+  started_at: string;
+  ended_at: string | null;
+  channel: ConversationChannel;
+  voice_minutes: string;
+  summary_text: string | null;
+  mood_signal: string | null;
+  memories_extracted_at: string | null;
+}
+
+export interface ConversationTurnRecord {
+  id: string;
+  conversation_id: string;
+  role: TurnRole;
+  content: string;
+  created_at: string;
+  retention_purge_at: string | null;
+}
+
 /** Thrown when a caller tries to reach a parent they don't own. API maps this to 404. */
 export class NotFoundError extends Error {
   constructor(message = 'Not found') {
@@ -74,5 +138,29 @@ export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ValidationError';
+  }
+}
+
+/** Thrown when a consent/authorization gate blocks an action. API maps to 403. */
+export class ForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ForbiddenError';
+  }
+}
+
+/** Thrown when a unique resource already exists (e.g. duplicate email). API maps to 409. */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+/** Thrown when a caller exceeds a rate limit. API maps to 429. */
+export class RateLimitError extends Error {
+  constructor(message = 'Too many requests. Please try again later.') {
+    super(message);
+    this.name = 'RateLimitError';
   }
 }

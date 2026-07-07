@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 
 export const SITE = {
   name: 'Kindly',
-  url: 'https://kindly.example.com', // replace with real domain
+  // Real domain from env (NEXT_PUBLIC_* is inlined at build); falls back to the
+  // placeholder in dev. Drives canonical URLs, Open Graph, sitemap, and robots.
+  url: process.env.NEXT_PUBLIC_SITE_URL || 'https://kindly.example.com',
   tagline: 'For the moments you can’t be there.',
   description:
     'A warm, voice-first AI companion your aging parent can talk to — with a respectful weekly summary for your family.',

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getBuyerId, errorToResponse } from '@/lib/auth';
+import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { memoryRepo } from '@/lib/repos/memory';
 
 type Ctx = { params: { id: string } };
 
 export async function GET(req: NextRequest, { params }: Ctx) {
-  const buyerId = getBuyerId(req);
+  const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
     const pool = db();
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
-  const buyerId = getBuyerId(req);
+  const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
     const pool = db();

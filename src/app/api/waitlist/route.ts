@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { waitlistRepo } from '@/lib/repos/waitlist';
 
 /**
  * POST /api/waitlist
@@ -23,23 +24,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // If DATABASE_URL is not configured (local scaffold), accept gracefully.
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ ok: true, persisted: false }, { status: 201 });
   }
 
   try {
-    const pool = db();
-    await pool.query(
-      `INSERT INTO waitlist_signups (email, source_page, utm, wants_demo)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT DO NOTHING`,
-      [email, body.source_page ?? null, body.utm ? JSON.stringify(body.utm) : null, !!body.wants_demo],
-    );
-    await pool.query(
-      `INSERT INTO analytics_events (event_name, props) VALUES ($1, $2)`,
-      ['waitlist_joined', JSON.stringify({ source_page: body.source_page ?? null, wants_demo: !!body.wants_demo })],
-    );
+    await waitlistRepo.signup(db(), {
+      email,
+      sourcePage: body.source_page,
+      utm: body.utm,
+      wantsDemo: body.wants_demo,
+    });
     return NextResponse.json({ ok: true, persisted: true }, { status: 201 });
   } catch (err) {
     console.error('waitlist insert failed', err);

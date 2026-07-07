@@ -68,6 +68,33 @@ export const parentRepo = {
     return rows[0];
   },
 
+  /**
+   * List a buyer's parents (non-deleted), newest first. Scoped to the owning
+   * buyer — never returns another tenant's parents.
+   */
+  async listForBuyer(q: Querier, buyerId: string): Promise<Parent[]> {
+    const { rows } = await q.query<Parent>(
+      `SELECT * FROM parents
+       WHERE buyer_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at DESC`,
+      [buyerId],
+    );
+    return rows;
+  },
+
+  /**
+   * Fetch a parent by id alone — for parent-authenticated talk routes, where the
+   * caller is the parent (resolved from an access token), not the owning buyer.
+   */
+  async getById(q: Querier, parentId: string): Promise<Parent> {
+    const { rows } = await q.query<Parent>(
+      `SELECT * FROM parents WHERE id = $1 AND deleted_at IS NULL`,
+      [parentId],
+    );
+    if (rows.length === 0) throw new NotFoundError('Parent not found');
+    return rows[0];
+  },
+
   async update(
     q: Querier,
     parentId: string,

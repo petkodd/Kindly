@@ -27,6 +27,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
+| GET | `/api/parents` | buyer | List own parents (newest first) | 200; buyer-scoped, excludes soft-deleted |
 | POST | `/api/parents` | buyer | Create parent profile (onboarding) | 201; not activated until consent gate |
 | GET | `/api/parents/:id` | buyer | Read own parent | 200; 403 if not owner (isolation test) |
 | PATCH | `/api/parents/:id` | buyer | Update profile/accessibility | 200 |
@@ -36,8 +37,8 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 | POST | `/api/parents/:id/access-link/revoke` | buyer | Revoke token | 200 |
 | GET | `/api/parents/:id/memories` | buyer | List memories | 200; supports `?layer=&status=` |
 | POST | `/api/parents/:id/memories` | buyer | Add memory (onboarding seed) | 201; `source=onboarding`, `status=confirmed` |
-| PATCH | `/api/memories/:mid` | buyer | Confirm/edit/retire a proposed memory | 200; status transition validated |
-| DELETE | `/api/memories/:mid` | buyer | Hard-delete memory | 200; removed from active store |
+| PATCH | `/api/memories/:mid` | buyer | Confirm/retire a proposed memory `{action}` | 200/204; buyer-scoped (404 if not owned) |
+| DELETE | `/api/memories/:mid` | buyer | Hard-delete memory | 204; buyer-scoped (404 if not owned) |
 
 ## Consent
 
@@ -51,6 +52,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
+| POST | `/api/talk/auth` | parent | Exchange the URL access token for an httpOnly talk cookie | 200 + cookie; 401 if invalid/expired. Lets the page drop the token from the URL |
 | POST | `/api/talk/session` | parent | Open conversation; returns greeting w/ AI-identity disclosure | 201; 403 if no parent_conversation consent |
 | POST | `/api/talk/message` | parent | Send turn `{conversation_id, content}` → companion reply | 200; injects retrieved memories; runs safety scan |
 | POST | `/api/talk/voice` | parent | Voice turn (audio in → STT → reply → TTS url) | 200; logs `voice_minutes`; <2.5s perceived start |
@@ -68,7 +70,9 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
+| GET | `/api/parents/:id/recipients` | buyer | List summary recipients (pending + accepted) | 200; safe view — no invite token hash |
 | POST | `/api/parents/:id/invite-sibling` | buyer | Invite sibling as summary recipient `{email}` | 201; creates pending consent + email |
+| GET | `/api/referrals` | buyer | Read own referral code (or null) | 200 |
 | POST | `/api/referrals` | buyer | Generate referral code | 201; unique code; emits `referral_created` |
 | POST | `/api/referrals/redeem` | public | Redeem code at signup | 200; fraud guard one/household |
 
@@ -76,7 +80,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 
 | Method | Route | Auth | Purpose | Acceptance |
 |---|---|---|---|---|
-| GET | `/api/admin/overview` | admin | Signups, active users, cost/active user, cost/voice min, retention | 200; audit-logged |
+| GET | `/api/admin/overview` | admin | Buyers, parents (active/total), conversations (total/7d), open flags, summaries sent, waitlist | 200; audit-logged. Cost/retention deferred until billing + usage tracking land |
 | GET | `/api/admin/flags` | admin | Safety flag queue | 200; audit-logged |
 | PATCH | `/api/admin/flags/:fid` | admin | Update flag status | 200; audit-logged |
 
@@ -88,7 +92,7 @@ Legend — Auth: `public` | `buyer` (session) | `parent` (access token) | `admin
 | `extract_memory_candidates` | session end | Insert `proposed` memories from transcript |
 | `embed_memories` | new/confirmed memory | Populate `embedding` |
 | `generate_weekly_summary` | weekly cron | Build `weekly_summaries` rows in `preview` |
-| `purge_hard_deletes` | daily cron | Honor delete within 30 days; purge expired transcripts |
+| `purge_hard_deletes` | daily cron | Hard-delete users/parents soft-deleted >30 days ago (anonymizes non-cascading refs first); purge turns past `retention_purge_at` (stamping that column is a pending product decision) |
 | `detect_safety_flags` | each message | Classify P0–P3, write `safety_flags`, route alerts |
 
 **Error contract:** `{ error: { code, message } }`; never leak another parent's existence (404 not 403 on cross-tenant). **Rate limits:** auth + talk endpoints throttled. **PII in URLs:** never — all sensitive payloads in body.
