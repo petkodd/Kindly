@@ -24,9 +24,10 @@ import type { Querier } from '../querier';
  *  3. DELETE any remaining soft-deleted parents past the window (their buyer
  *     is alive), cascading their subtree the same way.
  *  4. DELETE expired transcript turns — rows whose retention_purge_at has
- *     passed. Nothing sets that column yet (the product retention period is
- *     undecided), so this honors the schema's own mechanism without inventing
- *     a policy: once something stamps retention_purge_at, the purge is live.
+ *     passed. Stamped at session end (src/lib/jobs/sessionEnd.ts,
+ *     DEFAULT_TRANSCRIPT_RETENTION_DAYS = 30) regardless of account deletion —
+ *     transcripts expire on their own clock, independent of the user/parent
+ *     purge above.
  *
  * Deliberate carve-out: waitlist_signups.email is NOT purged — it predates the
  * account and isn't linked to it. Whether the deletion promise should cover

@@ -63,6 +63,38 @@ describe('session-end jobs', () => {
     // Extracted memories enter as 'proposed' (await confirmation), not confirmed.
     const proposed = await memoryRepo.list(q, parentId, { status: 'proposed' });
     expect(proposed.map((m) => m.mem_value).join(' ')).toContain('gardening');
+
+    // Turns are stamped with a ~30-day transcript retention expiry.
+    const turns = await q.query<{ retention_purge_at: string | null }>(
+      `SELECT retention_purge_at FROM conversation_turns WHERE conversation_id = $1`,
+      [convoId],
+    );
+    expect(turns.rows.length).toBeGreaterThan(0);
+    for (const turn of turns.rows) {
+      expect(turn.retention_purge_at).not.toBeNull();
+      const daysOut = (new Date(turn.retention_purge_at!).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+      expect(daysOut).toBeGreaterThan(29);
+      expect(daysOut).toBeLessThan(31);
+    }
+  });
+
+  it('does not re-stamp turn retention on a second run', async () => {
+    const parentId = await makeTalkingParent();
+    const convoId = await haveConversation(parentId);
+
+    await runSessionEndJobs(q, convoId);
+    const first = await q.query<{ retention_purge_at: string }>(
+      `SELECT retention_purge_at FROM conversation_turns WHERE conversation_id = $1 ORDER BY created_at`,
+      [convoId],
+    );
+
+    await runSessionEndJobs(q, convoId, { retentionDays: 9999 }); // would differ if re-stamped
+    const second = await q.query<{ retention_purge_at: string }>(
+      `SELECT retention_purge_at FROM conversation_turns WHERE conversation_id = $1 ORDER BY created_at`,
+      [convoId],
+    );
+
+    expect(second.rows.map((r) => r.retention_purge_at)).toEqual(first.rows.map((r) => r.retention_purge_at));
   });
 
   it('is idempotent — a second run does not re-summarize or re-propose', async () => {

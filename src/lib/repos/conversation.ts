@@ -124,6 +124,24 @@ export const conversationRepo = {
     );
   },
 
+  /**
+   * Stamp the transcript retention expiry on a conversation's turns. Guarded by
+   * `retention_purge_at IS NULL` so it only ever stamps once per turn — a
+   * natural idempotency check, no separate marker column needed.
+   */
+  async stampTurnRetention(
+    q: Querier,
+    conversationId: string,
+    retentionDays: number,
+  ): Promise<void> {
+    await q.query(
+      `UPDATE conversation_turns
+        SET retention_purge_at = now() + ($2 || ' days')::interval
+        WHERE conversation_id = $1 AND retention_purge_at IS NULL`,
+      [conversationId, retentionDays],
+    );
+  },
+
   /** End a session (idempotent). Session-end jobs (summarize/extract) run separately. */
   async end(q: Querier, conversationId: string, parentId: string): Promise<Conversation> {
     const convo = await conversationRepo.getForParent(q, conversationId, parentId);
