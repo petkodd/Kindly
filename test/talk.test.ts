@@ -87,6 +87,29 @@ describe('parent access tokens', () => {
       NotFoundError,
     );
   });
+
+  it('defaults to a 90-day expiry when none is given — a leaked link doesn\'t stay valid forever', async () => {
+    const parentId = await makeParent(false);
+    await accessTokenRepo.issue(q, parentId);
+    const { rows } = await q.query<{ expires_at: string | null }>(
+      `SELECT expires_at FROM parent_access_tokens WHERE parent_id = $1`,
+      [parentId],
+    );
+    expect(rows[0].expires_at).not.toBeNull();
+    const days = (new Date(rows[0].expires_at!).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(89);
+    expect(days).toBeLessThan(91);
+  });
+
+  it('passing expiresAt: null explicitly opts out of the default (never expires)', async () => {
+    const parentId = await makeParent(false);
+    await accessTokenRepo.issue(q, parentId, { expiresAt: null });
+    const { rows } = await q.query<{ expires_at: string | null }>(
+      `SELECT expires_at FROM parent_access_tokens WHERE parent_id = $1`,
+      [parentId],
+    );
+    expect(rows[0].expires_at).toBeNull();
+  });
 });
 
 describe('consent idempotency', () => {

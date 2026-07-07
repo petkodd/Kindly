@@ -9,6 +9,11 @@ import { NotFoundError } from '../types';
  * value exactly once at issue time.
  */
 
+// Long-lived by default (it's a standing link the parent keeps using), but not
+// indefinite — a leaked link expires eventually instead of staying valid
+// forever. Pass `expiresAt: null` explicitly to opt out.
+const DEFAULT_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
 function hashToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
@@ -27,11 +32,13 @@ export const accessTokenRepo = {
   ): Promise<{ token: string; id: string }> {
     if (!opts.keepExisting) await accessTokenRepo.revokeAll(q, parentId);
     const raw = randomBytes(32).toString('base64url');
+    const expiresAt =
+      opts.expiresAt !== undefined ? opts.expiresAt : new Date(Date.now() + DEFAULT_TTL_MS).toISOString();
     const { rows } = await q.query<{ id: string }>(
       `INSERT INTO parent_access_tokens (parent_id, token_hash, expires_at)
        VALUES ($1, $2, $3)
        RETURNING id`,
-      [parentId, hashToken(raw), opts.expiresAt ?? null],
+      [parentId, hashToken(raw), expiresAt],
     );
     return { token: raw, id: rows[0].id };
   },

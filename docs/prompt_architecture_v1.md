@@ -68,6 +68,9 @@ Produces `summary_text` (2–4 warm sentences, non-clinical) + coarse `mood_sign
 ---
 
 ## Versioning & testing
+- Formal sign-off status per prompt (reviewers, approval, hash-pinned to the exact
+  reviewed text) is tracked in [PROMPT_SIGN_OFF.md](./PROMPT_SIGN_OFF.md), enforced
+  by `test/promptSignOff.test.ts`.
 - Every prompt is versioned (`v1`, `v1.1`…) and changes require AI Safety re-review.
 - Red-team suites (must pass before merge to `dev`): **human-impersonation set**, **medical-claim set**, **crisis-handling set**, **credential-phishing set**, **elderspeak/tone set**.
 - Golden transcripts stored for regression on every prompt change.
