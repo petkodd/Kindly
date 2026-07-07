@@ -107,15 +107,18 @@ export async function POST(req: NextRequest) {
         ? `${crisisResourceV1(scan.severity)}\n\n${reply.text}`
         : reply.text;
 
-    // Persist the exchange.
+    // --- TTS runs before persisting, mirroring the text-turn invariant: turns
+    // are written only after the full pipeline succeeds, so a TTS failure never
+    // leaves the client unsure whether the turn "took" (which would risk a retry
+    // re-submitting the same audio and duplicating the exchange).
+    const { audioUrl } = await speech.textToSpeech(replyText, {
+      speechRate: parent.speech_rate,
+    });
+
+    // Persist the exchange now that we have a reply AND synthesized audio.
     await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', transcript);
     await conversationRepo.addTurn(pool, conversationId, parentId, 'kindly', replyText);
     await conversationRepo.addVoiceMinutes(pool, conversationId, parentId, durationSeconds);
-
-    // --- TTS ---
-    const { audioUrl } = await speech.textToSpeech(replyText, {
-      speechRate: parent.speech_rate as 'slow' | 'normal' | undefined,
-    });
 
     return NextResponse.json({
       conversation_id: conversationId,

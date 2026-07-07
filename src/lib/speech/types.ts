@@ -1,3 +1,11 @@
+/** Thrown when a speech provider (Deepgram/ElevenLabs) call fails. */
+export class SpeechError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SpeechError';
+  }
+}
+
 export interface SttResult {
   transcript: string;
   /** Wall-clock duration of the audio clip in seconds. Used to log voice_minutes. */

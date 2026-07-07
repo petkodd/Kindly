@@ -1,4 +1,4 @@
-import type { SpeechClient, SttResult, TtsResult } from './types';
+import { SpeechError, type SpeechClient, type SttResult, type TtsResult } from './types';
 
 /**
  * Real speech client using Deepgram (STT) and ElevenLabs (TTS).
@@ -30,7 +30,7 @@ export function createSpeechClient(opts: {
         },
       );
       if (!res.ok) {
-        throw new Error(`Deepgram STT failed: ${res.status} ${await res.text()}`);
+        throw new SpeechError(`Deepgram STT failed: ${res.status} ${await res.text()}`);
       }
       const data = (await res.json()) as {
         results?: {
@@ -67,7 +67,7 @@ export function createSpeechClient(opts: {
         },
       );
       if (!res.ok) {
-        throw new Error(`ElevenLabs TTS failed: ${res.status} ${await res.text()}`);
+        throw new SpeechError(`ElevenLabs TTS failed: ${res.status} ${await res.text()}`);
       }
       const audioBuffer = Buffer.from(await res.arrayBuffer());
       const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;

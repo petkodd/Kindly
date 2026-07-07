@@ -132,6 +132,9 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       // Upstream model failure (refusal, empty, truncated, network) — not a bug
       // in our server. Surface as 502 so callers can distinguish + retry.
       return { status: 502, body: { error: { code: 'model_unavailable', message: 'The companion is unavailable right now.' } } };
+    case 'SpeechError':
+      // Upstream STT/TTS provider failure — same rationale as AiError above.
+      return { status: 502, body: { error: { code: 'speech_unavailable', message: 'Voice is unavailable right now.' } } };
     case 'PreconditionError':
       return { status: 409, body: { error: { code: 'precondition_failed', message: (err as Error).message } } };
     case 'ValidationError':
