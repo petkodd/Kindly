@@ -26,9 +26,17 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <Link href="/app/onboarding" className="btn-primary !min-h-[2.75rem] !px-5 !text-base">
-          Set up the gift
-        </Link>
+        <div className="flex items-center gap-4 sm:gap-5">
+          <Link
+            href="/login"
+            className="text-base text-muted transition-colors hover:text-ink"
+          >
+            Sign in
+          </Link>
+          <Link href="/app/onboarding" className="btn-primary !min-h-[2.75rem] !px-5 !text-base">
+            Set up the gift
+          </Link>
+        </div>
       </div>
     </header>
   );
