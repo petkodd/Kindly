@@ -23,11 +23,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await purgeHardDeletes(db());
-    if (result.purgedUsers > 0 || result.purgedParents > 0 || result.purgedTurns > 0) {
+    if (
+      result.purgedUsers > 0 ||
+      result.purgedParents > 0 ||
+      result.purgedTurns > 0 ||
+      result.purgedWaitlistSignups > 0
+    ) {
       // The cron response body is discarded; log so purges are visible in the
       // platform logs (counts only — never identities).
       console.info(
-        `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents, ${result.purgedTurns} turns (cutoff ${result.cutoff})`,
+        `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents, ${result.purgedTurns} turns, ${result.purgedWaitlistSignups} waitlist signups (cutoff ${result.cutoff})`,
       );
     }
     return NextResponse.json({ ok: true, ...result });

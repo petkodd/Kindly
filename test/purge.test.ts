@@ -199,8 +199,37 @@ describe('purgeHardDeletes', () => {
     expect(rows.find((r) => r.event_name === 'signup')!.user_id).toBe(alive);
   });
 
+  it('purges waitlist signups past the marketing retention window, keeping recent ones', async () => {
+    await q.query(
+      `INSERT INTO waitlist_signups (email, created_at)
+       VALUES ('old@example.com', $1), ('recent@example.com', $2)`,
+      [daysAgo(366), daysAgo(30)],
+    );
+
+    const result = await purgeHardDeletes(q, { now: NOW });
+
+    expect(result.purgedWaitlistSignups).toBe(1);
+    const { rows } = await q.query<{ email: string }>(`SELECT email FROM waitlist_signups`);
+    expect(rows.map((r) => r.email)).toEqual(['recent@example.com']);
+  });
+
+  it('honors a custom waitlistRetentionDays', async () => {
+    await q.query(
+      `INSERT INTO waitlist_signups (email, created_at) VALUES ('week-old@example.com', $1)`,
+      [daysAgo(8)],
+    );
+    const result = await purgeHardDeletes(q, { now: NOW, waitlistRetentionDays: 7 });
+    expect(result.purgedWaitlistSignups).toBe(1);
+    expect(await count('waitlist_signups')).toBe(0);
+  });
+
   it('is a no-op on a clean database', async () => {
     const result = await purgeHardDeletes(q, { now: NOW });
-    expect(result).toMatchObject({ purgedUsers: 0, purgedParents: 0, purgedTurns: 0 });
+    expect(result).toMatchObject({
+      purgedUsers: 0,
+      purgedParents: 0,
+      purgedTurns: 0,
+      purgedWaitlistSignups: 0,
+    });
   });
 });
