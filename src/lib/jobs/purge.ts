@@ -28,10 +28,10 @@ import type { Querier } from '../querier';
  *     DEFAULT_TRANSCRIPT_RETENTION_DAYS = 30) regardless of account deletion —
  *     transcripts expire on their own clock, independent of the user/parent
  *     purge above.
- *
- * Deliberate carve-out: waitlist_signups.email is NOT purged — it predates the
- * account and isn't linked to it. Whether the deletion promise should cover
- * the marketing funnel is a pending privacy decision; revisit when decided.
+ *  5. DELETE waitlist_signups older than DEFAULT_WAITLIST_RETENTION_DAYS (365).
+ *     waitlist_signups has no FK to users — a signup predates any account and
+ *     often never becomes one — so it runs on its own marketing-retention
+ *     clock (created_at), not the account deletion promise above.
  */
 
 export interface PurgeResult {
@@ -40,9 +40,11 @@ export interface PurgeResult {
   purgedUsers: number;
   purgedParents: number;
   purgedTurns: number;
+  purgedWaitlistSignups: number;
 }
 
 export const DEFAULT_RETENTION_DAYS = 30;
+export const DEFAULT_WAITLIST_RETENTION_DAYS = 365;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -59,11 +61,13 @@ const USER_REF_NULLIFICATIONS: { table: string; column: string }[] = [
 
 export async function purgeHardDeletes(
   q: Querier,
-  opts: { retentionDays?: number; now?: Date } = {},
+  opts: { retentionDays?: number; waitlistRetentionDays?: number; now?: Date } = {},
 ): Promise<PurgeResult> {
   const retentionDays = opts.retentionDays ?? DEFAULT_RETENTION_DAYS;
+  const waitlistRetentionDays = opts.waitlistRetentionDays ?? DEFAULT_WAITLIST_RETENTION_DAYS;
   const now = opts.now ?? new Date();
   const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
+  const waitlistCutoff = new Date(now.getTime() - waitlistRetentionDays * DAY_MS);
 
   for (const { table, column } of USER_REF_NULLIFICATIONS) {
     // Table/column names come from the constant above — never from input.
@@ -125,10 +129,18 @@ export async function purgeHardDeletes(
     [now],
   );
 
+  // Waitlist signups age out on their own marketing-retention clock —
+  // independent of any account, since the table has no FK to users.
+  const waitlist = await q.query(
+    `DELETE FROM waitlist_signups WHERE created_at < $1`,
+    [waitlistCutoff],
+  );
+
   return {
     cutoff: cutoff.toISOString(),
     purgedUsers: users.rowCount ?? 0,
     purgedParents: parents.rowCount ?? 0,
     purgedTurns: turns.rowCount ?? 0,
+    purgedWaitlistSignups: waitlist.rowCount ?? 0,
   };
 }
