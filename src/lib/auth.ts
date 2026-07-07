@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 import type { Querier } from './querier';
@@ -29,6 +29,30 @@ export function isAuthorizedCron(req: NextRequest): boolean {
  */
 export function clientIp(req: NextRequest): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+}
+
+/**
+ * Server-derived household fingerprint for the referral fraud guard (see
+ * referralRepo.redeem). HMAC of the caller's IP under SESSION_SECRET — never
+ * accept this value from the request body, since a client that supplies its
+ * own household_hash can trivially invent a fresh one per call and bypass the
+ * one-redemption-per-household guard entirely. Not a hard identity check
+ * (shared/rotating IPs exist), but it closes the "client controls the guard"
+ * hole; same accuracy trade-off as clientIp's rate-limit usage above.
+ *
+ * Takes the IP as a plain string (not the request) so the caller reuses the
+ * same `clientIp(req)` value it already computed for rate limiting, and so it
+ * can refuse to fingerprint an unresolvable ("unknown") IP itself — hashing
+ * "unknown" directly would collide every caller lacking the header onto one
+ * fingerprint. Fails closed (throws) if SESSION_SECRET is unset, matching
+ * signSession's secret() — a silent empty-key HMAC would be a fixed,
+ * guessable fingerprint for every caller.
+ */
+export function householdFingerprint(ip: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error('SESSION_SECRET is not set. See .env.example.');
+  if (ip === 'unknown') throw new ValidationError('Unable to verify request origin.');
+  return createHmac('sha256', secret).update(ip).digest('hex');
 }
 
 /** Standard 401 for admin-only routes when the caller isn't a live admin. */
