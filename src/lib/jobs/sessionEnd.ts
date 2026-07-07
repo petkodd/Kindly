@@ -10,6 +10,10 @@ import { parentRepo } from '../repos/parent';
  * Session-end jobs from api_plan_v1.md, run when a conversation ends:
  *  - summarize_conversation → writes conversations.summary_text + mood_signal
  *  - extract_memory_candidates → inserts `proposed` memories from the transcript
+ *  - stamps retention_purge_at on the conversation's turns, making the
+ *    purge_hard_deletes job's transcript-expiry step (src/lib/jobs/purge.ts)
+ *    live: DEFAULT_TRANSCRIPT_RETENTION_DAYS from now, mirroring the account
+ *    deletion promise.
  *
  * This is the seam that makes the weekly summary real: until a conversation has
  * a summary_text / mood_signal, the weekly cron counts it but shows no highlight.
@@ -18,6 +22,8 @@ import { parentRepo } from '../repos/parent';
  * re-trigger never double-writes or re-proposes memories. Confidence-gated:
  * low-confidence candidates are discarded (per the extraction prompt spec).
  */
+
+export const DEFAULT_TRANSCRIPT_RETENTION_DAYS = 30;
 
 export interface SessionEndResult {
   summarized: boolean;
@@ -30,6 +36,8 @@ export interface SessionEndOptions {
   ai?: AiClient;
   /** Candidates below this confidence are discarded. */
   minConfidence?: number;
+  /** Days until stamped turns become eligible for purge. */
+  retentionDays?: number;
 }
 
 export async function runSessionEndJobs(
@@ -52,6 +60,15 @@ export async function runSessionEndJobs(
   );
   const convo = rows[0];
   if (!convo) return { summarized: false, extracted: false, moodSignal: null, memoriesProposed: 0 };
+
+  // Stamp retention on the turns regardless of summary/extraction state below —
+  // the SQL guard (retention_purge_at IS NULL) makes this safe to run on every
+  // call, including retries after summarize/extract already completed.
+  await conversationRepo.stampTurnRetention(
+    q,
+    conversationId,
+    opts.retentionDays ?? DEFAULT_TRANSCRIPT_RETENTION_DAYS,
+  );
 
   // The two sub-jobs are guarded independently, so a retry after a partial
   // failure finishes only the half that hasn't run yet.
