@@ -39,6 +39,7 @@ export function makeTestDb(): Querier {
   sql = sql
     .replace(/CREATE EXTENSION IF NOT EXISTS "vector";/g, '')
     .replace(/CREATE EXTENSION IF NOT EXISTS "pgcrypto";/g, '')
+    .replace(/CREATE EXTENSION IF NOT EXISTS "citext";/g, '')
     .replace(/^\s*embedding\s+vector\(1536\),.*$/gm, '') // drop embedding column (+ inline comment)
     .replace(/CREATE INDEX idx_memories_embedding[\s\S]*?;/g, '') // drop ANN index
     .replace(/CITEXT/g, 'TEXT'); // pg-mem has no citext

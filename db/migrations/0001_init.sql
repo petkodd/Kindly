@@ -8,6 +8,7 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 CREATE EXTENSION IF NOT EXISTS "vector";     -- pgvector for memory retrieval
+CREATE EXTENSION IF NOT EXISTS "citext";     -- case-insensitive email columns
 
 -- ---------- ENUMS ----------
 CREATE TYPE relationship_t      AS ENUM ('mother','father','grandparent','aunt','uncle','other');
