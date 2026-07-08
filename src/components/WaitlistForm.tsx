@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 type Status = 'idle' | 'submitting' | 'done' | 'error';
 
-export function WaitlistForm() {
+export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string }) {
   const [email, setEmail] = useState('');
   const [wantsDemo, setWantsDemo] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
@@ -21,7 +21,7 @@ export function WaitlistForm() {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, wants_demo: wantsDemo, source_page: '/waitlist' }),
+        body: JSON.stringify({ email, wants_demo: wantsDemo, source_page: sourcePage }),
       });
       if (!res.ok) throw new Error('Request failed');
       setStatus('done');

@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata, organizationJsonLd } from '@/lib/seo';
+import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import {
   HERO,
   PROBLEM,
@@ -55,12 +55,12 @@ export default function HomePage() {
             </h1>
             <p className="mt-6 max-w-xl text-lg text-muted">{HERO.sub}</p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <Link href={HERO.primaryCta.href} className="btn-primary">
+              <TrackedCtaLink href={HERO.primaryCta.href} ctaId="hero_primary" slug="/" className="btn-primary">
                 {HERO.primaryCta.label}
-              </Link>
-              <Link href={HERO.secondaryCta.href} className="btn-secondary">
+              </TrackedCtaLink>
+              <TrackedCtaLink href={HERO.secondaryCta.href} ctaId="hero_secondary" slug="/" className="btn-secondary">
                 {HERO.secondaryCta.label}
-              </Link>
+              </TrackedCtaLink>
             </div>
             <p className="mt-5 text-base text-muted">{HERO.trustline}</p>
           </div>
@@ -118,9 +118,9 @@ export default function HomePage() {
             ))}
           </ol>
           <div className="mt-10">
-            <Link href="/app/onboarding" className="btn-primary">
+            <TrackedCtaLink href="/app/onboarding" ctaId="steps_primary" slug="/" className="btn-primary">
               Set up the gift
-            </Link>
+            </TrackedCtaLink>
           </div>
         </div>
       </section>
@@ -149,12 +149,14 @@ export default function HomePage() {
           <div>
             <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{TRUST.h2}</h2>
             <p className="mt-5 text-lg text-muted">{TRUST.body}</p>
-            <Link
+            <TrackedCtaLink
               href={TRUST.cta.href}
+              ctaId="trust_link"
+              slug="/"
               className="mt-6 inline-block text-lg font-semibold text-sageDeep underline underline-offset-4"
             >
               {TRUST.cta.label} →
-            </Link>
+            </TrackedCtaLink>
           </div>
           <ul className="space-y-4">
             {TRUST.bullets.map((b) => (
@@ -172,9 +174,9 @@ export default function HomePage() {
         <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{PRICING_TEASER.h2}</h2>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-muted">{PRICING_TEASER.body}</p>
         <div className="mt-8">
-          <Link href={PRICING_TEASER.cta.href} className="btn-secondary">
+          <TrackedCtaLink href={PRICING_TEASER.cta.href} ctaId="pricing_teaser" slug="/" className="btn-secondary">
             {PRICING_TEASER.cta.label}
-          </Link>
+          </TrackedCtaLink>
         </div>
       </section>
 
@@ -184,18 +186,22 @@ export default function HomePage() {
           <h2 className="font-display text-2xl font-semibold md:text-3xl">{FINAL_CTA.h2}</h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{FINAL_CTA.body}</p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Link
+            <TrackedCtaLink
               href={FINAL_CTA.primary.href}
+              ctaId="final_cta_primary"
+              slug="/"
               className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
             >
               {FINAL_CTA.primary.label}
-            </Link>
-            <Link
+            </TrackedCtaLink>
+            <TrackedCtaLink
               href={FINAL_CTA.secondary.href}
+              ctaId="final_cta_secondary"
+              slug="/"
               className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
             >
               {FINAL_CTA.secondary.label}
-            </Link>
+            </TrackedCtaLink>
           </div>
         </div>
       </section>

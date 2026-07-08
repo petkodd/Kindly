@@ -136,6 +136,204 @@ export const HOW_IT_WORKS = {
   },
 };
 
+export const PRICING = {
+  hero: {
+    h1: 'Simple plans for staying close',
+    sub:
+      'Every plan includes daily voice conversation, memory, and a respectful weekly family summary. Start with our Founding Family offer, and cancel anytime.',
+  },
+  plans: [
+    {
+      id: 'founding',
+      name: 'Founding Family',
+      price: '$29',
+      period: 'first month',
+      tagline: 'The easiest way to start — the full Family plan at an introductory price',
+      bullets: [
+        'Everything in the Family plan, from day one',
+        'Locks in early-supporter pricing for as long as you stay subscribed',
+        'Renews at the regular Family price after the first month',
+        'Cancel anytime — no long-term contract',
+      ],
+      cta: { label: 'Set up the gift', href: '/app/onboarding' },
+      highlighted: true,
+    },
+    {
+      id: 'family',
+      name: 'Family',
+      price: '$59',
+      period: '/month',
+      tagline: 'Our standard plan for one parent and their family',
+      bullets: [
+        'Daily voice conversation with Kindly',
+        'A memory built from the people and things your parent cares about',
+        'Weekly summary for up to 3 family recipients',
+        'A gentle heads-up if something seems worth a check-in',
+      ],
+      cta: { label: 'Choose Family', href: '/app/onboarding' },
+    },
+    {
+      id: 'premium',
+      name: 'Premium',
+      price: '$89',
+      period: '/month',
+      tagline: 'More conversation time and more family visibility',
+      bullets: [
+        'Everything in Family, with extended daily voice time',
+        'Priority response times',
+        'Up to 6 family recipients on the weekly summary',
+        'A second parent profile at a reduced add-on rate',
+      ],
+      cta: { label: 'Choose Premium', href: '/app/onboarding' },
+    },
+    {
+      id: 'gift_3mo',
+      name: '3-Month Gift',
+      price: '$149',
+      period: 'one-time',
+      tagline: 'A prepaid gift — no subscription, nothing to auto-renew',
+      bullets: [
+        'Three full months on the Family plan',
+        'Paid once, nothing to remember to cancel',
+        'A thoughtful gift for a birthday or holiday',
+        'Can be switched to an ongoing plan anytime',
+      ],
+      cta: { label: 'Give 3 months', href: '/app/onboarding' },
+    },
+  ],
+  faq: {
+    h2: 'Questions about pricing',
+    items: [
+      {
+        q: 'Can I cancel anytime?',
+        a: 'Yes. Monthly plans can be canceled anytime from your account, and you won’t be charged for the next cycle. Prepaid gifts don’t renew automatically.',
+      },
+      {
+        q: 'What happens after the Founding Family month?',
+        a: 'Your plan continues at the regular Family price unless you cancel. We’ll always email you before a price change takes effect.',
+      },
+      {
+        q: 'Does my parent need a credit card?',
+        a: 'No. Billing is handled entirely by the family member who sets up the account — your parent never sees a bill or enters payment details.',
+      },
+      {
+        q: 'Can I add a sibling to the weekly summary later?',
+        a: 'Yes, anytime. Invite a sibling from your account and they’ll start receiving the same respectful weekly summary once they accept.',
+      },
+    ],
+  },
+  cta: {
+    h2: 'Ready to give your parent someone kind to talk to?',
+    body: 'It takes a few minutes to set up, and you can cancel anytime.',
+    primary: { label: 'Set up the gift', href: '/app/onboarding' },
+    secondary: { label: 'See how it works', href: '/how-it-works' },
+  },
+};
+
+export const SENIOR_LIVING = {
+  hero: {
+    h1: 'Resident engagement, reimagined',
+    sub:
+      'A warm AI companion your residents can talk to any time, with respectful family updates your staff doesn’t have to write by hand.',
+  },
+  problem: {
+    h2: 'Your team can’t be everywhere either',
+    body:
+      'Activities staff and caregivers already do the work of a much larger team. Kindly gives every resident someone patient to talk to between visits and activities — filling quiet hours without adding to anyone’s workload.',
+  },
+  forResidents: {
+    h2: 'Built for residents, not just for families',
+    body:
+      'Kindly speaks the way your residents actually communicate — patient, voice-first, and never rushed. Large text and a calm, clear voice are on by default, and there’s nothing to log into.',
+    bullets: [
+      'Voice-first conversation, paced for easier listening',
+      'One big button to start — no app store, no passwords',
+      'Remembers names, routines, and the small things residents mention',
+      'Available around the clock, not just during staffed hours',
+    ],
+  },
+  forCommunities: {
+    h2: 'What it means for your community',
+    body:
+      'Families get a respectful weekly update without your staff spending hours on the phone or writing recaps. You get a lightweight way to show that connection is happening every week, for every resident.',
+    bullets: [
+      'Automated, respectful weekly summaries — never raw transcripts',
+      'A gentle flag to staff and family if a resident’s tone seems off',
+      'Rolls out resident by resident — no facility-wide integration required',
+      'Consent-based from day one, with clear boundaries around health topics',
+    ],
+  },
+  boundaries: {
+    h2: 'A companion, not a caregiver',
+    body:
+      'Kindly is not a medical device and doesn’t diagnose, monitor vitals, or replace your clinical staff. It’s a warm conversational layer that keeps residents connected and gives families a window in — care decisions stay with your team.',
+  },
+  cta: {
+    h2: 'Curious how Kindly could fit your community?',
+    body: 'We’re happy to walk through a pilot for a small group of residents.',
+    primary: { label: 'Join the waitlist', href: '/waitlist' },
+    secondary: { label: 'See how it works', href: '/how-it-works' },
+  },
+};
+
+export const GIFT_FOR_AGING_PARENT = {
+  hero: {
+    h1: 'A gift that keeps your parent company',
+    sub:
+      'Kindly is a warm AI companion you set up in minutes and your parent simply talks to — a thoughtful gift for a birthday, a holiday, or just because you wish you could call more often.',
+  },
+  why: {
+    h2: 'A different kind of gift',
+    body:
+      'Flowers fade. A gadget your parent won’t use ends up in a drawer. Kindly shows up every day — someone patient to talk to about their morning, an old memory, or nothing in particular — and sends a weekly note that lets you know how they’re really doing.',
+  },
+  occasions: {
+    h2: 'A thoughtful choice for any occasion',
+    bullets: [
+      'A birthday gift that keeps giving all year',
+      'A holiday gift for a parent who says they “don’t need anything”',
+      'A welcome-home gift after a move, a hospital stay, or losing a spouse',
+      'A “just because I love you and can’t call every day” gift',
+    ],
+  },
+  reassurance: {
+    h2: 'For a parent who says “I don’t do computers”',
+    body:
+      'You don’t need to teach your parent an app. Kindly opens to one big button, reads clearly, and listens patiently — as many times as it takes. No passwords to forget, no menus to get lost in.',
+    bullets: [
+      'One big button — nothing else to learn',
+      'Large text and a calm, clear voice',
+      'Works on a tablet or computer they already have',
+      'You do the setup; they just talk',
+    ],
+  },
+  whatsIncluded: {
+    h2: 'What’s inside the gift',
+    body:
+      'Every plan includes daily voice conversation, a memory of the people and things your parent cares about, and a respectful weekly summary for your family — never a raw transcript.',
+    cta: { label: 'See pricing', href: '/pricing' },
+  },
+  cta: {
+    h2: 'Give the gift of someone to talk to',
+    body: 'Set it up today, and your parent can be talking to Kindly by this afternoon.',
+    primary: { label: 'Set up the gift', href: '/app/onboarding' },
+    secondary: { label: 'Join the waitlist', href: '/waitlist' },
+  },
+};
+
+export const BLOG = {
+  hero: {
+    h1: 'The Kindly blog',
+    sub:
+      'Practical, warm guidance for adult children caring for aging parents — connection, technology, and staying close from a distance.',
+  },
+  comingSoon: {
+    h2: 'Our first posts are coming soon',
+    body:
+      'We’re writing about the things adult children ask us most: how to bring up a companion app with a parent who’s skeptical of technology, what a respectful weekly summary should (and shouldn’t) include, and how families split the load of long-distance caregiving. Leave your email and we’ll send new posts as they publish — no spam, just the occasional useful thing.',
+  },
+};
+
 export const TRUST_AND_PRIVACY = {
   hero: {
     h1: 'Private and safe, by design',

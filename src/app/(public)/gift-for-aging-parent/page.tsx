@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/seo';
+import { GIFT_FOR_AGING_PARENT } from '@/lib/content';
+import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
 export const metadata: Metadata = buildMetadata({
   title: 'A Meaningful Gift for an Aging Parent | Kindly',
@@ -7,15 +9,104 @@ export const metadata: Metadata = buildMetadata({
   path: '/gift-for-aging-parent',
 });
 
-export default function Page() {
+function Check() {
   return (
-    <section className="container-k py-20">
-      <p className="eyebrow">gift for elderly parent</p>
-      <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">A gift that keeps your parent company</h1>
-      <p className="mt-6 max-w-2xl text-lg text-muted">
-        This page is part of the Alpha v0.1 scaffold. Content for &ldquo;A gift that keeps your parent company&rdquo; is drafted in the
-        Cycle&nbsp;1 copy + SEO documents and will be filled in on its feature branch.
-      </p>
-    </section>
+    <svg aria-hidden viewBox="0 0 24 24" className="mt-1 h-6 w-6 flex-none text-sage">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 12.5l4 4 10-10"
+      />
+    </svg>
+  );
+}
+
+export default function Page() {
+  const { hero, why, occasions, reassurance, whatsIncluded, cta } = GIFT_FOR_AGING_PARENT;
+  return (
+    <>
+      <section className="container-k py-20">
+        <p className="eyebrow">gift for elderly parent</p>
+        <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
+        <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
+      </section>
+
+      <section className="bg-cloud py-20">
+        <div className="container-k max-w-2xl">
+          <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{why.h2}</h2>
+          <p className="mt-5 text-lg text-muted">{why.body}</p>
+        </div>
+      </section>
+
+      <section className="container-k py-20">
+        <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{occasions.h2}</h2>
+        <ul className="mt-8 grid gap-6 md:grid-cols-2">
+          {occasions.bullets.map((b) => (
+            <li key={b} className="flex gap-3 rounded-2xl border border-line bg-mist p-6 text-lg text-ink">
+              <Check />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="bg-cloud py-20">
+        <div className="container-k grid gap-12 md:grid-cols-2">
+          <div>
+            <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{reassurance.h2}</h2>
+            <p className="mt-5 text-lg text-muted">{reassurance.body}</p>
+          </div>
+          <ul className="space-y-4">
+            {reassurance.bullets.map((b) => (
+              <li key={b} className="flex gap-3 text-lg text-ink">
+                <Check />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="container-k py-20 max-w-2xl">
+        <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{whatsIncluded.h2}</h2>
+        <p className="mt-5 text-lg text-muted">{whatsIncluded.body}</p>
+        <TrackedCtaLink
+          href={whatsIncluded.cta.href}
+          ctaId="whats_included"
+          slug="/gift-for-aging-parent"
+          className="mt-6 inline-block text-lg font-semibold text-sageDeep underline underline-offset-4"
+        >
+          {whatsIncluded.cta.label} →
+        </TrackedCtaLink>
+      </section>
+
+      <section className="bg-sageDeep py-20 text-center text-cloud">
+        <div className="container-k">
+          <h2 className="font-display text-2xl font-semibold md:text-3xl">{cta.h2}</h2>
+          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{cta.body}</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <TrackedCtaLink
+              href={cta.primary.href}
+              ctaId="final_cta_primary"
+              slug="/gift-for-aging-parent"
+              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
+            >
+              {cta.primary.label}
+            </TrackedCtaLink>
+            <TrackedCtaLink
+              href={cta.secondary.href}
+              ctaId="final_cta_secondary"
+              slug="/gift-for-aging-parent"
+              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
+            >
+              {cta.secondary.label}
+            </TrackedCtaLink>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }

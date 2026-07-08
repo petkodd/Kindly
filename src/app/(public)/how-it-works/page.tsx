@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/seo';
 import { HOW_IT_WORKS } from '@/lib/content';
+import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
 export const metadata: Metadata = buildMetadata({
   title: 'How Kindly’s AI Companion for Seniors Works',
@@ -85,18 +86,22 @@ export default function Page() {
           <h2 className="font-display text-2xl font-semibold md:text-3xl">{cta.h2}</h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{cta.body}</p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Link
+            <TrackedCtaLink
               href={cta.primary.href}
+              ctaId="final_cta_primary"
+              slug="/how-it-works"
               className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
             >
               {cta.primary.label}
-            </Link>
-            <Link
+            </TrackedCtaLink>
+            <TrackedCtaLink
               href={cta.secondary.href}
+              ctaId="final_cta_secondary"
+              slug="/how-it-works"
               className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
             >
               {cta.secondary.label}
-            </Link>
+            </TrackedCtaLink>
           </div>
         </div>
       </section>
