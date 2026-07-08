@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import TalkPage from '../src/app/(app)/app/talk/page';
 
@@ -35,6 +35,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   tokenValue = 'tok123';
 });
 
@@ -142,5 +143,98 @@ describe('TalkPage', () => {
     render(<TalkPage />);
     fireEvent.click(await screen.findByRole('button', { name: /start talking/i }));
     expect(await screen.findByText('Consent required.')).toBeTruthy();
+  });
+
+  describe('voice', () => {
+    class FakeMediaRecorder {
+      static instances: FakeMediaRecorder[] = [];
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      mimeType = 'audio/webm';
+      constructor() {
+        FakeMediaRecorder.instances.push(this);
+      }
+      start() {}
+      stop() {
+        this.ondataavailable?.({ data: new Blob(['audio-bytes']) });
+        this.onstop?.();
+      }
+    }
+
+    beforeEach(() => {
+      FakeMediaRecorder.instances = [];
+      vi.stubGlobal('MediaRecorder', FakeMediaRecorder);
+      vi.stubGlobal('Audio', vi.fn().mockImplementation(() => ({ play: vi.fn().mockResolvedValue(undefined) })));
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }) },
+        configurable: true,
+      });
+    });
+
+    async function startConversation(extraRoutes: Record<string, Handler> = {}) {
+      const fetchMock = stubFetch({
+        ...AUTH_OK,
+        'POST /api/talk/consent': () => json({ consent: {} }, 201),
+        'POST /api/talk/session': () => json({ conversation_id: 'c1', greeting: 'Hi!' }, 201),
+        ...extraRoutes,
+      });
+      render(<TalkPage />);
+      fireEvent.click(await screen.findByRole('button', { name: /start talking/i }));
+      await screen.findByText('Hi!');
+      return fetchMock;
+    }
+
+    it('records, uploads, and shows the transcript and reply', async () => {
+      const fetchMock = await startConversation({
+        'POST /api/talk/voice': () =>
+          json({
+            conversation_id: 'c1',
+            transcript: 'I feel good today',
+            reply: 'That’s wonderful to hear.',
+            tts_url: 'data:audio/mp3;base64,xyz',
+          }),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /talk out loud/i }));
+      expect(await screen.findByRole('button', { name: /tap to stop/i })).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: /tap to stop/i }));
+
+      expect(await screen.findByText('I feel good today')).toBeTruthy();
+      expect(await screen.findByText('That’s wonderful to hear.')).toBeTruthy();
+
+      const voiceCall = fetchMock.mock.calls.find((c) => String(c[0]).endsWith('/voice'));
+      const body = voiceCall?.[1]?.body as FormData;
+      expect(body.get('conversation_id')).toBe('c1');
+      expect(body.get('audio')).toBeInstanceOf(Blob);
+    });
+
+    it('shows an error when microphone access is denied, without crashing', async () => {
+      await startConversation();
+      (navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('denied'),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /talk out loud/i }));
+      expect(await screen.findByText(/allow microphone access/i)).toBeTruthy();
+    });
+
+    it('surfaces a server error from the voice endpoint', async () => {
+      await startConversation({
+        'POST /api/talk/voice': () =>
+          json({ error: { code: 'no_transcript', message: 'Could not transcribe audio.' } }, 422),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /talk out loud/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /tap to stop/i }));
+
+      expect(await screen.findByText('Could not transcribe audio.')).toBeTruthy();
+    });
+
+    it('does not render the mic button when the browser lacks MediaRecorder support', async () => {
+      vi.stubGlobal('MediaRecorder', undefined);
+      await startConversation();
+      expect(screen.queryByRole('button', { name: /talk out loud/i })).toBeNull();
+    });
   });
 });
