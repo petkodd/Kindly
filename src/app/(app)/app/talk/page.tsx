@@ -165,11 +165,90 @@ function Conversation({
   const [sending, setSending] = useState(false);
   const [ending, setEnding] = useState(false);
   const [error, setError] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [turns, sending]);
+  }, [turns, sending, voiceBusy]);
+
+  // Progressive enhancement: only show the mic button where recording is
+  // actually supported (no getUserMedia/MediaRecorder on e.g. older Safari).
+  useEffect(() => {
+    setVoiceSupported(
+      typeof navigator !== 'undefined' &&
+        !!navigator.mediaDevices?.getUserMedia &&
+        typeof window.MediaRecorder !== 'undefined',
+    );
+  }, []);
+
+  async function sendVoice(blob: Blob) {
+    setError('');
+    setVoiceBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', blob, 'voice.webm');
+      formData.append('conversation_id', conversationId);
+      const res = await fetch('/api/talk/voice', { method: 'POST', body: formData });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message = (payload as { error?: { message?: string } } | null)?.error?.message;
+        throw new Error(message ?? 'We couldn’t hear that. Please try again.');
+      }
+      const { transcript, reply, tts_url: ttsUrl } = payload as {
+        transcript: string;
+        reply: string;
+        tts_url: string;
+      };
+      add('parent', transcript);
+      add('kindly', reply);
+      // Best-effort playback — browsers may block autoplay this far removed
+      // from the originating click, but the reply is still shown as text either way.
+      try {
+        await new Audio(ttsUrl).play();
+      } catch {
+        // ignore — text reply already rendered
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'We couldn’t hear that. Please try again.');
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    setError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        void sendVoice(blob);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      setError('Please allow microphone access to talk out loud, or type your message below.');
+    }
+  }
 
   async function send() {
     const content = draft.trim();
@@ -227,10 +306,27 @@ function Conversation({
           </div>
         ))}
         {sending && <p className="text-left text-base text-muted">Kindly is thinking…</p>}
+        {voiceBusy && <p className="text-left text-base text-muted">Kindly is listening…</p>}
         <div ref={endRef} />
       </div>
 
       {error && <p className="mt-4 text-base text-clay">{error}</p>}
+
+      {voiceSupported && (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={toggleRecording}
+            disabled={sending || ending || voiceBusy}
+            aria-pressed={recording}
+            className={`inline-flex min-h-[3.5rem] items-center justify-center gap-2 rounded-xl px-8 text-lg font-semibold transition-colors disabled:opacity-60 ${
+              recording ? 'bg-clay text-cloud' : 'btn-secondary'
+            }`}
+          >
+            {recording ? '⏹ Tap to stop' : '🎤 Talk out loud'}
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col gap-3">
         <label htmlFor="talk-input" className="sr-only">
@@ -262,7 +358,7 @@ function Conversation({
           <button
             type="button"
             onClick={send}
-            disabled={sending || ending || !draft.trim()}
+            disabled={sending || ending || recording || voiceBusy || !draft.trim()}
             className="btn-primary px-8 py-3 text-lg disabled:opacity-60"
           >
             Send
