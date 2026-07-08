@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
 const NAV = [
   { label: 'How it works', href: '/how-it-works' },
@@ -33,9 +34,14 @@ export function SiteHeader() {
           >
             Sign in
           </Link>
-          <Link href="/app/onboarding" className="btn-primary !min-h-[2.75rem] !px-5 !text-base">
+          <TrackedCtaLink
+            href="/app/onboarding"
+            ctaId="header_primary"
+            slug="header"
+            className="btn-primary !min-h-[2.75rem] !px-5 !text-base"
+          >
             Set up the gift
-          </Link>
+          </TrackedCtaLink>
         </div>
       </div>
     </header>
