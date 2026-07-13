@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
 import { inputOnPageCls } from '@/lib/formStyles';
 
@@ -15,19 +15,62 @@ const RELATIONSHIPS = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'othe
 // Onboarding fields sit on the bare page (no card), and labels sit above them.
 const fieldCls = `mt-2 ${inputOnPageCls}`;
 
+// useSearchParams() (needed to read the Stripe redirect's ?billing=/parent_id=
+// query params) requires a Suspense boundary in the App Router, or the page
+// fails static prerendering at build time.
 export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-2xl"><p className="mt-6 text-lg text-muted">Loading…</p></div>}>
+      <OnboardingWizard />
+    </Suspense>
+  );
+}
+
+function OnboardingWizard() {
+  const searchParams = useSearchParams();
+  const billingResult = searchParams.get('billing'); // 'success' | 'cancel' | null
+  const returningParentId = searchParams.get('parent_id');
+
   const [step, setStep] = useState(1);
   const [parent, setParent] = useState<Parent | null>(null);
   const [talkToken, setTalkToken] = useState('');
+  // Stripe Checkout is a full-page redirect, so returning from it loses the
+  // in-memory wizard state — re-fetch the parent by id and jump to the
+  // billing step instead of starting the wizard over.
+  const [loadingReturn, setLoadingReturn] = useState(!!returningParentId);
+
+  useEffect(() => {
+    if (!returningParentId) return;
+    (async () => {
+      try {
+        const { parent: p } = await api.get<{ parent: Parent }>(`/api/parents/${returningParentId}`);
+        setParent(p);
+        setStep(4);
+      } finally {
+        setLoadingReturn(false);
+      }
+    })();
+  }, [returningParentId]);
+
+  if (loadingReturn) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <p className="mt-6 text-lg text-muted">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl">
       <p className="eyebrow">Set up the gift</p>
-      <p className="mt-2 text-base text-muted">Step {Math.min(step, 4)} of 4</p>
+      <p className="mt-2 text-base text-muted">Step {Math.min(step, 5)} of 5</p>
       {step === 1 && <ProfileStep onDone={(p) => { setParent(p); setStep(2); }} />}
       {step === 2 && parent && <MemoriesStep parent={parent} onDone={() => setStep(3)} />}
       {step === 3 && parent && <ConsentStep parent={parent} onDone={() => setStep(4)} />}
       {step === 4 && parent && (
+        <BillingStep parent={parent} billingResult={billingResult} onDone={() => setStep(5)} />
+      )}
+      {step === 5 && parent && (
         <DoneStep parent={parent} talkToken={talkToken} setTalkToken={setTalkToken} />
       )}
     </div>
@@ -144,16 +187,15 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  async function activate() {
+  async function next() {
     setError('');
     if (!agreed) return setError('Please confirm you have permission before continuing.');
     setBusy(true);
     try {
       await api.post(`/api/parents/${parent.id}/consent`, { kind: 'buyer_attestation' });
-      await api.post(`/api/parents/${parent.id}/activate`);
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not activate.');
+      setError(err instanceof ApiError ? err.message : 'Could not save.');
       setBusy(false);
     }
   }
@@ -169,8 +211,73 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
         I confirm I have {parent.first_name}’s permission to set up Kindly for them.
       </label>
       {error && <p className="text-base text-clay">{error}</p>}
-      <button type="button" onClick={activate} disabled={busy} className="btn-primary w-full disabled:opacity-60">
-        {busy ? 'Activating…' : 'Activate Kindly'}
+      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+        {busy ? 'Saving…' : 'Continue'}
+      </button>
+    </div>
+  );
+}
+
+function BillingStep({
+  parent, billingResult, onDone,
+}: { parent: Parent; billingResult: string | null; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState(billingResult === 'success');
+
+  // Returning from a successful Stripe Checkout: the webhook may take a
+  // moment to land, but activation only needs the consent already recorded —
+  // it does not itself re-check billing (the talk-session gate does that on
+  // every use, which is what actually enforces payment).
+  useEffect(() => {
+    if (billingResult !== 'success') return;
+    (async () => {
+      try {
+        await api.post(`/api/parents/${parent.id}/activate`);
+        onDone();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Could not confirm your trial. Please try again.');
+        setConfirming(false);
+      }
+    })();
+    // Only re-run if the parent/result we're confirming for actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billingResult, parent.id]);
+
+  async function startTrial() {
+    setError('');
+    setBusy(true);
+    try {
+      const { url } = await api.post<{ url: string }>('/api/billing/checkout', { parent_id: parent.id });
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start your trial.');
+      setBusy(false);
+    }
+  }
+
+  if (confirming) {
+    return (
+      <div className="mt-6 space-y-5">
+        <h1 className="font-display text-3xl font-semibold text-ink">Confirming your trial…</h1>
+        <p className="text-lg text-muted">One moment while we finish setting things up.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 space-y-5">
+      <h1 className="font-display text-3xl font-semibold text-ink">Start your free trial</h1>
+      <p className="text-lg text-muted">
+        Try Kindly free for 7 days. We’ll ask for a card to hold your spot — you won’t be
+        charged until the trial ends, and you can cancel anytime before then.
+      </p>
+      {billingResult === 'cancel' && (
+        <p className="text-base text-clay">Checkout was canceled — no charge was made. You can try again below.</p>
+      )}
+      {error && <p className="text-base text-clay">{error}</p>}
+      <button type="button" onClick={startTrial} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+        {busy ? 'Redirecting…' : 'Start 7-day free trial'}
       </button>
     </div>
   );
@@ -182,6 +289,18 @@ function DoneStep({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+
+  // A bare token is meaningless to the parent — /app/talk only reads it from
+  // the ?token= query param, with no manual-entry UI. The link must be complete.
+  const talkUrl = talkToken && typeof window !== 'undefined'
+    ? `${window.location.origin}/app/talk?token=${talkToken}`
+    : '';
+
+  useEffect(() => {
+    setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+  }, []);
 
   async function issueLink() {
     setError('');
@@ -195,14 +314,42 @@ function DoneStep({
     setBusy(false);
   }
 
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(talkUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — the link is still visible to copy manually */
+    }
+  }
+
+  async function shareLink() {
+    try {
+      await navigator.share({ title: 'Talk with Kindly', url: talkUrl });
+    } catch {
+      /* user canceled the share sheet, or it failed — copy is still available */
+    }
+  }
+
   return (
     <div className="mt-6 space-y-5">
       <h1 className="font-display text-3xl font-semibold text-ink">{parent.first_name} is all set 🎉</h1>
       <p className="text-lg text-muted">Create a private talk link to hand off to {parent.first_name}.</p>
       {talkToken ? (
         <div className="space-y-3 rounded-xl border border-line bg-cloud p-6">
-          <p className="text-base font-semibold text-ink">Talk token (shown once — save it now):</p>
-          <code className="block break-all rounded-lg bg-mist px-3 py-2 text-sm text-ink">{talkToken}</code>
+          <p className="text-base font-semibold text-ink">Talk link (shown once — save it now):</p>
+          <code className="block break-all rounded-lg bg-mist px-3 py-2 text-sm text-ink">{talkUrl}</code>
+          <div className="flex gap-3">
+            <button type="button" onClick={copyLink} className="btn-secondary flex-1">
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            {canShare && (
+              <button type="button" onClick={shareLink} className="btn-secondary flex-1">
+                Share
+              </button>
+            )}
+          </div>
           <p className="text-sm text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Kindly.</p>
         </div>
       ) : (

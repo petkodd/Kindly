@@ -26,6 +26,11 @@ async function makeTalkingParent(): Promise<string> {
   await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyer });
   await parentRepo.activate(q, parent.id, buyer);
   await consentRepo.record(q, { parentId: parent.id, kind: 'parent_conversation' });
+  await q.query(
+    `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+     VALUES ($1, $2, 'family', 'trialing', now() + interval '7 days')`,
+    [buyer, parent.id],
+  );
   return parent.id;
 }
 

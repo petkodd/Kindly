@@ -15,6 +15,9 @@ export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary
 export type SummaryStatus = 'draft' | 'preview' | 'sent';
 export type DeliveryChannel = 'email' | 'sms';
 
+export type Plan = 'founding' | 'family' | 'premium' | 'gift_3mo' | 'trial';
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled';
+
 export interface Parent {
   id: string;
   buyer_id: string;
@@ -115,6 +118,18 @@ export interface ConversationTurnRecord {
   content: string;
   created_at: string;
   retention_purge_at: string | null;
+}
+
+export interface Subscription {
+  id: string;
+  buyer_id: string;
+  parent_id: string | null;
+  plan: Plan;
+  status: SubscriptionStatus;
+  stripe_customer_id: string | null;
+  stripe_sub_id: string | null;
+  current_period_end: string | null;
+  created_at: string;
 }
 
 /** Thrown when a caller tries to reach a parent they don't own. API maps this to 404. */

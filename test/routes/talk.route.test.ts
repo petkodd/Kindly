@@ -31,6 +31,11 @@ async function makeReadyParent(): Promise<{ parentId: string; token: string }> {
   await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyerId });
   await parentRepo.activate(q, parent.id, buyerId);
   await consentRepo.record(q, { parentId: parent.id, kind: 'parent_conversation' });
+  await q.query(
+    `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+     VALUES ($1, $2, 'family', 'trialing', now() + interval '7 days')`,
+    [buyerId, parent.id],
+  );
   const { token } = await accessTokenRepo.issue(q, parent.id);
   return { parentId: parent.id, token };
 }

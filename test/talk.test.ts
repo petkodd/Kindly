@@ -32,6 +32,11 @@ async function makeParent(
   if (opts.activate !== false) {
     await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyer });
     await parentRepo.activate(q, parent.id, buyer);
+    await q.query(
+      `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+       VALUES ($1, $2, 'family', 'trialing', now() + interval '7 days')`,
+      [buyer, parent.id],
+    );
   }
   if (consented) {
     await consentRepo.record(q, { parentId: parent.id, kind: 'parent_conversation' });
@@ -138,6 +143,41 @@ describe('conversation consent gate + lifecycle', () => {
     const convo = await conversationRepo.openSession(q, parentId, 'text');
     expect(convo.parent_id).toBe(parentId);
     expect(convo.ended_at).toBeNull();
+  });
+
+  it('BLOCKS opening a session with no subscription at all (403)', async () => {
+    const buyer = await makeBuyer(`b${Math.random()}@example.com`);
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyer });
+    await parentRepo.activate(q, parent.id, buyer);
+    await consentRepo.record(q, { parentId: parent.id, kind: 'parent_conversation' });
+    // No subscriptions row inserted — the billing gate is what blocks this.
+    await expect(conversationRepo.openSession(q, parent.id)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('BLOCKS opening a session once the subscription is canceled (403)', async () => {
+    const parentId = await makeParent(true);
+    await q.query(`UPDATE subscriptions SET status = 'canceled' WHERE parent_id = $1`, [parentId]);
+    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('ALLOWS opening a session for past_due still within the 3-day grace window', async () => {
+    const parentId = await makeParent(true);
+    await q.query(
+      `UPDATE subscriptions SET status = 'past_due', current_period_end = now() - interval '2 days' WHERE parent_id = $1`,
+      [parentId],
+    );
+    const convo = await conversationRepo.openSession(q, parentId, 'text');
+    expect(convo.parent_id).toBe(parentId);
+  });
+
+  it('BLOCKS opening a session for past_due once the grace window has elapsed', async () => {
+    const parentId = await makeParent(true);
+    await q.query(
+      `UPDATE subscriptions SET status = 'past_due', current_period_end = now() - interval '4 days' WHERE parent_id = $1`,
+      [parentId],
+    );
+    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('ISOLATION: a parent cannot add a turn to another parent\'s conversation', async () => {

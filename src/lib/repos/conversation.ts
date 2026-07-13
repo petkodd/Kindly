@@ -10,17 +10,24 @@ import {
 } from '../types';
 import { consentRepo } from './consent';
 import { parentRepo } from './parent';
+import { subscriptionRepo } from './subscription';
 
 /**
- * Conversation lifecycle for parent talk. Two hard gates live here:
+ * Conversation lifecycle for parent talk. Three hard gates live here:
  *  - a session cannot open without an active parent_conversation consent;
+ *  - the buyer's subscription must be currently paid for (trialing/active, or
+ *    past_due within its grace window);
  *  - turns and end only apply to a session the parent owns and that is still open.
  */
 export const conversationRepo = {
   /**
-   * Open a session. Two gates, both → 403 (ForbiddenError):
+   * Open a session. Three gates, all → 403 (ForbiddenError):
    *  - the parent must be activated (the buyer_attestation → activation gate);
-   *  - a parent_conversation consent must exist (recorded on the first visit).
+   *  - a parent_conversation consent must exist (recorded on the first visit);
+   *  - the buyer's subscription must be billing-current (trial, active, or
+   *    still within the past-due grace period) — this is the actual chokepoint
+   *    for paid access, re-checked on every new session rather than once at
+   *    activation, which is what makes the grace-period/lapse behavior work.
    * getById also excludes soft-deleted parents.
    */
   async openSession(
@@ -35,6 +42,10 @@ export const conversationRepo = {
     const hasConsent = await consentRepo.has(q, parentId, 'parent_conversation');
     if (!hasConsent) {
       throw new ForbiddenError('Parent conversation consent is required.');
+    }
+    const billingOk = await subscriptionRepo.isBillingCurrent(q, parent.buyer_id);
+    if (!billingOk) {
+      throw new ForbiddenError('An active subscription is required to talk with Kindly.');
     }
     const { rows } = await q.query<Conversation>(
       `INSERT INTO conversations (parent_id, channel) VALUES ($1, $2) RETURNING *`,
