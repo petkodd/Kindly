@@ -8,7 +8,7 @@ import {
 } from '../types';
 import { consentRepo } from './consent';
 
-const RELATIONSHIPS: Relationship[] = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other'];
+const RELATIONSHIPS: Relationship[] = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other', 'self'];
 
 export interface CreateParentInput {
   buyerId: string;

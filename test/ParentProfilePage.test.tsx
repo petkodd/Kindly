@@ -3,9 +3,10 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import ParentProfilePage from '../src/app/(app)/app/parent-profile/page';
 
 const replace = vi.fn();
+const push = vi.fn();
 // Stable router — the useParents mount effect depends on `router`; a fresh object
 // per render would loop the effect (see FamilySummaryPage test).
-const router = { replace };
+const router = { replace, push };
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
@@ -50,6 +51,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   replace.mockReset();
+  push.mockReset();
 });
 
 describe('ParentProfilePage', () => {
@@ -145,6 +147,48 @@ describe('ParentProfilePage', () => {
       render(<ParentProfilePage />);
       expect(await screen.findByText(/free trial/i)).toBeTruthy();
       expect(screen.queryByRole('button', { name: /start 7-day free trial/i })).toBeNull();
+    });
+  });
+
+  describe('"Talk to Kindly" section (self profiles only)', () => {
+    const SELF_PARENT = { ...PARENT, relationship: 'self', activated_at: '2026-07-01T00:00:00Z' };
+    const GIFT_PARENT = { ...PARENT, relationship: 'father', activated_at: '2026-07-01T00:00:00Z' };
+
+    it('does not render for a gifted (non-self) parent', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: GIFT_PARENT }),
+        'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+      });
+      render(<ParentProfilePage />);
+      await screen.findByText('Billing');
+      expect(screen.queryByText('Talk to Kindly')).toBeNull();
+    });
+
+    it('renders for a self profile and performs the access-link -> talk/auth handshake, then navigates', async () => {
+      let accessLinkCalled = false;
+      let talkAuthBody: unknown = null;
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: SELF_PARENT }),
+        'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+        'POST /api/parents/p1/access-link': () => {
+          accessLinkCalled = true;
+          return json({ token: 'self-token-abc', id: 'link1' }, 201);
+        },
+        'POST /api/talk/auth': (init) => {
+          talkAuthBody = JSON.parse(String(init?.body));
+          return json({ ok: true });
+        },
+      });
+      render(<ParentProfilePage />);
+
+      const button = await screen.findByRole('button', { name: /start talking/i });
+      fireEvent.click(button);
+
+      await waitFor(() => expect(push).toHaveBeenCalledWith('/app/talk'));
+      expect(accessLinkCalled).toBe(true);
+      expect(talkAuthBody).toEqual({ token: 'self-token-abc' });
     });
   });
 });

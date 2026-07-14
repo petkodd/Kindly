@@ -3,7 +3,7 @@
  * Keep these in sync with the schema when it evolves.
  */
 
-export type Relationship = 'mother' | 'father' | 'grandparent' | 'aunt' | 'uncle' | 'other';
+export type Relationship = 'mother' | 'father' | 'grandparent' | 'aunt' | 'uncle' | 'other' | 'self';
 
 export type MemoryLayer = 'profile' | 'core' | 'interest' | 'episodic' | 'sensitive';
 export type MemorySource = 'onboarding' | 'conversation' | 'family';

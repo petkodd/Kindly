@@ -44,6 +44,12 @@ describe('parent profile + isolation', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
+  it('accepts relationship "self" (self-use mode, not a gift for someone else)', async () => {
+    const buyer = await makeBuyer('self-user@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Maria', relationship: 'self' });
+    expect(parent.relationship).toBe('self');
+  });
+
   it('ISOLATION: a different buyer cannot read the parent (404, not 403)', async () => {
     const sarah = await makeBuyer('sarah@example.com');
     const mallory = await makeBuyer('mallory@example.com');

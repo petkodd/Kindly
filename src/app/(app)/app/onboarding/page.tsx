@@ -9,6 +9,7 @@ interface Parent {
   id: string;
   first_name: string;
   activated_at?: string | null;
+  relationship?: string;
 }
 
 const RELATIONSHIPS = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other'] as const;
@@ -32,9 +33,26 @@ function OnboardingWizard() {
   const billingResult = searchParams.get('billing'); // 'success' | 'cancel' | null
   const returningParentId = searchParams.get('parent_id');
 
-  const [step, setStep] = useState(1);
+  // Step 0 = "Who is this for?", only reachable on a brand-new visit (resuming
+  // an existing parent already knows the answer from parent.relationship).
+  const [step, setStep] = useState(0);
   const [parent, setParent] = useState<Parent | null>(null);
   const [talkToken, setTalkToken] = useState('');
+  // Transient — only meaningful between WhoForStep and the parent actually
+  // being created. Once `parent` exists, `isSelf` below (derived from
+  // parent.relationship) is the source of truth, so this never needs
+  // threading through the Stripe-return/resume paths.
+  const [forSelf, setForSelf] = useState(false);
+  const [accountFirstName, setAccountFirstName] = useState('');
+
+  useEffect(() => {
+    api
+      .get<{ account: { full_name: string | null } }>('/api/me')
+      .then((r) => setAccountFirstName((r.account.full_name ?? '').split(' ')[0] ?? ''))
+      .catch(() => {
+        /* non-fatal — the self-profile name field just starts blank */
+      });
+  }, []);
   // Stripe Checkout is a full-page redirect, so returning from it loses the
   // in-memory wizard state — re-fetch the parent by id and jump to the
   // billing step instead of starting the wizard over.
@@ -84,9 +102,10 @@ function OnboardingWizard() {
         if (active && incomplete) {
           // Consent recording is idempotent (POST .../consent uses ensure()),
           // so resuming at the consent step is always safe even if it was
-          // already recorded before the buyer abandoned checkout.
+          // already recorded before the buyer abandoned checkout. A self
+          // profile never has a consent step, so resume straight to billing.
           setParent(incomplete);
-          setStep(3);
+          setStep(incomplete.relationship === 'self' ? 4 : 3);
         }
       } catch {
         /* non-fatal — worst case the buyer starts a fresh parent */
@@ -127,25 +146,74 @@ function OnboardingWizard() {
     );
   }
 
+  // Once the parent exists, its own relationship is the source of truth for
+  // "is this a self profile" — robust across the resume/Stripe-return paths,
+  // which never carry the transient `forSelf` flag.
+  const isSelf = parent?.relationship === 'self';
+
+  async function handleMemoriesDone() {
+    if (isSelf && parent) {
+      try {
+        await api.post(`/api/parents/${parent.id}/consent`, { kind: 'buyer_attestation' });
+      } catch {
+        // Non-fatal here — there's no consent-step UI to show an error on for
+        // a self profile; activate() re-checks this same precondition later
+        // and BillingStep already surfaces that failure if it ever matters.
+      }
+      setStep(4);
+    } else {
+      setStep(3);
+    }
+  }
+
+  const totalSteps = isSelf || forSelf ? 5 : 6;
+  const displayStep = step <= 2 ? step + 1 : (isSelf || forSelf) ? step : step + 1;
+
   return (
     <div className="mx-auto max-w-2xl">
-      <p className="eyebrow">Set up the gift</p>
-      <p className="mt-2 text-base text-muted">Step {Math.min(step, 5)} of 5</p>
-      {step === 1 && <ProfileStep onDone={(p) => { setParent(p); setStep(2); }} />}
-      {step === 2 && parent && <MemoriesStep parent={parent} onDone={() => setStep(3)} />}
+      <p className="eyebrow">Set up Kindly</p>
+      <p className="mt-2 text-base text-muted">Step {Math.min(displayStep, totalSteps)} of {totalSteps}</p>
+      {step === 0 && <WhoForStep onDone={(self) => { setForSelf(self); setStep(1); }} />}
+      {step === 1 && (
+        <ProfileStep
+          forSelf={forSelf}
+          defaultFirstName={forSelf ? accountFirstName : ''}
+          onDone={(p) => { setParent(p); setStep(2); }}
+        />
+      )}
+      {step === 2 && parent && <MemoriesStep forSelf={isSelf} parent={parent} onDone={handleMemoriesDone} />}
       {step === 3 && parent && <ConsentStep parent={parent} onDone={() => setStep(4)} />}
       {step === 4 && parent && (
         <BillingStep parent={parent} billingResult={billingResult} onDone={() => setStep(5)} />
       )}
       {step === 5 && parent && (
-        <DoneStep parent={parent} talkToken={talkToken} setTalkToken={setTalkToken} />
+        <DoneStep forSelf={isSelf} parent={parent} talkToken={talkToken} setTalkToken={setTalkToken} />
       )}
     </div>
   );
 }
 
-function ProfileStep({ onDone }: { onDone: (p: Parent) => void }) {
-  const [firstName, setFirstName] = useState('');
+function WhoForStep({ onDone }: { onDone: (forSelf: boolean) => void }) {
+  return (
+    <div className="mt-6 space-y-5">
+      <h1 className="font-display text-3xl font-semibold text-ink">Who is this for?</h1>
+      <p className="text-lg text-muted">You can always set up another profile later — for yourself or as a gift.</p>
+      <div className="space-y-3">
+        <button type="button" onClick={() => onDone(true)} className="btn-primary w-full">
+          Me — I want to talk with Kindly myself
+        </button>
+        <button type="button" onClick={() => onDone(false)} className="btn-secondary w-full">
+          Someone else — I&rsquo;m setting this up as a gift
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProfileStep({
+  forSelf, defaultFirstName, onDone,
+}: { forSelf: boolean; defaultFirstName: string; onDone: (p: Parent) => void }) {
+  const [firstName, setFirstName] = useState(defaultFirstName);
   const [relationship, setRelationship] = useState<(typeof RELATIONSHIPS)[number]>('mother');
   const [pronouns, setPronouns] = useState('');
   const [city, setCity] = useState('');
@@ -154,12 +222,14 @@ function ProfileStep({ onDone }: { onDone: (p: Parent) => void }) {
 
   async function next() {
     setError('');
-    if (!firstName.trim()) return setError("Please enter your parent's first name.");
+    if (!firstName.trim()) {
+      return setError(forSelf ? 'Please enter your first name.' : "Please enter your parent's first name.");
+    }
     setBusy(true);
     try {
       const { parent } = await api.post<{ parent: Parent }>('/api/parents', {
         first_name: firstName.trim(),
-        relationship,
+        relationship: forSelf ? 'self' : relationship,
         pronouns: pronouns.trim() || undefined,
         city: city.trim() || undefined,
       });
@@ -172,24 +242,36 @@ function ProfileStep({ onDone }: { onDone: (p: Parent) => void }) {
 
   return (
     <div className="mt-6 space-y-5">
-      <h1 className="font-display text-3xl font-semibold text-ink">Who is this for?</h1>
+      <h1 className="font-display text-3xl font-semibold text-ink">
+        {forSelf ? 'A little about you' : 'A little about them'}
+      </h1>
       <div>
-        <label htmlFor="ob-name" className="block text-base font-semibold text-ink">Their first name</label>
-        <input id="ob-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={fieldCls} placeholder="e.g. Robert" />
+        <label htmlFor="ob-name" className="block text-base font-semibold text-ink">
+          {forSelf ? 'Your first name' : 'Their first name'}
+        </label>
+        <input
+          id="ob-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+          className={fieldCls} placeholder={forSelf ? 'e.g. Maria' : 'e.g. Robert'}
+        />
       </div>
-      <div>
-        <label htmlFor="ob-rel" className="block text-base font-semibold text-ink">Your relationship</label>
-        <select id="ob-rel" value={relationship} onChange={(e) => setRelationship(e.target.value as typeof relationship)} className={fieldCls}>
-          {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
+      {!forSelf && (
+        <div>
+          <label htmlFor="ob-rel" className="block text-base font-semibold text-ink">Your relationship</label>
+          <select id="ob-rel" value={relationship} onChange={(e) => setRelationship(e.target.value as typeof relationship)} className={fieldCls}>
+            {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+      )}
       <div>
         <label htmlFor="ob-pron" className="block text-base font-semibold text-ink">Pronouns (optional)</label>
         <input id="ob-pron" value={pronouns} onChange={(e) => setPronouns(e.target.value)} className={fieldCls} placeholder="she/her, he/him…" />
       </div>
       <div>
         <label htmlFor="ob-city" className="block text-base font-semibold text-ink">City (optional)</label>
-        <input id="ob-city" value={city} onChange={(e) => setCity(e.target.value)} className={fieldCls} placeholder="Where they live" />
+        <input
+          id="ob-city" value={city} onChange={(e) => setCity(e.target.value)}
+          className={fieldCls} placeholder={forSelf ? 'Where you live' : 'Where they live'}
+        />
       </div>
       {error && <p className="text-base text-clay">{error}</p>}
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
@@ -199,7 +281,7 @@ function ProfileStep({ onDone }: { onDone: (p: Parent) => void }) {
   );
 }
 
-function MemoriesStep({ parent, onDone }: { parent: Parent; onDone: () => void }) {
+function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: Parent; onDone: () => void }) {
   const [person, setPerson] = useState('');
   const [hometown, setHometown] = useState('');
   const [enjoys, setEnjoys] = useState('');
@@ -227,18 +309,26 @@ function MemoriesStep({ parent, onDone }: { parent: Parent; onDone: () => void }
 
   return (
     <div className="mt-6 space-y-5">
-      <h1 className="font-display text-3xl font-semibold text-ink">A few things about {parent.first_name}</h1>
+      <h1 className="font-display text-3xl font-semibold text-ink">
+        {forSelf ? 'A few things about you' : `A few things about ${parent.first_name}`}
+      </h1>
       <p className="text-base text-muted">These help Kindly hold a warmer conversation. All optional — you can add more later.</p>
       <div>
-        <label htmlFor="ob-person" className="block text-base font-semibold text-ink">Someone who matters to them</label>
-        <input id="ob-person" value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder="e.g. their late wife, Margaret" />
+        <label htmlFor="ob-person" className="block text-base font-semibold text-ink">
+          {forSelf ? 'Someone who matters to you' : 'Someone who matters to them'}
+        </label>
+        <input id="ob-person" value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder={forSelf ? 'e.g. your spouse, Margaret' : 'e.g. their late wife, Margaret'} />
       </div>
       <div>
-        <label htmlFor="ob-home" className="block text-base font-semibold text-ink">Where they’re from</label>
+        <label htmlFor="ob-home" className="block text-base font-semibold text-ink">
+          {forSelf ? 'Where you’re from' : 'Where they’re from'}
+        </label>
         <input id="ob-home" value={hometown} onChange={(e) => setHometown(e.target.value)} className={fieldCls} placeholder="e.g. Detroit" />
       </div>
       <div>
-        <label htmlFor="ob-enjoys" className="block text-base font-semibold text-ink">Something they love</label>
+        <label htmlFor="ob-enjoys" className="block text-base font-semibold text-ink">
+          {forSelf ? 'Something you love' : 'Something they love'}
+        </label>
         <input id="ob-enjoys" value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
       </div>
       {error && <p className="text-base text-clay">{error}</p>}
@@ -361,7 +451,63 @@ function BillingStep({
   );
 }
 
+/**
+ * Self-use has no one to hand a link to — the buyer IS the talker. This
+ * performs the exact same access-token → kindly_talk-cookie handshake a gift
+ * recipient does manually via a shared link, just automatically, since the
+ * buyer's browser is already authenticated.
+ */
+function SelfDoneStep({ parent }: { parent: Parent }) {
+  const router = useRouter();
+  const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setError('');
+    (async () => {
+      try {
+        const { token } = await api.post<{ token: string }>(`/api/parents/${parent.id}/access-link`);
+        await api.post('/api/talk/auth', { token });
+        if (active) router.push('/app/talk');
+      } catch (err) {
+        if (active) setError(err instanceof ApiError ? err.message : 'Could not start talking. Please try again.');
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parent.id, retryCount]);
+
+  return (
+    <div className="mt-6 space-y-5">
+      <h1 className="font-display text-3xl font-semibold text-ink">You’re all set 🎉</h1>
+      {error ? (
+        <>
+          <p className="text-base text-clay">{error}</p>
+          <button type="button" onClick={() => setRetryCount((n) => n + 1)} className="btn-primary w-full">
+            Try again
+          </button>
+        </>
+      ) : (
+        <p className="text-lg text-muted">Taking you to Kindly…</p>
+      )}
+    </div>
+  );
+}
+
+// Thin dispatcher — kept hook-free so it can pick between two leaf components
+// with entirely different hook sets (self-use auto-redirects; gifting shows
+// a create/copy/share link flow) without violating the rules of hooks.
 function DoneStep({
+  forSelf, parent, talkToken, setTalkToken,
+}: { forSelf: boolean; parent: Parent; talkToken: string; setTalkToken: (t: string) => void }) {
+  if (forSelf) return <SelfDoneStep parent={parent} />;
+  return <GiftDoneStep parent={parent} talkToken={talkToken} setTalkToken={setTalkToken} />;
+}
+
+function GiftDoneStep({
   parent, talkToken, setTalkToken,
 }: { parent: Parent; talkToken: string; setTalkToken: (t: string) => void }) {
   const router = useRouter();

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
@@ -86,8 +87,44 @@ function ProfilePanel({ parentId }: { parentId: string }) {
   return (
     <div className="space-y-6">
       <ProfileForm parent={parent} onSaved={setParent} />
+      {parent.relationship === 'self' && parent.activated_at && <TalkToKindlySection parentId={parent.id} />}
       {parent.activated_at && <BillingSection parentId={parent.id} />}
     </div>
+  );
+}
+
+/**
+ * Ongoing re-entry point for a self profile. The kindly_talk cookie set
+ * during onboarding is long-lived (90 days) but not permanent, so this
+ * re-runs the same access-link → talk/auth handshake on demand rather than
+ * relying on the cookie alone.
+ */
+function TalkToKindlySection({ parentId }: { parentId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function startTalking() {
+    setError('');
+    setBusy(true);
+    try {
+      const { token } = await api.post<{ token: string }>(`/api/parents/${parentId}/access-link`);
+      await api.post('/api/talk/auth', { token });
+      router.push('/app/talk');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start talking. Please try again.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-line bg-cloud p-6">
+      <h2 className="text-lg font-semibold text-ink">Talk to Kindly</h2>
+      {error && <p className="mt-2 text-base text-clay">{error}</p>}
+      <button type="button" onClick={startTalking} disabled={busy} className="btn-primary mt-4 disabled:opacity-60">
+        {busy ? 'One moment…' : 'Start talking'}
+      </button>
+    </section>
   );
 }
 
