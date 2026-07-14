@@ -8,6 +8,7 @@ import { inputOnPageCls } from '@/lib/formStyles';
 interface Parent {
   id: string;
   first_name: string;
+  activated_at?: string | null;
 }
 
 const RELATIONSHIPS = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other'] as const;
@@ -38,24 +39,90 @@ function OnboardingWizard() {
   // in-memory wizard state — re-fetch the parent by id and jump to the
   // billing step instead of starting the wizard over.
   const [loadingReturn, setLoadingReturn] = useState(!!returningParentId);
+  const [returnError, setReturnError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+  // A fresh visit (no ?parent_id= from Stripe): check for an existing,
+  // not-yet-activated parent before defaulting to ProfileStep, so abandoning
+  // checkout mid-flow (or just reloading the page) resumes instead of
+  // creating a second, orphaned parent every time.
+  const [checkingResume, setCheckingResume] = useState(!returningParentId);
 
   useEffect(() => {
     if (!returningParentId) return;
+    let active = true;
+    setLoadingReturn(true);
+    setReturnError('');
     (async () => {
       try {
         const { parent: p } = await api.get<{ parent: Parent }>(`/api/parents/${returningParentId}`);
+        if (!active) return;
         setParent(p);
         setStep(4);
+      } catch (err) {
+        // Don't silently fall through to step 1 — the user may have just paid
+        // via Stripe; losing that context with no explanation is the bug being
+        // fixed here. Offer a retry instead of restarting the whole wizard.
+        if (active) {
+          setReturnError(err instanceof ApiError ? err.message : 'Could not load your progress. Please try again.');
+        }
       } finally {
-        setLoadingReturn(false);
+        if (active) setLoadingReturn(false);
       }
     })();
+    return () => {
+      active = false;
+    };
+  }, [returningParentId, retryCount]);
+
+  useEffect(() => {
+    if (returningParentId) return; // the other effect handles this visit
+    let active = true;
+    (async () => {
+      try {
+        const { parents } = await api.get<{ parents: Parent[] }>('/api/parents');
+        const incomplete = parents.find((p) => !p.activated_at);
+        if (active && incomplete) {
+          // Consent recording is idempotent (POST .../consent uses ensure()),
+          // so resuming at the consent step is always safe even if it was
+          // already recorded before the buyer abandoned checkout.
+          setParent(incomplete);
+          setStep(3);
+        }
+      } catch {
+        /* non-fatal — worst case the buyer starts a fresh parent */
+      } finally {
+        if (active) setCheckingResume(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returningParentId]);
 
-  if (loadingReturn) {
+  if (loadingReturn || checkingResume) {
     return (
       <div className="mx-auto max-w-2xl">
         <p className="mt-6 text-lg text-muted">Loading…</p>
+      </div>
+    );
+  }
+
+  if (returnError) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <h1 className="mt-6 font-display text-3xl font-semibold text-ink">We couldn’t load your progress</h1>
+        <p className="mt-4 text-lg text-muted">{returnError}</p>
+        <p className="mt-2 text-base text-muted">
+          If you completed payment with Stripe, it went through — this is just a hiccup loading the page.
+        </p>
+        <button
+          type="button"
+          onClick={() => setRetryCount((n) => n + 1)}
+          className="btn-primary mt-6 w-full"
+        >
+          Try again
+        </button>
       </div>
     );
   }
@@ -248,8 +315,19 @@ function BillingStep({
     setError('');
     setBusy(true);
     try {
-      const { url } = await api.post<{ url: string }>('/api/billing/checkout', { parent_id: parent.id });
-      window.location.href = url;
+      const { url, already_subscribed: alreadySubscribed } = await api.post<{ url: string | null; already_subscribed?: boolean }>(
+        '/api/billing/checkout',
+        { parent_id: parent.id },
+      );
+      if (alreadySubscribed) {
+        // A subscription already exists (e.g. an earlier checkout succeeded
+        // but the follow-up activate() call failed transiently) — the route
+        // refused to start a second one. Just finish activating.
+        await api.post(`/api/parents/${parent.id}/activate`);
+        onDone();
+        return;
+      }
+      window.location.href = url as string;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start your trial.');
       setBusy(false);

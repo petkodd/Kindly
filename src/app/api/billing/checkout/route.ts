@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { getStripeClient } from '@/lib/billing';
 import { parentRepo } from '@/lib/repos/parent';
+import { subscriptionRepo } from '@/lib/repos/subscription';
 import { userRepo } from '@/lib/repos/user';
 import { ValidationError } from '@/lib/types';
 
@@ -37,6 +38,16 @@ export async function POST(req: NextRequest) {
     if (!parentId) throw new ValidationError('parent_id is required');
 
     await parentRepo.getOwned(pool, parentId, buyerId); // isolation
+
+    // Refuse to start a second trial/subscription for a parent that already
+    // has one current — without this, a transient failure in the post-checkout
+    // /activate call (see BillingStep) would send the user back to "Start
+    // trial" and risk creating (and eventually being charged for) a second
+    // Stripe subscription for the same parent.
+    if (await subscriptionRepo.isBillingCurrent(pool, parentId)) {
+      return NextResponse.json({ url: null, already_subscribed: true });
+    }
+
     const buyer = await userRepo.getAccount(pool, buyerId);
 
     const stripe = getStripeClient();

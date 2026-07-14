@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { makeTestDb } from '../db';
 import type { Querier } from '../../src/lib/querier';
 import { parentRepo } from '../../src/lib/repos/parent';
-import { signSession, SESSION_COOKIE } from '../../src/lib/session';
+import { makeBuyer, authedReq as buyerReq } from './helpers';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -28,20 +28,6 @@ vi.mock('@/lib/billing', () => ({
 import { POST as checkoutPOST } from '../../src/app/api/billing/checkout/route';
 import { POST as webhookPOST } from '../../src/app/api/billing/webhook/route';
 import { GET as subscriptionGET } from '../../src/app/api/parents/[id]/subscription/route';
-
-async function makeBuyer(email: string): Promise<string> {
-  const { rows } = await q.query<{ id: string }>(
-    `INSERT INTO users (email) VALUES ($1) RETURNING id`,
-    [email],
-  );
-  return rows[0].id;
-}
-
-function buyerReq(url: string, buyerId: string | null, init: { method?: string; body?: BodyInit; headers?: Record<string, string> } = {}): NextRequest {
-  const headers: Record<string, string> = { 'content-type': 'application/json', ...(init.headers as Record<string, string>) };
-  if (buyerId) headers.cookie = `${SESSION_COOKIE}=${signSession(buyerId)}`;
-  return new NextRequest(url, { ...init, headers });
-}
 
 function fakeStripeSubscription(overrides: Partial<{
   id: string; customer: string; status: string; buyerId: string; parentId: string; currentPeriodEndUnix: number;
@@ -73,7 +59,7 @@ describe('POST /api/billing/checkout', () => {
   it('503s when Stripe is not configured (no STRIPE_SECRET_KEY/STRIPE_PRICE_ID)', async () => {
     delete process.env.STRIPE_SECRET_KEY;
     delete process.env.STRIPE_PRICE_ID;
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
     const res = await checkoutPOST(
@@ -86,9 +72,9 @@ describe('POST /api/billing/checkout', () => {
   it('404s checking out for a parent owned by another buyer (isolation)', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
     process.env.STRIPE_PRICE_ID = 'price_123';
-    const owner = await makeBuyer('owner@example.com');
+    const owner = await makeBuyer(q, 'owner@example.com');
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
-    const attacker = await makeBuyer('attacker@example.com');
+    const attacker = await makeBuyer(q, 'attacker@example.com');
 
     const res = await checkoutPOST(
       buyerReq('http://localhost/api/billing/checkout', attacker, { method: 'POST', body: JSON.stringify({ parent_id: parent.id }) }),
@@ -99,7 +85,7 @@ describe('POST /api/billing/checkout', () => {
   it('creates a subscription-mode Checkout Session with a 7-day trial and card collection forced', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
     process.env.STRIPE_PRICE_ID = 'price_123';
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     stripeMock.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_abc' });
 
@@ -116,6 +102,27 @@ describe('POST /api/billing/checkout', () => {
     expect(call.subscription_data.metadata).toEqual({ buyer_id: buyer, parent_id: parent.id });
     expect(call.line_items).toEqual([{ price: 'price_123', quantity: 1 }]);
     expect(call.success_url).toContain(`parent_id=${parent.id}`);
+  });
+
+  it('refuses to start a second trial when the parent already has a current subscription', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.STRIPE_PRICE_ID = 'price_123';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    await q.query(
+      `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+       VALUES ($1, $2, 'family', 'trialing', now() + interval '7 days')`,
+      [buyer, parent.id],
+    );
+
+    const res = await checkoutPOST(
+      buyerReq('http://localhost/api/billing/checkout', buyer, { method: 'POST', body: JSON.stringify({ parent_id: parent.id }) }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.already_subscribed).toBe(true);
+    expect(body.url).toBeNull();
+    expect(stripeMock.checkoutCreate).not.toHaveBeenCalled();
   });
 });
 
@@ -143,7 +150,7 @@ describe('POST /api/billing/webhook', () => {
 
   it('checkout.session.completed: retrieves the full subscription and upserts it as trialing', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
     stripeMock.constructEvent.mockReturnValue({
@@ -171,7 +178,7 @@ describe('POST /api/billing/webhook', () => {
 
   it('customer.subscription.updated: syncs status changes (e.g. trial converting to active)', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await q.query(
       `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, stripe_sub_id, current_period_end)
@@ -195,7 +202,7 @@ describe('POST /api/billing/webhook', () => {
 
   it('customer.subscription.deleted: marks the subscription canceled', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await q.query(
       `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, stripe_sub_id, current_period_end)
@@ -216,6 +223,25 @@ describe('POST /api/billing/webhook', () => {
     const { rows } = await q.query(`SELECT status FROM subscriptions WHERE stripe_sub_id = 'sub_cancel_me'`);
     expect(rows[0].status).toBe('canceled');
   });
+
+  it('an event for an unattributable subscription (no metadata.buyer_id, no existing row) is acknowledged, not a 500', async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
+    // Simulates a subscription this app never created via checkout (e.g.
+    // Stripe-dashboard-created, or an out-of-order webhook) — must not crash
+    // the handler, since Stripe would otherwise retry the same event forever.
+    stripeMock.constructEvent.mockReturnValue({
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_unknown', customer: 'cus_unknown', status: 'active', metadata: {}, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) }] } } },
+    });
+
+    const res = await webhookPOST(
+      new NextRequest('http://localhost/api/billing/webhook', { method: 'POST', headers: { 'stripe-signature': 'valid' }, body: '{}' }),
+    );
+    expect(res.status).toBe(200);
+
+    const { rows } = await q.query(`SELECT count(*)::int AS n FROM subscriptions WHERE stripe_sub_id = 'sub_unknown'`);
+    expect(rows[0].n).toBe(0);
+  });
 });
 
 describe('GET /api/parents/:id/subscription', () => {
@@ -225,9 +251,9 @@ describe('GET /api/parents/:id/subscription', () => {
   });
 
   it('404s a parent owned by another buyer (isolation)', async () => {
-    const owner = await makeBuyer('owner@example.com');
+    const owner = await makeBuyer(q, 'owner@example.com');
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
-    const attacker = await makeBuyer('attacker@example.com');
+    const attacker = await makeBuyer(q, 'attacker@example.com');
 
     const res = await subscriptionGET(
       buyerReq(`http://localhost/api/parents/${parent.id}/subscription`, attacker),
@@ -237,7 +263,7 @@ describe('GET /api/parents/:id/subscription', () => {
   });
 
   it('returns null before any subscription exists', async () => {
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
     const res = await subscriptionGET(
@@ -245,11 +271,13 @@ describe('GET /api/parents/:id/subscription', () => {
       { params: { id: parent.id } },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()).subscription).toBeNull();
+    const body = await res.json();
+    expect(body.subscription).toBeNull();
+    expect(body.is_current).toBe(false);
   });
 
-  it('returns the buyer\'s subscription once one exists', async () => {
-    const buyer = await makeBuyer('sarah@example.com');
+  it('returns the parent\'s subscription and is_current=true once one exists', async () => {
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await q.query(
       `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
@@ -262,6 +290,24 @@ describe('GET /api/parents/:id/subscription', () => {
       { params: { id: parent.id } },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()).subscription.status).toBe('trialing');
+    const body = await res.json();
+    expect(body.subscription.status).toBe('trialing');
+    expect(body.is_current).toBe(true);
+  });
+
+  it('is_current=false for a canceled subscription (the legacy/lapsed recovery case)', async () => {
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    await q.query(
+      `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+       VALUES ($1, $2, 'family', 'canceled', now() - interval '30 days')`,
+      [buyer, parent.id],
+    );
+
+    const res = await subscriptionGET(
+      buyerReq(`http://localhost/api/parents/${parent.id}/subscription`, buyer),
+      { params: { id: parent.id } },
+    );
+    expect((await res.json()).is_current).toBe(false);
   });
 });

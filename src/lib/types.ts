@@ -164,6 +164,19 @@ export class ForbiddenError extends Error {
   }
 }
 
+/**
+ * Thrown specifically when a lapsed/missing subscription blocks an action.
+ * API maps to 402 — deliberately distinct from ForbiddenError (403) so a
+ * client can tell "go start/renew a trial" apart from "not activated" or
+ * "consent missing" without parsing the message string.
+ */
+export class PaymentRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentRequiredError';
+  }
+}
+
 /** Thrown when a unique resource already exists (e.g. duplicate email). API maps to 409. */
 export class ConflictError extends Error {
   constructor(message: string) {

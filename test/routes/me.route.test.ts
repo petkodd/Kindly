@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NextRequest } from 'next/server';
 import { makeTestDb } from '../db';
 import type { Querier } from '../../src/lib/querier';
 import { userRepo } from '../../src/lib/repos/user';
-import { signSession, verifySession, SESSION_COOKIE } from '../../src/lib/session';
+import { verifySession, SESSION_COOKIE } from '../../src/lib/session';
+import { authedReq } from './helpers';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -15,12 +15,6 @@ import { POST as passwordPOST } from '../../src/app/api/me/password/route';
 async function makeAccount(): Promise<string> {
   const user = await userRepo.create(q, { email: `u${Math.random()}@example.com`, password: 'originalpass' });
   return user.id;
-}
-
-function authedReq(url: string, userId: string | null, init: { method?: string; body?: BodyInit; headers?: Record<string, string> } = {}): NextRequest {
-  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
-  if (userId) headers.cookie = `${SESSION_COOKIE}=${signSession(userId)}`;
-  return new NextRequest(url, { ...init, headers });
 }
 
 beforeEach(() => {

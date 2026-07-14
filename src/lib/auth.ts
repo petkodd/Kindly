@@ -158,6 +158,8 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       return { status: 404, body: { error: { code: 'not_found', message: 'Not found.' } } };
     case 'ForbiddenError':
       return { status: 403, body: { error: { code: 'forbidden', message: (err as Error).message } } };
+    case 'PaymentRequiredError':
+      return { status: 402, body: { error: { code: 'payment_required', message: (err as Error).message } } };
     case 'ConflictError':
       return { status: 409, body: { error: { code: 'conflict', message: (err as Error).message } } };
     case 'RateLimitError':

@@ -83,7 +83,106 @@ function ProfilePanel({ parentId }: { parentId: string }) {
   if (error) return <p className="text-base text-clay">{error}</p>;
   if (!parent) return <p className="text-base text-muted">Loading profile…</p>;
 
-  return <ProfileForm parent={parent} onSaved={setParent} />;
+  return (
+    <div className="space-y-6">
+      <ProfileForm parent={parent} onSaved={setParent} />
+      {parent.activated_at && <BillingSection parentId={parent.id} />}
+    </div>
+  );
+}
+
+interface SubscriptionInfo {
+  status: 'trialing' | 'active' | 'past_due' | 'canceled';
+  current_period_end: string | null;
+}
+
+/**
+ * Billing status + a "start trial" recovery path. Needed because activation
+ * and billing are separate gates (see conversationRepo.openSession) — a
+ * parent can be activated with no current subscription (never went through
+ * Stripe checkout, or a subscription lapsed past its grace period), and
+ * otherwise has no way back into billing once past the onboarding wizard.
+ */
+function BillingSection({ parentId }: { parentId: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [isCurrent, setIsCurrent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<{ subscription: SubscriptionInfo | null; is_current: boolean }>(`/api/parents/${parentId}/subscription`)
+      .then((r) => {
+        if (!active) return;
+        setSubscription(r.subscription);
+        setIsCurrent(r.is_current);
+      })
+      .catch(() => {
+        /* keep the section usable — worst case the buyer just sees the trial CTA */
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [parentId]);
+
+  async function startTrial() {
+    setError('');
+    setBusy(true);
+    try {
+      const { url, already_subscribed: alreadySubscribed } = await api.post<{ url: string | null; already_subscribed?: boolean }>(
+        '/api/billing/checkout',
+        { parent_id: parentId },
+      );
+      if (alreadySubscribed) {
+        setIsCurrent(true);
+        setBusy(false);
+        return;
+      }
+      window.location.href = url as string;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start a trial.');
+      setBusy(false);
+    }
+  }
+
+  if (!loaded) return null;
+
+  const statusLabel: Record<SubscriptionInfo['status'], string> = {
+    trialing: 'Free trial',
+    active: 'Active',
+    past_due: 'Payment issue — grace period',
+    canceled: 'Canceled',
+  };
+
+  return (
+    <section className="rounded-xl border border-line bg-cloud p-6">
+      <h2 className="text-lg font-semibold text-ink">Billing</h2>
+      {isCurrent && subscription ? (
+        <p className="mt-2 text-base text-muted">
+          {statusLabel[subscription.status]}
+          {subscription.current_period_end &&
+            ` · renews ${new Date(subscription.current_period_end).toLocaleDateString()}`}
+        </p>
+      ) : (
+        <>
+          <p className="mt-2 text-base text-muted">
+            {subscription
+              ? 'This parent’s subscription has lapsed, so talk access is paused.'
+              : 'This parent doesn’t have an active trial or subscription yet, so talk access is paused.'}
+          </p>
+          {error && <p className="mt-2 text-base text-clay">{error}</p>}
+          <button type="button" onClick={startTrial} disabled={busy} className="btn-primary mt-4 disabled:opacity-60">
+            {busy ? 'Redirecting…' : 'Start 7-day free trial'}
+          </button>
+        </>
+      )}
+    </section>
+  );
 }
 
 function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent) => void }) {

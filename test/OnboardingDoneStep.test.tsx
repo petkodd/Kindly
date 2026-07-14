@@ -113,3 +113,34 @@ describe('OnboardingPage DoneStep — talk link handoff', () => {
     expect(screen.queryByRole('button', { name: /^share$/i })).toBeNull();
   });
 });
+
+describe('OnboardingPage — failed return from Stripe Checkout', () => {
+  it('shows a retry option instead of silently restarting the wizard when the return fetch fails', async () => {
+    stubFetch({
+      'GET /api/parents/p1': () => json({ error: { code: 'server_error', message: 'Something went wrong.' } }, 500),
+    });
+    render(<OnboardingPage />);
+
+    // Must NOT silently fall through to "Who is this for?" (step 1) with no
+    // explanation — the user may have just paid via Stripe.
+    expect(await screen.findByText(/couldn.t load your progress/i)).toBeTruthy();
+    expect(screen.queryByText(/who is this for/i)).toBeNull();
+  });
+
+  it('retrying re-fetches and proceeds once it succeeds', async () => {
+    let attempt = 0;
+    stubFetch({
+      'GET /api/parents/p1': () => {
+        attempt += 1;
+        return attempt === 1
+          ? json({ error: { code: 'server_error', message: 'Something went wrong.' } }, 500)
+          : json({ parent: PARENT });
+      },
+      'POST /api/parents/p1/activate': () => json({ parent: { ...PARENT, activated_at: '2026-07-13T00:00:00Z' } }),
+    });
+    render(<OnboardingPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /try again/i }));
+    expect(await screen.findByText(/all set/i)).toBeTruthy();
+  });
+});

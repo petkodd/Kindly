@@ -6,6 +6,7 @@ import { parentRepo } from '../../src/lib/repos/parent';
 import { safetyFlagRepo } from '../../src/lib/repos/safetyFlag';
 import { userRepo } from '../../src/lib/repos/user';
 import { signSession, SESSION_COOKIE } from '../../src/lib/session';
+import { makeBuyer, authedReq } from './helpers';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -21,18 +22,8 @@ async function makeAdmin(): Promise<string> {
   return user.id;
 }
 
-async function makeBuyer(email: string): Promise<string> {
-  const { rows } = await q.query<{ id: string }>(
-    `INSERT INTO users (email) VALUES ($1) RETURNING id`,
-    [email],
-  );
-  return rows[0].id;
-}
-
-function adminReq(url: string, adminId: string | null, init: { method?: string; body?: BodyInit; headers?: Record<string, string> } = {}): NextRequest {
-  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
-  if (adminId) headers.cookie = `${SESSION_COOKIE}=${signSession(adminId, { isAdmin: true })}`;
-  return new NextRequest(url, { ...init, headers });
+function adminReq(url: string, adminId: string | null, init?: Parameters<typeof authedReq>[2]) {
+  return authedReq(url, adminId, init, { isAdmin: true });
 }
 
 beforeEach(() => {
@@ -47,7 +38,7 @@ describe('GET /api/admin/overview', () => {
   });
 
   it('401s a buyer session that is not admin', async () => {
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const req = new NextRequest('http://localhost/api/admin/overview', {
       headers: { cookie: `${SESSION_COOKIE}=${signSession(buyer, { isAdmin: false })}` },
     });
@@ -75,7 +66,7 @@ describe('GET /api/admin/flags', () => {
 
   it('returns the open/reviewing queue, audit-logged', async () => {
     const admin = await makeAdmin();
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await safetyFlagRepo.record(q, { parentId: parent.id, severity: 'p2', detail: 'seemed low' });
 
@@ -121,7 +112,7 @@ describe('PATCH /api/admin/flags/:fid', () => {
 
   it('updates status, stamps resolved_by/resolved_at, and audit-logs it', async () => {
     const admin = await makeAdmin();
-    const buyer = await makeBuyer('sarah@example.com');
+    const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     const flag = await safetyFlagRepo.record(q, { parentId: parent.id, severity: 'p2', detail: 'seemed low' });
 

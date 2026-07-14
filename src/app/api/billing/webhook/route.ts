@@ -44,23 +44,32 @@ export async function POST(req: NextRequest) {
 
   const pool = db();
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (typeof session.subscription === 'string') {
-        const subscription = await getStripeClient().subscriptions.retrieve(session.subscription);
-        await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription));
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (typeof session.subscription === 'string') {
+          const subscription = await getStripeClient().subscriptions.retrieve(session.subscription);
+          await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription));
+        }
+        break;
       }
-      break;
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription));
+        break;
+      }
+      default:
+        break; // other event types are not relevant to billing state
     }
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription;
-      await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription));
-      break;
-    }
-    default:
-      break; // other event types are not relevant to billing state
+  } catch (err) {
+    // A genuinely unexpected failure (DB unreachable, etc.) — 500 so Stripe's
+    // automatic retry can succeed once the transient condition clears.
+    // upsertFromStripeSubscription itself never throws for the "unknown
+    // subscription" case (see its own doc comment); it returns null instead.
+    console.error('billing webhook processing failed', event.type, err);
+    return NextResponse.json({ error: { code: 'server_error', message: 'Webhook processing failed.' } }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

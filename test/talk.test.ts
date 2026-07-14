@@ -7,7 +7,7 @@ import { memoryRepo } from '../src/lib/repos/memory';
 import { accessTokenRepo } from '../src/lib/repos/accessToken';
 import { conversationRepo } from '../src/lib/repos/conversation';
 import { fakeAiClient } from '../src/lib/ai/fake';
-import { ForbiddenError, NotFoundError, PreconditionError, ValidationError } from '../src/lib/types';
+import { ForbiddenError, NotFoundError, PaymentRequiredError, PreconditionError, ValidationError } from '../src/lib/types';
 
 let q: Querier;
 
@@ -145,20 +145,20 @@ describe('conversation consent gate + lifecycle', () => {
     expect(convo.ended_at).toBeNull();
   });
 
-  it('BLOCKS opening a session with no subscription at all (403)', async () => {
+  it('BLOCKS opening a session with no subscription at all (402)', async () => {
     const buyer = await makeBuyer(`b${Math.random()}@example.com`);
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyer });
     await parentRepo.activate(q, parent.id, buyer);
     await consentRepo.record(q, { parentId: parent.id, kind: 'parent_conversation' });
     // No subscriptions row inserted — the billing gate is what blocks this.
-    await expect(conversationRepo.openSession(q, parent.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(conversationRepo.openSession(q, parent.id)).rejects.toBeInstanceOf(PaymentRequiredError);
   });
 
-  it('BLOCKS opening a session once the subscription is canceled (403)', async () => {
+  it('BLOCKS opening a session once the subscription is canceled (402)', async () => {
     const parentId = await makeParent(true);
     await q.query(`UPDATE subscriptions SET status = 'canceled' WHERE parent_id = $1`, [parentId]);
-    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(PaymentRequiredError);
   });
 
   it('ALLOWS opening a session for past_due still within the 3-day grace window', async () => {
@@ -177,7 +177,7 @@ describe('conversation consent gate + lifecycle', () => {
       `UPDATE subscriptions SET status = 'past_due', current_period_end = now() - interval '4 days' WHERE parent_id = $1`,
       [parentId],
     );
-    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(PaymentRequiredError);
   });
 
   it('ISOLATION: a parent cannot add a turn to another parent\'s conversation', async () => {

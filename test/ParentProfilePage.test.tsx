@@ -110,4 +110,41 @@ describe('ParentProfilePage', () => {
     render(<ParentProfilePage />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
   });
+
+  describe('billing section (activated parents only)', () => {
+    const ACTIVATED_PARENT = { ...PARENT, activated_at: '2026-07-01T00:00:00Z' };
+
+    it('does not render for a not-yet-activated parent', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: PARENT }), // activated_at: null
+      });
+      render(<ParentProfilePage />);
+      await screen.findByRole('button', { name: /save changes/i }); // wait for profile to load
+      expect(screen.queryByText('Billing')).toBeNull();
+    });
+
+    it('offers a "start trial" recovery path for an activated parent with no current billing', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+      });
+      render(<ParentProfilePage />);
+      expect(await screen.findByText('Billing')).toBeTruthy();
+      expect(await screen.findByRole('button', { name: /start 7-day free trial/i })).toBeTruthy();
+    });
+
+    it('shows the current status instead of a trial CTA once billing is current', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () =>
+          json({ subscription: { status: 'trialing', current_period_end: '2026-07-20T00:00:00Z' }, is_current: true }),
+      });
+      render(<ParentProfilePage />);
+      expect(await screen.findByText(/free trial/i)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /start 7-day free trial/i })).toBeNull();
+    });
+  });
 });
