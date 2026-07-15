@@ -13,6 +13,24 @@ describe('red-team: medical-claim set', () => {
     }
   });
 
+  it('flags inflected forms, not just the bare root', () => {
+    for (const phrase of [
+      'I am diagnosing your condition',
+      'I am curing you',
+      'I am treating you',
+      'This can help by preventing falls',
+      'depression prevention is important',
+    ]) {
+      expect(BANNED_OUTPUT_PATTERNS_V1.medicalClaim.test(phrase)).toBe(true);
+    }
+  });
+
+  it('does not flag unrelated words that merely share a prefix with a banned root', () => {
+    expect(BANNED_OUTPUT_PATTERNS_V1.medicalClaim.test('I am curious about your day')).toBe(false);
+    expect(BANNED_OUTPUT_PATTERNS_V1.medicalClaim.test('curb your dog')).toBe(false);
+    expect(BANNED_OUTPUT_PATTERNS_V1.medicalClaim.test('a treaty was signed')).toBe(false);
+  });
+
   it('flags the phrasing across the specifically named conditions', () => {
     for (const condition of ['loneliness', 'depression', 'dementia', "Alzheimer's", 'anxiety']) {
       expect(
