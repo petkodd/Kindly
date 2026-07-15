@@ -14,7 +14,7 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
-function stubFetch(routes: Record<string, (init?: RequestInit) => Response>) {
+function stubFetch(routes: Record<string, (init?: RequestInit) => Response | Promise<Response>>) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.toString();
     const method = (init?.method ?? 'GET').toUpperCase();
@@ -71,6 +71,26 @@ describe('OnboardingPage — self-use flow ("Me")', () => {
     await waitFor(() => expect(nameInput.value).toBe('Maria'));
   });
 
+  it('REGRESSION: still pre-fills the name even if /api/me resolves AFTER ProfileStep has already mounted', async () => {
+    // Exercises the actual race: click "Me" before the account-name fetch
+    // settles, so ProfileStep mounts with defaultFirstName='' — the field
+    // must still pick up the name once the fetch resolves late.
+    let resolveMe!: (r: Response) => void;
+    const mePromise = new Promise<Response>((resolve) => { resolveMe = resolve; });
+    stubFetch({
+      'GET /api/parents': () => json({ parents: [] }),
+      'GET /api/me': () => mePromise,
+    });
+    render(<OnboardingPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /^me/i }));
+    const nameInput = (await screen.findByLabelText(/your first name/i)) as HTMLInputElement;
+    expect(nameInput.value).toBe(''); // /api/me hasn't resolved yet
+
+    resolveMe(json({ account: { full_name: 'Maria Ivanova' } }));
+    await waitFor(() => expect(nameInput.value).toBe('Maria'));
+  });
+
   it('skips ConsentStep entirely, auto-recording buyer_attestation, and goes straight to billing', async () => {
     let consentCalls = 0;
     stubFetch({
@@ -97,6 +117,25 @@ describe('OnboardingPage — self-use flow ("Me")', () => {
     expect(consentCalls).toBe(1);
   });
 
+  it('does NOT advance to billing if the auto-consent call fails — surfaces the error on MemoriesStep instead', async () => {
+    stubFetch({
+      'GET /api/parents': () => json({ parents: [] }),
+      'GET /api/me': () => json({ account: { full_name: null } }),
+      'POST /api/parents': () => json({ parent: SELF_PARENT }, 201),
+      'POST /api/parents/p1/consent': () => json({ error: { code: 'server_error', message: 'Something went wrong.' } }, 500),
+    });
+    render(<OnboardingPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /^me/i }));
+    fireEvent.change(await screen.findByLabelText(/your first name/i), { target: { value: 'Maria' } });
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /continue/i }));
+
+    // Stays on MemoriesStep with a visible error — never silently reaches billing.
+    expect(await screen.findByText(/something went wrong/i)).toBeTruthy();
+    expect(screen.queryByText(/start your free trial/i)).toBeNull();
+  });
+
   it('DoneStep auto-redirects to /app/talk with no share link ever shown, given billingResult=success', async () => {
     // Jump straight past billing via the same ?billing=success&parent_id= path
     // BillingStep already uses — simulate arriving there for a self parent.
@@ -118,12 +157,28 @@ describe('OnboardingPage — self-use flow ("Me")', () => {
   });
 
   it('resume picks up an incomplete self parent at the billing step, not the consent step', async () => {
+    let consentCalls = 0;
     stubFetch({
       'GET /api/parents': () => json({ parents: [SELF_PARENT] }),
+      'POST /api/parents/p1/consent': () => {
+        consentCalls += 1;
+        return json({ consent: { id: 'c1' } }, 201);
+      },
     });
     render(<OnboardingPage />);
     expect(await screen.findByText(/start your free trial/i)).toBeTruthy();
     expect(screen.queryByText(/one important step/i)).toBeNull();
+    expect(consentCalls).toBe(1); // (re-)ensures consent before landing on billing
+  });
+
+  it('resume falls back to MemoriesStep (not a stuck billing screen) if re-ensuring consent fails', async () => {
+    stubFetch({
+      'GET /api/parents': () => json({ parents: [SELF_PARENT] }),
+      'POST /api/parents/p1/consent': () => json({ error: { code: 'server_error', message: 'nope' } }, 500),
+    });
+    render(<OnboardingPage />);
+    expect(await screen.findByText(/a few things about you/i)).toBeTruthy();
+    expect(screen.queryByText(/start your free trial/i)).toBeNull();
   });
 });
 

@@ -65,7 +65,7 @@ describe('MemoriesPage', () => {
   it('prompts onboarding when there are no parents', async () => {
     stubFetch({ 'GET /api/parents': () => json({ parents: [] }) });
     render(<MemoriesPage />);
-    expect(await screen.findByText(/haven’t set up a parent/i)).toBeTruthy();
+    expect(await screen.findByText(/haven’t set up Kindly/i)).toBeTruthy();
   });
 
   it('shows proposed and confirmed sections', async () => {

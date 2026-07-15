@@ -20,7 +20,10 @@ export interface Referral {
 
 // Unambiguous alphabet (no O/0/I/1/L) for human-friendly codes.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const CODE_LEN = 8;
+// 10 chars over this 31-symbol alphabet is ~49 bits of entropy — the per-IP
+// rate limit (referrals/redeem route) alone doesn't stop guessing distributed
+// across many source IPs, so the code itself needs to be hard to brute-force.
+const CODE_LEN = 10;
 
 function newCode(): string {
   const bytes = randomBytes(CODE_LEN);

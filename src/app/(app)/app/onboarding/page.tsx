@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, ApiError } from '@/lib/apiClient';
+import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
 import { inputOnPageCls } from '@/lib/formStyles';
 
 interface Parent {
@@ -100,12 +100,27 @@ function OnboardingWizard() {
         const { parents } = await api.get<{ parents: Parent[] }>('/api/parents');
         const incomplete = parents.find((p) => !p.activated_at);
         if (active && incomplete) {
-          // Consent recording is idempotent (POST .../consent uses ensure()),
-          // so resuming at the consent step is always safe even if it was
-          // already recorded before the buyer abandoned checkout. A self
-          // profile never has a consent step, so resume straight to billing.
           setParent(incomplete);
-          setStep(incomplete.relationship === 'self' ? 4 : 3);
+          if (incomplete.relationship === 'self') {
+            // A self profile never shows ConsentStep, so — unlike the gift
+            // path, where landing on ConsentStep always (re-)records consent
+            // before billing — resuming must (re-)ensure it here. Idempotent
+            // (POST .../consent uses ensure()), so safe even if it was already
+            // recorded before the buyer abandoned checkout. If this fails, fall
+            // back to MemoriesStep rather than landing on billing with no
+            // consent and no way to retry it (see handleMemoriesDone).
+            try {
+              await api.post(`/api/parents/${incomplete.id}/consent`, { kind: 'buyer_attestation' });
+              if (active) setStep(4);
+            } catch {
+              if (active) setStep(2);
+            }
+          } else {
+            // Consent recording is idempotent (POST .../consent uses ensure()),
+            // so resuming at the consent step is always safe even if it was
+            // already recorded before the buyer abandoned checkout.
+            setStep(3);
+          }
         }
       } catch {
         /* non-fatal — worst case the buyer starts a fresh parent */
@@ -153,21 +168,24 @@ function OnboardingWizard() {
 
   async function handleMemoriesDone() {
     if (isSelf && parent) {
-      try {
-        await api.post(`/api/parents/${parent.id}/consent`, { kind: 'buyer_attestation' });
-      } catch {
-        // Non-fatal here — there's no consent-step UI to show an error on for
-        // a self profile; activate() re-checks this same precondition later
-        // and BillingStep already surfaces that failure if it ever matters.
-      }
+      // Deliberately NOT swallowed — MemoriesStep awaits this and shows its
+      // own error UI (without advancing) on failure, since there's no
+      // ConsentStep left to retry from otherwise: a paid-but-unconsented
+      // self profile could never activate.
+      await api.post(`/api/parents/${parent.id}/consent`, { kind: 'buyer_attestation' });
       setStep(4);
     } else {
       setStep(3);
     }
   }
 
-  const totalSteps = isSelf || forSelf ? 5 : 6;
-  const displayStep = step <= 2 ? step + 1 : (isSelf || forSelf) ? step : step + 1;
+  // The self path skips ConsentStep (step 3), so steps 0-5 compress to 5
+  // displayed steps instead of 6 — every step before the skipped one still
+  // gets the same +1 (0-indexed -> 1-indexed); only steps after it stop
+  // getting that offset once it's no longer in the sequence.
+  const skipsConsentStep = isSelf || forSelf;
+  const totalSteps = skipsConsentStep ? 5 : 6;
+  const displayStep = step + (skipsConsentStep && step > 2 ? 0 : 1);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -219,6 +237,15 @@ function ProfileStep({
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // The account-name fetch (OnboardingWizard) can resolve after this step has
+  // already mounted with an empty field — useState's initial value only seeds
+  // once, so re-sync when it arrives. Guarded on the field still being empty
+  // so it never clobbers something the user already typed.
+  useEffect(() => {
+    if (defaultFirstName && !firstName) setFirstName(defaultFirstName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultFirstName]);
 
   async function next() {
     setError('');
@@ -281,7 +308,7 @@ function ProfileStep({
   );
 }
 
-function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: Parent; onDone: () => void }) {
+function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: Parent; onDone: () => Promise<void> }) {
   const [person, setPerson] = useState('');
   const [hometown, setHometown] = useState('');
   const [enjoys, setEnjoys] = useState('');
@@ -300,9 +327,13 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
       for (const s of seeds) {
         await api.post(`/api/parents/${parent.id}/memories`, { ...s, source: 'onboarding' });
       }
-      onDone();
+      // For self profiles onDone also records buyer_attestation consent (there's
+      // no ConsentStep to do it) — awaited here so a failure surfaces in this
+      // step's own error UI and does NOT advance to billing, rather than being
+      // silently swallowed and leaving a paid-but-never-activatable profile.
+      await onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save memories.');
+      setError(err instanceof ApiError ? err.message : 'Could not save.');
       setBusy(false);
     }
   }
@@ -467,8 +498,7 @@ function SelfDoneStep({ parent }: { parent: Parent }) {
     setError('');
     (async () => {
       try {
-        const { token } = await api.post<{ token: string }>(`/api/parents/${parent.id}/access-link`);
-        await api.post('/api/talk/auth', { token });
+        await grantSelfTalkAccess(parent.id);
         if (active) router.push('/app/talk');
       } catch (err) {
         if (active) setError(err instanceof ApiError ? err.message : 'Could not start talking. Please try again.');

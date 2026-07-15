@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, ApiError } from '@/lib/apiClient';
+import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
@@ -31,6 +31,21 @@ const LANGUAGES = [
 
 // Labels sit above each field, so add top spacing to the shared in-card input.
 const fieldCls = `mt-2 ${inputCls}`;
+
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  self: 'You',
+  mother: 'Mother',
+  father: 'Father',
+  grandparent: 'Grandparent',
+  aunt: 'Aunt',
+  uncle: 'Uncle',
+  other: 'Family',
+};
+
+/** Display label for a parent's relationship — 'self' reads oddly verbatim. */
+function relationshipLabel(relationship: string): string {
+  return RELATIONSHIP_LABELS[relationship] ?? relationship;
+}
 
 export default function ParentProfilePage() {
   return (
@@ -108,8 +123,7 @@ function TalkToKindlySection({ parentId }: { parentId: string }) {
     setError('');
     setBusy(true);
     try {
-      const { token } = await api.post<{ token: string }>(`/api/parents/${parentId}/access-link`);
-      await api.post('/api/talk/auth', { token });
+      await grantSelfTalkAccess(parentId);
       router.push('/app/talk');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start talking. Please try again.');
@@ -273,7 +287,7 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
       <div className="rounded-xl border border-line bg-cloud p-6">
         <h2 className="text-lg font-semibold text-ink">{parent.first_name}</h2>
         <p className="mt-1 text-base text-muted">
-          {parent.relationship}
+          {relationshipLabel(parent.relationship)}
           {parent.activated_at ? ' · active' : ' · not yet active'}
         </p>
       </div>

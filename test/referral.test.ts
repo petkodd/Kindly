@@ -77,7 +77,7 @@ describe('referral codes', () => {
     const referrer = await makeUser('ref@example.com');
     const redeemer = await makeUser('new@example.com');
     const referral = await referralRepo.generate(q, referrer);
-    expect(referral.code).toHaveLength(8);
+    expect(referral.code).toHaveLength(10);
 
     const redeemed = await referralRepo.redeem(q, referral.code, {
       redeemerId: redeemer,

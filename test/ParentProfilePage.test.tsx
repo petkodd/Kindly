@@ -58,7 +58,7 @@ describe('ParentProfilePage', () => {
   it('prompts onboarding when there are no parents', async () => {
     stubFetch({ 'GET /api/parents': () => json({ parents: [] }) });
     render(<ParentProfilePage />);
-    expect(await screen.findByText(/haven’t set up a parent/i)).toBeTruthy();
+    expect(await screen.findByText(/haven’t set up Kindly/i)).toBeTruthy();
   });
 
   it('loads the profile and saves edited accessibility settings', async () => {
@@ -166,14 +166,14 @@ describe('ParentProfilePage', () => {
     });
 
     it('renders for a self profile and performs the access-link -> talk/auth handshake, then navigates', async () => {
-      let accessLinkCalled = false;
+      let accessLinkBody: unknown = null;
       let talkAuthBody: unknown = null;
       stubFetch({
         'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
         'GET /api/parents/p1': () => json({ parent: SELF_PARENT }),
         'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
-        'POST /api/parents/p1/access-link': () => {
-          accessLinkCalled = true;
+        'POST /api/parents/p1/access-link': (init) => {
+          accessLinkBody = JSON.parse(String(init?.body));
           return json({ token: 'self-token-abc', id: 'link1' }, 201);
         },
         'POST /api/talk/auth': (init) => {
@@ -187,8 +187,32 @@ describe('ParentProfilePage', () => {
       fireEvent.click(button);
 
       await waitFor(() => expect(push).toHaveBeenCalledWith('/app/talk'));
-      expect(accessLinkCalled).toBe(true);
+      // keep_existing so re-entering from this device doesn't revoke another
+      // device's already-authenticated talk session for the same self profile.
+      expect(accessLinkBody).toEqual({ keep_existing: true });
       expect(talkAuthBody).toEqual({ token: 'self-token-abc' });
+    });
+  });
+
+  describe('relationship display label', () => {
+    it('shows "You" instead of the literal "self" for a self profile', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: { ...PARENT, relationship: 'self', activated_at: '2026-07-01T00:00:00Z' } }),
+        'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+      });
+      render(<ParentProfilePage />);
+      expect(await screen.findByText(/You · active/i)).toBeTruthy();
+      expect(screen.queryByText(/^self/i)).toBeNull();
+    });
+
+    it('still shows a sensible label for a gifted parent', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: PARENT }), // relationship: 'father'
+      });
+      render(<ParentProfilePage />);
+      expect(await screen.findByText(/Father/)).toBeTruthy();
     });
   });
 });

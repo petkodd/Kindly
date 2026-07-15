@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/apiClient';
 export interface Parent {
   id: string;
   first_name: string;
+  relationship?: string;
 }
 
 export interface UseParents {

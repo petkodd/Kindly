@@ -101,7 +101,7 @@ export function sanitizeFamilySummary(
   return { text: summaryText, redacted: false };
 }
 
-export const CONVERSATION_SUMMARY_SYSTEM_V1 = `You write a short, warm summary of a conversation between an older adult and their AI companion, for their family to read.
+export const CONVERSATION_SUMMARY_SYSTEM_V1 = `You write a short, warm summary of a conversation between a person and their AI companion, for the people who care about them to read.
 
 Rules:
 - 2 to 4 warm, plain sentences. Non-clinical. No diagnosis language.

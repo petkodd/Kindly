@@ -16,42 +16,46 @@ interface Recipient {
 export default function ReferralsPage() {
   return (
     <ParentGate>
-      {({ parents, selected, setSelected }) => (
-        <div className="mx-auto max-w-2xl space-y-10">
-          <div>
-            <p className="eyebrow">Invite &amp; share</p>
-            <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
-              Family &amp; referrals
-            </h1>
-            <p className="mt-2 text-base text-muted">
-              Invite family members to receive the weekly summary, and share Kindly with a referral
-              code.
-            </p>
+      {({ parents, selected, setSelected }) => {
+        const isSelf = parents.find((p) => p.id === selected)?.relationship === 'self';
+        return (
+          <div className="mx-auto max-w-2xl space-y-10">
+            <div>
+              <p className="eyebrow">Invite &amp; share</p>
+              <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
+                {isSelf ? 'People & referrals' : 'Family & referrals'}
+              </h1>
+              <p className="mt-2 text-base text-muted">
+                {isSelf
+                  ? 'Invite people you’d like to keep in the loop on your weekly summary, and share Kindly with a referral code.'
+                  : 'Invite family members to receive the weekly summary, and share Kindly with a referral code.'}
+              </p>
+            </div>
+
+            {parents.length === 0 ? (
+              <EmptyParentState />
+            ) : (
+              <section className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-ink">Summary recipients</h2>
+                  <p className="mt-1 text-base text-muted">
+                    People you invite here receive the weekly summary once they accept.
+                  </p>
+                </div>
+                <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+                {selected && <RecipientsPanel key={selected} parentId={selected} isSelf={isSelf} />}
+              </section>
+            )}
+
+            <ReferralCodeSection />
           </div>
-
-          {parents.length === 0 ? (
-            <EmptyParentState />
-          ) : (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold text-ink">Summary recipients</h2>
-                <p className="mt-1 text-base text-muted">
-                  People you invite here receive the weekly summary once they accept.
-                </p>
-              </div>
-              <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
-              {selected && <RecipientsPanel key={selected} parentId={selected} />}
-            </section>
-          )}
-
-          <ReferralCodeSection />
-        </div>
-      )}
+        );
+      }}
     </ParentGate>
   );
 }
 
-function RecipientsPanel({ parentId }: { parentId: string }) {
+function RecipientsPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean }) {
   const [recipients, setRecipients] = useState<Recipient[] | null>(null);
   const [error, setError] = useState('');
 
@@ -75,7 +79,11 @@ function RecipientsPanel({ parentId }: { parentId: string }) {
   return (
     <div className="rounded-xl border border-line bg-cloud p-6">
       {recipients.length === 0 ? (
-        <p className="text-base text-muted">No recipients yet. Invite a family member below.</p>
+        <p className="text-base text-muted">
+          {isSelf
+            ? 'No recipients yet. Invite someone below.'
+            : 'No recipients yet. Invite a family member below.'}
+        </p>
       ) : (
         <ul className="space-y-3">
           {recipients.map((r) => (
@@ -97,7 +105,7 @@ function RecipientsPanel({ parentId }: { parentId: string }) {
           ))}
         </ul>
       )}
-      <InviteForm parentId={parentId} onInvited={load} />
+      <InviteForm parentId={parentId} isSelf={isSelf} onInvited={load} />
     </div>
   );
 }
@@ -133,7 +141,15 @@ function RevokeButton({ consentId, onRevoked }: { consentId: string; onRevoked: 
   );
 }
 
-function InviteForm({ parentId, onInvited }: { parentId: string; onInvited: () => void }) {
+function InviteForm({
+  parentId,
+  isSelf,
+  onInvited,
+}: {
+  parentId: string;
+  isSelf: boolean;
+  onInvited: () => void;
+}) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -157,7 +173,7 @@ function InviteForm({ parentId, onInvited }: { parentId: string; onInvited: () =
   return (
     <div className="mt-6 border-t border-line pt-6">
       <label htmlFor="invite-email" className="block text-base font-semibold text-ink">
-        Invite a family member
+        {isSelf ? 'Invite someone to follow along' : 'Invite a family member'}
       </label>
       <div className="mt-2 flex flex-col gap-3 sm:flex-row">
         <input

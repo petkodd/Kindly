@@ -48,7 +48,7 @@ describe('POST /api/referrals', () => {
     const res = await referralsPOST(buyerReq('http://localhost/api/referrals', buyer, { method: 'POST' }));
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.code).toHaveLength(8);
+    expect(body.code).toHaveLength(10);
     expect((await referralRepo.getForBuyer(q, buyer))?.code).toBe(body.code);
   });
 });

@@ -21,7 +21,7 @@ time — nobody is accountable for the sign-off otherwise.
 | `COMPANION_SYSTEM_V1` | **draft** | — | Pending AI Safety + Gerontology Advisor sign-off. |
 | `SAFETY_SCAN_SYSTEM_V1` | **draft** | — | Pending AI Safety sign-off. |
 | `MEMORY_EXTRACTION_SYSTEM_V1` | **draft** | — | Pending Privacy Advisor sign-off. |
-| `CONVERSATION_SUMMARY_SYSTEM_V1` | **draft** | — | Pending AI Safety sign-off. |
+| `CONVERSATION_SUMMARY_SYSTEM_V1` | **draft** | — | Pending AI Safety sign-off. Generalized from "older adult" framing to support self-use profiles. |
 
 The deterministic templates (`companionGreetingV1`, `crisisResourceV1`,
 `sanitizeFamilySummary`) are not model prompts — they're fixed copy the model

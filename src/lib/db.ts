@@ -18,7 +18,11 @@ export function db(): Pool {
     }
     pool = new Pool({
       connectionString,
-      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+      // Managed Postgres providers (Neon/Supabase/RDS) present certs chained to
+      // publicly trusted roots, so verification just works — disabling it would
+      // accept ANY certificate and defeat TLS's protection against a MITM'd
+      // connection. Local dev without SSL at all uses PGSSL=disable instead.
+      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: true },
       max: 5,
     });
   }

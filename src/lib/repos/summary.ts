@@ -78,7 +78,7 @@ function composeBody(
   if (hasConcern) {
     lines.push(
       '',
-      `A gentle heads-up: ${firstName} seemed a little low in one of their chats. Nothing alarming — you may simply want to check in.`,
+      `A gentle heads-up: ${firstName} seemed a little low in one of their chats. Nothing alarming — it may be worth a gentle check-in this week.`,
     );
   }
 

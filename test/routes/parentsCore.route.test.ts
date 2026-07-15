@@ -191,6 +191,50 @@ describe('POST /api/parents/:id/access-link', () => {
     const body = await res.json();
     expect(await accessTokenRepo.resolveParentId(q, body.token)).toBe(parent.id);
   });
+
+  it('by default revokes a prior token when issuing a new one', async () => {
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    const first = await accessTokenRepo.issue(q, parent.id);
+
+    await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, { method: 'POST' }), { params: { id: parent.id } });
+
+    await expect(accessTokenRepo.resolveParentId(q, first.token)).rejects.toThrow();
+  });
+
+  it('keep_existing: true leaves a prior token (e.g. another device) valid (self-use re-entry)', async () => {
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Maria', relationship: 'self' });
+    const first = await accessTokenRepo.issue(q, parent.id);
+
+    const res = await accessLinkPOST(
+      buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, {
+        method: 'POST',
+        body: JSON.stringify({ keep_existing: true }),
+      }),
+      { params: { id: parent.id } },
+    );
+    expect(res.status).toBe(201);
+
+    expect(await accessTokenRepo.resolveParentId(q, first.token)).toBe(parent.id); // still valid
+  });
+
+  it('ignores keep_existing for a gift (non-self) parent — reissue always revokes the prior link', async () => {
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    const first = await accessTokenRepo.issue(q, parent.id);
+
+    const res = await accessLinkPOST(
+      buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, {
+        method: 'POST',
+        body: JSON.stringify({ keep_existing: true }),
+      }),
+      { params: { id: parent.id } },
+    );
+    expect(res.status).toBe(201);
+
+    await expect(accessTokenRepo.resolveParentId(q, first.token)).rejects.toThrow();
+  });
 });
 
 describe('POST /api/parents/:id/access-link/revoke', () => {

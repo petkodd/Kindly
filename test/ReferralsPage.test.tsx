@@ -54,7 +54,7 @@ describe('ReferralsPage', () => {
       'GET /api/referrals': () => json({ code: 'ABCD2345' }),
     });
     render(<ReferralsPage />);
-    expect(await screen.findByText(/haven’t set up a parent/i)).toBeTruthy();
+    expect(await screen.findByText(/haven’t set up Kindly/i)).toBeTruthy();
     expect(await screen.findByText('ABCD2345')).toBeTruthy();
   });
 

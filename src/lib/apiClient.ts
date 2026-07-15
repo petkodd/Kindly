@@ -49,3 +49,17 @@ export const api = {
   patch: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PATCH', body, headers),
   del: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'DELETE', body, headers),
 };
+
+/**
+ * Grant the CURRENT browser talk access to a self-use profile: the same
+ * access-link -> /api/talk/auth handshake a gift recipient performs manually
+ * via a shared link, just automated, since the buyer IS the talker. Used by
+ * both the onboarding self-flow and the parent-profile "Talk to Kindly"
+ * re-entry button — kept in one place so the two call sites can't drift.
+ * `keep_existing` avoids revoking another device's already-authenticated
+ * session for the same self profile (see the access-link route's doc comment).
+ */
+export async function grantSelfTalkAccess(parentId: string): Promise<void> {
+  const { token } = await api.post<{ token: string }>(`/api/parents/${parentId}/access-link`, { keep_existing: true });
+  await api.post('/api/talk/auth', { token });
+}

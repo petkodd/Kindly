@@ -96,6 +96,21 @@ describe('POST /api/parents/:id/consent', () => {
     expect(res.status).toBe(404);
   });
 
+  it('rejects summary_recipient — that consent may only be created via the token-gated invite flow', async () => {
+    const buyerId = await makeBuyer('sarah@example.com');
+    const parentId = await makeParent(buyerId);
+
+    const res = await parentConsentPOST(
+      buyerReq(`http://localhost/api/parents/${parentId}/consent`, buyerId, {
+        kind: 'summary_recipient',
+        detail: { recipient_email: 'thirdparty@example.com' },
+      }),
+      { params: { id: parentId } },
+    );
+    expect(res.status).toBe(400);
+    expect(await consentRepo.list(q, parentId, 'summary_recipient')).toHaveLength(0);
+  });
+
   it('records buyer_attestation idempotently for the owning buyer', async () => {
     const buyerId = await makeBuyer('sarah@example.com');
     const parentId = await makeParent(buyerId);

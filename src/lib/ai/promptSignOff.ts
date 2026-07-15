@@ -49,8 +49,8 @@ export const PROMPT_SIGN_OFF: Record<string, SignOffRecord> = {
   CONVERSATION_SUMMARY_SYSTEM_V1: {
     status: 'draft',
     reviewers: [],
-    sha256: '5ca7e35d7f86b451c80be708de1437cd93b14d08c93c066150a7eae90d9f99d3',
-    note: 'Pending AI Safety sign-off.',
+    sha256: '505926cc225a2730c7c51ed6317c7124c0bf657758e73a9c238671044ae02661',
+    note: 'Pending AI Safety sign-off. Generalized from "older adult" framing to support self-use profiles.',
   },
 };
 

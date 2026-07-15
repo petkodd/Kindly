@@ -56,8 +56,8 @@ describe('FamilySummaryPage', () => {
   it('shows an onboarding prompt when the buyer has no parents', async () => {
     stubFetch({ 'GET /api/parents': () => json({ parents: [] }) });
     render(<FamilySummaryPage />);
-    expect(await screen.findByText(/haven’t set up a parent/i)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /set up the gift/i })).toBeTruthy();
+    expect(await screen.findByText(/haven’t set up Kindly/i)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /get started/i })).toBeTruthy();
   });
 
   it('renders the current-week preview and sends it to consented recipients', async () => {

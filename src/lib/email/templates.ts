@@ -1,3 +1,14 @@
+/** Escape text interpolated into an HTML email body — buyer-controlled fields
+ *  like a parent's first name must never be trusted as raw markup. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /** Plain, warm transactional copy — no marketing language, matches FOOTER_LEGAL tone. */
 export function inviteRecipientEmail(input: {
   parentFirstName: string;
@@ -14,10 +25,12 @@ export function inviteRecipientEmail(input: {
     '',
     "If you weren't expecting this, you can ignore this email.",
   ].join('\n');
+  const safeName = escapeHtml(parentFirstName);
+  const safeUrl = escapeHtml(acceptUrl);
   const html = `
-    <p>You've been invited to receive a weekly, respectful summary of how <strong>${parentFirstName}</strong> is doing.</p>
-    <p>Kindly is a voice-first AI companion ${parentFirstName} can talk to. Each week, family who accept get a short, warm update — never a raw transcript.</p>
-    <p><a href="${acceptUrl}">Accept the invitation</a></p>
+    <p>You've been invited to receive a weekly, respectful summary of how <strong>${safeName}</strong> is doing.</p>
+    <p>Kindly is a voice-first AI companion ${safeName} can talk to. Each week, family who accept get a short, warm update — never a raw transcript.</p>
+    <p><a href="${safeUrl}">Accept the invitation</a></p>
     <p style="color:#666;font-size:14px">If you weren't expecting this, you can ignore this email.</p>
   `.trim();
   return { subject, html, text };

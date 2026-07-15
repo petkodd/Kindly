@@ -46,34 +46,38 @@ const STATUS_LABEL: Record<WeeklySummary['status'], string> = {
 export default function FamilySummaryPage() {
   return (
     <ParentGate>
-      {({ parents, selected, setSelected }) => (
-        <div className="mx-auto max-w-2xl space-y-8">
-          <div>
-            <p className="eyebrow">Weekly family summary</p>
-            <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
-              The week in your family
-            </h1>
-            <p className="mt-2 text-base text-muted">
-              A warm, family-safe recap built only from this week&rsquo;s conversations. Preview it,
-              then send it to the people who&rsquo;ve been invited.
-            </p>
-          </div>
+      {({ parents, selected, setSelected }) => {
+        const isSelf = parents.find((p) => p.id === selected)?.relationship === 'self';
+        return (
+          <div className="mx-auto max-w-2xl space-y-8">
+            <div>
+              <p className="eyebrow">Weekly summary</p>
+              <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
+                {isSelf ? 'Your week with Kindly' : 'The week in your family'}
+              </h1>
+              <p className="mt-2 text-base text-muted">
+                {isSelf
+                  ? 'A warm, private recap built only from this week’s conversations. Preview it, then send it to anyone you’d like to keep in the loop.'
+                  : 'A warm, family-safe recap built only from this week’s conversations. Preview it, then send it to the people who’ve been invited.'}
+              </p>
+            </div>
 
-          {parents.length === 0 ? (
-            <EmptyParentState />
-          ) : (
-            <>
-              <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
-              {selected && <SummaryPanel key={selected} parentId={selected} />}
-            </>
-          )}
-        </div>
-      )}
+            {parents.length === 0 ? (
+              <EmptyParentState />
+            ) : (
+              <>
+                <ParentPicker parents={parents} selected={selected} onSelect={setSelected} />
+                {selected && <SummaryPanel key={selected} parentId={selected} isSelf={isSelf} />}
+              </>
+            )}
+          </div>
+        );
+      }}
     </ParentGate>
   );
 }
 
-function SummaryPanel({ parentId }: { parentId: string }) {
+function SummaryPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean }) {
   const [preview, setPreview] = useState<WeeklySummary | null>(null);
   const [history, setHistory] = useState<WeeklySummary[] | null>(null);
   const [error, setError] = useState('');
@@ -107,6 +111,7 @@ function SummaryPanel({ parentId }: { parentId: string }) {
       <PreviewCard
         parentId={parentId}
         summary={preview}
+        isSelf={isSelf}
         // send() already returns the updated summary; applying it locally avoids
         // two redundant GETs (the refetched current-week row is filtered from
         // `past` anyway, and its sent status is already reflected here).
@@ -133,10 +138,12 @@ function StatusBadge({ status }: { status: WeeklySummary['status'] }) {
 function PreviewCard({
   parentId,
   summary,
+  isSelf,
   onSent,
 }: {
   parentId: string;
   summary: WeeklySummary;
+  isSelf: boolean;
   onSent: (updated: WeeklySummary) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -196,8 +203,9 @@ function PreviewCard({
           </p>
         ) : (
           <p className="text-base text-muted">
-            When you&rsquo;re ready, send this to the family members who&rsquo;ve accepted an
-            invitation.
+            {isSelf
+              ? 'When you’re ready, send this to anyone you’ve invited to follow along.'
+              : 'When you’re ready, send this to the family members who’ve accepted an invitation.'}
           </p>
         )}
 
@@ -207,7 +215,7 @@ function PreviewCard({
               No one has accepted an invitation to receive summaries yet.
             </p>
             <Link href="/app/referrals" className="mt-2 inline-block text-base text-sage underline">
-              Invite a family member
+              {isSelf ? 'Invite someone to follow along' : 'Invite a family member'}
             </Link>
           </div>
         ) : (
