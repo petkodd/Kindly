@@ -37,7 +37,7 @@ export function AuthStatus() {
     return (
       <Link
         href="/app/account"
-        className="max-w-[10rem] truncate text-base text-muted transition-colors hover:text-ink"
+        className="max-w-[6rem] truncate text-base text-muted transition-colors hover:text-ink sm:max-w-[9rem]"
         title={account.full_name || account.email}
       >
         {account.full_name || account.email}
