@@ -64,3 +64,49 @@ export function organizationJsonLd() {
     slogan: SITE.tagline,
   };
 }
+
+interface PricingPlanForJsonLd {
+  name: string;
+  price: string; // e.g. '$59' or '$29' — display copy, not a schema.org number
+  period: string; // e.g. '/month', 'first month', 'one-time'
+  tagline: string;
+}
+
+/** '$59' -> '59'; schema.org Offer.price wants a bare decimal string. */
+function priceAmount(price: string): string {
+  return price.replace(/[^0-9.]/g, '');
+}
+
+/**
+ * Product + Offer JSON-LD for the pricing page. One Offer per plan in
+ * PRICING.plans — keep this in sync with that list (it maps over whatever is
+ * passed in, so a plan added/removed there is reflected here automatically).
+ */
+export function pricingJsonLd(plans: PricingPlanForJsonLd[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: SITE.name,
+    description: SITE.description,
+    brand: { '@type': 'Brand', name: SITE.name },
+    offers: plans.map((plan) => ({
+      '@type': 'Offer',
+      name: plan.name,
+      description: plan.tagline,
+      price: priceAmount(plan.price),
+      priceCurrency: 'USD',
+      url: `${SITE.url}/pricing`,
+      availability: 'https://schema.org/InStock',
+      ...(plan.period === '/month'
+        ? {
+            priceSpecification: {
+              '@type': 'UnitPriceSpecification',
+              price: priceAmount(plan.price),
+              priceCurrency: 'USD',
+              billingDuration: { '@type': 'QuantitativeValue', value: 1, unitCode: 'MON' },
+            },
+          }
+        : {}),
+    })),
+  };
+}

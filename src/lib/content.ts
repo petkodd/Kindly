@@ -136,11 +136,21 @@ export const HOW_IT_WORKS = {
   },
 };
 
+/**
+ * Alpha has exactly ONE Stripe price behind checkout (STRIPE_PRICE_ID, see
+ * src/app/api/billing/checkout/route.ts) — every plan CTA on this page starts
+ * the same 7-day-trial-then-Family-price checkout. Do not add another plan
+ * here without also adding a real second Stripe Price + plan-selection logic
+ * in the checkout route; otherwise this page will again advertise a price or
+ * feature set customers aren't actually charged/given (the exact bug this
+ * comment is here to prevent a repeat of — this content previously listed
+ * Premium ($89/mo) and a 3-Month Gift ($149) tier with no backing billing).
+ */
 export const PRICING = {
   hero: {
     h1: 'Simple plans for staying close',
     sub:
-      'Every plan includes daily voice conversation, memory, and a respectful weekly family summary. Start with our Founding Family offer, and cancel anytime.',
+      'One plan includes daily voice conversation, memory, and a respectful weekly family summary. Start with our Founding Family offer, and cancel anytime.',
   },
   plans: [
     {
@@ -171,34 +181,6 @@ export const PRICING = {
         'A gentle heads-up if something seems worth a check-in',
       ],
       cta: { label: 'Choose Family', href: '/app/onboarding' },
-    },
-    {
-      id: 'premium',
-      name: 'Premium',
-      price: '$89',
-      period: '/month',
-      tagline: 'More conversation time and more family visibility',
-      bullets: [
-        'Everything in Family, with extended daily voice time',
-        'Priority response times',
-        'Up to 6 family recipients on the weekly summary',
-        'A second parent profile at a reduced add-on rate',
-      ],
-      cta: { label: 'Choose Premium', href: '/app/onboarding' },
-    },
-    {
-      id: 'gift_3mo',
-      name: '3-Month Gift',
-      price: '$149',
-      period: 'one-time',
-      tagline: 'A prepaid gift — no subscription, nothing to auto-renew',
-      bullets: [
-        'Three full months on the Family plan',
-        'Paid once, nothing to remember to cancel',
-        'A thoughtful gift for a birthday or holiday',
-        'Can be switched to an ongoing plan anytime',
-      ],
-      cta: { label: 'Give 3 months', href: '/app/onboarding' },
     },
   ],
   faq: {
