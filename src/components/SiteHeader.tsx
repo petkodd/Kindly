@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { AuthStatus } from '@/components/AuthStatus';
 
 const NAV = [
   { label: 'How it works', href: '/how-it-works' },
@@ -28,12 +29,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-4 sm:gap-5">
-          <Link
-            href="/login"
-            className="text-base text-muted transition-colors hover:text-ink"
-          >
-            Sign in
-          </Link>
+          <AuthStatus />
           <TrackedCtaLink
             href="/app/onboarding"
             ctaId="header_primary"
