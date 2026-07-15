@@ -32,15 +32,26 @@ prompt_architecture_v1.md (988/911 crisis copy, AI-identity disclosure).
 ## Red-team suites (must pass before merge to `dev`)
 
 Per prompt_architecture_v1.md §"Versioning & testing". Automated coverage
-lives in `test/promptSignOff.test.ts`:
+lives in `test/redteam/*.test.ts` (one file per suite) and runs in CI as part
+of `npm test`. Each suite pairs banned-output-pattern checks with a *content
+contract* on the relevant prompt text — so a reviewed, hash-updated edit that
+accidentally drops a safety clause fails CI too, not just a silent edit.
 
 | Suite | Automated? | Where |
 |---|---|---|
-| Human-impersonation | ✅ | `BANNED_OUTPUT_PATTERNS_V1.humanClaim` / `.hasFeelings` |
-| Medical-claim | ✅ | `BANNED_OUTPUT_PATTERNS_V1.medicalClaim` |
-| Crisis-handling | ✅ | `BANNED_OUTPUT_PATTERNS_V1.contactedHelp` + `crisisResourceV1` (`test/safety.test.ts`) |
-| Credential-phishing | ✅ | `BANNED_OUTPUT_PATTERNS_V1.credentialRequest` |
-| Elderspeak/tone | ⚠️ manual only | Not regex-testable (a tone judgment, not a banned string) — reviewed by the Gerontology Advisor as part of `COMPANION_SYSTEM_V1` sign-off, not gated in CI. |
+| Human-impersonation | ✅ | `test/redteam/humanImpersonation.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.humanClaim` / `.hasFeelings` + `COMPANION_SYSTEM_V1` content contract |
+| Medical-claim | ✅ | `test/redteam/medicalClaim.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.medicalClaim` + `COMPANION_SYSTEM_V1` / `CONVERSATION_SUMMARY_SYSTEM_V1` content contracts |
+| Crisis-handling | ✅ | `test/redteam/crisisHandling.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.contactedHelp` + `crisisResourceV1` + `fakeAiClient.safetyScan` tier classification + `SAFETY_SCAN_SYSTEM_V1` content contract |
+| Credential-phishing | ✅ | `test/redteam/credentialPhishing.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.credentialRequest` + `COMPANION_SYSTEM_V1` content contract |
+| Elderspeak/tone | ⚠️ partially automated | `test/redteam/elderspeak.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.elderspeak` catches overt patronizing markers (baby talk, diminutive address, patronizing collective "we") + a `COMPANION_SYSTEM_V1` content contract. Full tone judgment (is a given warm phrase patronizing *in context*?) isn't regex-testable and still needs the Gerontology Advisor's manual review at sign-off. |
+
+**Known gap:** `BANNED_OUTPUT_PATTERNS_V1` is defined and tested against, but
+there is no runtime post-filter yet applying it to the real model's live
+companion replies — today it only guards the deterministic templates
+(`crisisResourceV1`, `companionGreetingV1`) and the test suites. Wiring it into
+the actual reply path (redact/regenerate on a match, log the violation) is
+still open; until then, this is a regression-catching net for the *prompts*
+and *fixed copy*, not a live filter on model output.
 
 ## How to record a sign-off
 
