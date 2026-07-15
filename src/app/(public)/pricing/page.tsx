@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { buildMetadata } from '@/lib/seo';
+import { buildMetadata, pricingJsonLd } from '@/lib/seo';
 import { PRICING } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
@@ -13,6 +13,11 @@ export default function Page() {
   const { hero, plans, faq, cta } = PRICING;
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingJsonLd(plans)) }}
+      />
+
       <section className="container-k py-20">
         <p className="eyebrow">senior companion app pricing</p>
         <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
@@ -20,7 +25,7 @@ export default function Page() {
       </section>
 
       <section className="bg-cloud py-20">
-        <div className="container-k grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div className="container-k grid gap-8 md:grid-cols-2">
           {plans.map((plan) => (
             <div
               key={plan.id}
