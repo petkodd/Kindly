@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import { buildMetadata } from '@/lib/seo';
 import { SENIOR_LIVING } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
@@ -29,9 +30,25 @@ export default function Page() {
   return (
     <>
       <section className="container-k py-20">
-        <p className="eyebrow">senior living resident engagement software</p>
-        <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
-        <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
+        <div className="grid items-center gap-12 md:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <p className="eyebrow">senior living resident engagement software</p>
+            <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
+            <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
+          </div>
+          <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl border border-line shadow-sm">
+            <Image
+              src="/images/senior-living-group-tree.webp"
+              alt="Group of senior residents gathered together outdoors under a tree"
+              width={1000}
+              height={961}
+              sizes="(min-width: 768px) 384px, 100vw"
+              priority
+              className="w-full object-cover"
+            />
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-sage mix-blend-multiply opacity-[0.08]" />
+          </div>
+        </div>
       </section>
 
       <section className="bg-cloud py-20">

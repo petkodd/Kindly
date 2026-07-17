@@ -13,8 +13,8 @@ const NAV = [
 export function SiteHeader() {
   return (
     <header className="border-b border-line bg-cloud/80 backdrop-blur">
-      <div className="container-k flex items-center justify-between gap-4 py-4">
-        <Link href="/" className="font-display text-2xl font-semibold text-ink">
+      <div className="container-k flex items-center justify-between gap-2 py-4 sm:gap-4">
+        <Link href="/" className="font-display text-xl font-semibold text-ink sm:text-2xl">
           Kindly
         </Link>
         {/* Only shown at lg+ — below that, logo + auth controls alone already
@@ -31,13 +31,13 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <div className="flex shrink-0 items-center gap-4 sm:gap-5">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-5">
           <AuthStatus />
           <TrackedCtaLink
             href="/app/onboarding"
             ctaId="header_primary"
             slug="header"
-            className="btn-primary !min-h-[2.75rem] !px-5 !text-base"
+            className="btn-primary !min-h-[2.75rem] !px-3 !text-sm sm:!px-5 sm:!text-base"
           >
             Set up the gift
           </TrackedCtaLink>

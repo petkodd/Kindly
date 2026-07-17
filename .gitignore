@@ -33,3 +33,6 @@ yarn-error.log*
 # vercel
 .vercel
 .env*
+
+# raw marketing photo drops — processed into public/images/*.webp, never committed
+/design-assets/
