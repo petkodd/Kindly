@@ -54,6 +54,12 @@ export const SENIORS = {
   ],
 };
 
+export const TESTIMONIALS = {
+  h2: 'A familiar voice, whenever they want to talk',
+  body:
+    'Many parents settle into an easy rhythm with Kindly — an afternoon check-in, a story about the grandkids, a few quiet minutes of company. Every conversation is theirs alone, and every week your family gets a gentle glimpse into how they’re doing.',
+};
+
 export const TRUST = {
   h2: 'Private and safe, by design',
   body:

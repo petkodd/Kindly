@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import { buildMetadata, organizationJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { Testimonials } from '@/components/Testimonials';
 import {
   HERO,
   PROBLEM,
@@ -65,26 +67,40 @@ export default function HomePage() {
             <p className="mt-5 text-base text-muted">{HERO.trustline}</p>
           </div>
 
-          {/* Signature element: a soft "talk" card that shows the parent's view. */}
-          <div className="relative">
-            <div className="mx-auto max-w-sm rounded-2xl border border-line bg-cloud p-8 shadow-sm">
-              <p className="text-base text-muted">Robert’s screen</p>
-              <div className="mt-6 flex flex-col items-center gap-6 rounded-xl bg-mist p-8 text-center">
-                <span className="font-display text-xl text-ink">Hi Robert 👋</span>
+          {/* Photo grounds the hero in real life; the illustrated card overlays it to keep demonstrating the product. */}
+          <div className="relative mx-auto w-full max-w-sm pb-8 md:pb-10">
+            <div className="relative overflow-hidden rounded-2xl border border-line shadow-sm">
+              <Image
+                src="/images/senior-phone-picnic.webp"
+                alt="Senior man relaxing outdoors at a picnic table, looking at his phone"
+                width={1000}
+                height={1013}
+                sizes="(min-width: 768px) 384px, 100vw"
+                priority
+                className="w-full object-cover"
+              />
+              <div aria-hidden className="pointer-events-none absolute inset-0 bg-sage mix-blend-multiply opacity-[0.08]" />
+            </div>
+
+            {/* Signature element: a soft "talk" card that shows the parent's view. Sized relative to the photo (not viewport breakpoints) so it never swamps it at in-between widths. */}
+            <div className="absolute -bottom-4 -right-4 w-[38%] min-w-[144px] max-w-[190px] rounded-2xl border border-line bg-cloud p-3 shadow-md">
+              <p className="text-xs text-muted">Robert’s screen</p>
+              <div className="mt-2 flex flex-col items-center gap-2 rounded-xl bg-mist p-3 text-center">
+                <span className="font-display text-xs text-ink">Hi Robert 👋</span>
                 <button
                   type="button"
-                  className="flex h-28 w-28 items-center justify-center rounded-full bg-sage text-cloud shadow-md"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-sage text-cloud shadow-md"
                   aria-label="Talk to Kindly (illustration only)"
                   tabIndex={-1}
                 >
-                  <svg viewBox="0 0 24 24" className="h-12 w-12">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5">
                     <path
                       fill="currentColor"
                       d="M12 14a3 3 0 003-3V6a3 3 0 00-6 0v5a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"
                     />
                   </svg>
                 </button>
-                <span className="text-lg font-semibold text-ink">Talk to Kindly</span>
+                <span className="text-xs font-semibold text-ink">Talk to Kindly</span>
               </div>
             </div>
           </div>
@@ -100,9 +116,27 @@ export default function HomePage() {
 
       {/* PROBLEM */}
       <section className="container-k py-16">
-        <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{PROBLEM.h2}</h2>
-        <p className="mt-5 max-w-2xl text-lg text-muted">{PROBLEM.body}</p>
+        <div className="grid items-center gap-12 md:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{PROBLEM.h2}</h2>
+            <p className="mt-5 max-w-2xl text-lg text-muted">{PROBLEM.body}</p>
+          </div>
+          <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl border border-line shadow-sm">
+            <Image
+              src="/images/senior-bench-sunset.webp"
+              alt="Senior woman sitting peacefully on a park bench at sunset"
+              width={800}
+              height={1055}
+              sizes="(min-width: 768px) 384px, 100vw"
+              loading="lazy"
+              className="w-full object-cover"
+            />
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-sage mix-blend-multiply opacity-[0.08]" />
+          </div>
+        </div>
       </section>
+
+      <Testimonials />
 
       {/* HOW IT WORKS — a real 3-step sequence, so numbering is earned. */}
       <section className="bg-cloud py-20">
@@ -132,14 +166,28 @@ export default function HomePage() {
             <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{SENIORS.h2}</h2>
             <p className="mt-5 text-lg text-muted">{SENIORS.body}</p>
           </div>
-          <ul className="space-y-4">
-            {SENIORS.bullets.map((b) => (
-              <li key={b} className="flex gap-3 text-lg text-ink">
-                <Check />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="grid gap-8 sm:grid-cols-[auto_1fr] sm:items-start">
+            <div className="relative mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border border-line shadow-sm sm:mx-0">
+              <Image
+                src="/images/senior-hands-phone-closeup.webp"
+                alt="Close-up of a senior's hands holding a phone"
+                width={800}
+                height={988}
+                sizes="220px"
+                loading="lazy"
+                className="w-full object-cover"
+              />
+              <div aria-hidden className="pointer-events-none absolute inset-0 bg-sage mix-blend-multiply opacity-[0.08]" />
+            </div>
+            <ul className="space-y-4">
+              {SENIORS.bullets.map((b) => (
+                <li key={b} className="flex gap-3 text-lg text-ink">
+                  <Check />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -158,14 +206,28 @@ export default function HomePage() {
               {TRUST.cta.label} →
             </TrackedCtaLink>
           </div>
-          <ul className="space-y-4">
-            {TRUST.bullets.map((b) => (
-              <li key={b} className="flex gap-3 text-lg text-ink">
-                <Check />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="grid gap-8 sm:grid-cols-[auto_1fr] sm:items-start">
+            <div className="relative mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border border-line shadow-sm sm:mx-0">
+              <Image
+                src="/images/couple-walking-park.webp"
+                alt="Senior couple walking together in a park"
+                width={800}
+                height={878}
+                sizes="220px"
+                loading="lazy"
+                className="w-full object-cover"
+              />
+              <div aria-hidden className="pointer-events-none absolute inset-0 bg-sage mix-blend-multiply opacity-[0.08]" />
+            </div>
+            <ul className="space-y-4">
+              {TRUST.bullets.map((b) => (
+                <li key={b} className="flex gap-3 text-lg text-ink">
+                  <Check />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
