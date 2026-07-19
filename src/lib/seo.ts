@@ -97,13 +97,17 @@ export function pricingJsonLd(plans: PricingPlanForJsonLd[]) {
       priceCurrency: 'USD',
       url: `${SITE.url}/pricing`,
       availability: 'https://schema.org/InStock',
-      ...(plan.period === '/month'
+      ...(plan.period === '/month' || plan.period === '/year'
         ? {
             priceSpecification: {
               '@type': 'UnitPriceSpecification',
               price: priceAmount(plan.price),
               priceCurrency: 'USD',
-              billingDuration: { '@type': 'QuantitativeValue', value: 1, unitCode: 'MON' },
+              billingDuration: {
+                '@type': 'QuantitativeValue',
+                value: 1,
+                unitCode: plan.period === '/month' ? 'MON' : 'ANN',
+              },
             },
           }
         : {}),

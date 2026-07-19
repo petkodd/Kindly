@@ -137,6 +137,22 @@ describe('ParentProfilePage', () => {
       expect(await screen.findByRole('button', { name: /start 7-day free trial/i })).toBeTruthy();
     });
 
+    it('defaults the recovery checkout call to annual billing', async () => {
+      let checkoutBody: unknown = null;
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+        'POST /api/billing/checkout': (init) => {
+          checkoutBody = JSON.parse(String(init?.body));
+          return json({ url: 'https://checkout.stripe.com/session_abc' });
+        },
+      });
+      render(<ParentProfilePage />);
+      fireEvent.click(await screen.findByRole('button', { name: /start 7-day free trial/i }));
+      await waitFor(() => expect(checkoutBody).toEqual({ parent_id: 'p1', interval: 'year' }));
+    });
+
     it('shows the current status instead of a trial CTA once billing is current', async () => {
       stubFetch({
         'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),

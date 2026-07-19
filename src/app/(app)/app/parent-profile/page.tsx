@@ -185,9 +185,12 @@ function BillingSection({ parentId }: { parentId: string }) {
     setError('');
     setBusy(true);
     try {
+      // Defaults to annual, matching pricing/onboarding — this is a lapsed/
+      // never-subscribed recovery path, not one of the two toggle surfaces
+      // named in the task's acceptance criteria, so no visible toggle here.
       const { url, already_subscribed: alreadySubscribed } = await api.post<{ url: string | null; already_subscribed?: boolean }>(
         '/api/billing/checkout',
-        { parent_id: parentId },
+        { parent_id: parentId, interval: 'year' },
       );
       if (alreadySubscribed) {
         setIsCurrent(true);

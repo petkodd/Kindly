@@ -4,6 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
 import { inputOnPageCls } from '@/lib/formStyles';
+import { PRICING } from '@/lib/content';
+import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
+import { BillingIntervalToggle } from '@/components/BillingIntervalToggle';
+import type { BillingInterval } from '@/lib/billing';
 
 interface Parent {
   id: string;
@@ -412,6 +416,17 @@ function BillingStep({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(billingResult === 'success');
+  // Not named `interval`/`setInterval` — that shadows the window.setInterval global.
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('year');
+  const familyPlanRaw = PRICING.plans.find((p) => p.id === 'family')!;
+  // Narrow: only 'family' carries these fields — see the same pattern in
+  // src/app/(public)/pricing/page.tsx.
+  const familyPlan = {
+    ...familyPlanRaw,
+    priceMonthlyCents: familyPlanRaw.priceMonthlyCents!,
+    priceAnnualCents: familyPlanRaw.priceAnnualCents!,
+  };
+  const savingsPercent = computeAnnualSavingsPercent(familyPlan.priceMonthlyCents, familyPlan.priceAnnualCents);
 
   // Returning from a successful Stripe Checkout: the webhook may take a
   // moment to land, but activation only needs the consent already recorded —
@@ -438,7 +453,7 @@ function BillingStep({
     try {
       const { url, already_subscribed: alreadySubscribed } = await api.post<{ url: string | null; already_subscribed?: boolean }>(
         '/api/billing/checkout',
-        { parent_id: parent.id },
+        { parent_id: parent.id, interval: billingInterval },
       );
       if (alreadySubscribed) {
         // A subscription already exists (e.g. an earlier checkout succeeded
@@ -470,6 +485,18 @@ function BillingStep({
       <p className="text-lg text-muted">
         Try Kindly free for 7 days. We’ll ask for a card to hold your spot — you won’t be
         charged until the trial ends, and you can cancel anytime before then.
+      </p>
+      <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} label="Family plan billing" />
+      <p className="text-base text-muted">
+        {billingInterval === 'month' ? (
+          <>Then {formatUsdCents(familyPlan.priceMonthlyCents)}/month.</>
+        ) : (
+          <>
+            Then {formatUsdCents(familyPlan.priceAnnualCents)}/year
+            ({formatUsdCents(perMonthEquivalentCents(familyPlan.priceAnnualCents))}/mo equivalent
+            {savingsPercent > 0 && <> — save {savingsPercent}%</>}).
+          </>
+        )}
       </p>
       {billingResult === 'cancel' && (
         <p className="text-base text-clay">Checkout was canceled — no charge was made. You can try again below.</p>

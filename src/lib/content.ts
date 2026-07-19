@@ -179,6 +179,13 @@ export const PRICING = {
       name: 'Family',
       price: '$59',
       period: '/month',
+      // Monthly must match STRIPE_PRICE_ID; annual must match
+      // STRIPE_PRICE_ID_ANNUAL ($566.40/yr = 20% off monthly). Drives the
+      // Monthly/Annual toggle (src/components/BillingIntervalToggle.tsx) —
+      // keep in sync with the live Stripe Prices or this page drifts from
+      // what's actually charged (see the warning above PRICING).
+      priceMonthlyCents: 5900,
+      priceAnnualCents: 56640,
       tagline: 'Our standard plan for one parent and their family',
       bullets: [
         'Daily voice conversation with Kindly',

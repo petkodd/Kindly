@@ -125,6 +125,7 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
       status: 'trialing',
       current_period_end: periodEndUnix,
       metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: 'month',
     });
     expect(sub?.buyer_id).toBe(buyer);
     expect(sub?.parent_id).toBe(parent.id);
@@ -132,6 +133,7 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
     expect(sub?.status).toBe('trialing');
     expect(sub?.stripe_customer_id).toBe('cus_abc123');
     expect(sub?.stripe_sub_id).toBe('sub_abc123');
+    expect(sub?.billing_interval).toBe('month');
   });
 
   it('updates the existing row in place on a later sync, keyed by stripe_sub_id', async () => {
@@ -143,6 +145,7 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
       status: 'trialing',
       current_period_end: periodEndUnix,
       metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: 'month',
     });
 
     const updated = await subscriptionRepo.upsertFromStripeSubscription(q, {
@@ -151,6 +154,7 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
       status: 'active',
       current_period_end: periodEndUnix + 30 * 86400,
       metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: 'month',
     });
     expect(updated?.status).toBe('active');
 
@@ -167,6 +171,7 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
       status: 'unpaid',
       current_period_end: periodEndUnix,
       metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: 'month',
     });
     expect(sub?.status).toBe('canceled');
   });
@@ -182,6 +187,7 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
       status: 'trialing',
       current_period_end: periodEndUnix,
       metadata: {},
+      billingInterval: 'month',
     });
     expect(result).toBeNull();
     const { rows } = await q.query(`SELECT count(*)::int AS n FROM subscriptions WHERE stripe_sub_id = 'sub_no_buyer'`);

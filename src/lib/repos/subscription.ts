@@ -19,6 +19,8 @@ export interface StripeSubscriptionLike {
   status: string;
   current_period_end: number; // unix seconds
   metadata: Record<string, string | undefined>;
+  /** Read live from the Stripe Price's recurring.interval — null if absent/unrecognized. */
+  billingInterval: 'month' | 'year' | null;
 }
 
 function mapStripeStatus(status: string): SubscriptionStatus {
@@ -94,10 +96,10 @@ export const subscriptionRepo = {
       // by status/period, never touching attribution.
       const { rows } = await q.query<Subscription>(
         `UPDATE subscriptions
-            SET status = $2, stripe_customer_id = $3, current_period_end = $4
+            SET status = $2, stripe_customer_id = $3, current_period_end = $4, billing_interval = $5
           WHERE stripe_sub_id = $1
           RETURNING *`,
-        [stripeSub.id, status, stripeSub.customer, currentPeriodEnd],
+        [stripeSub.id, status, stripeSub.customer, currentPeriodEnd, stripeSub.billingInterval],
       );
       return rows[0] ?? null;
     }
@@ -105,14 +107,15 @@ export const subscriptionRepo = {
     const parentId = stripeSub.metadata.parent_id ?? null;
     const { rows } = await q.query<Subscription>(
       `INSERT INTO subscriptions
-         (buyer_id, parent_id, plan, status, stripe_customer_id, stripe_sub_id, current_period_end)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (buyer_id, parent_id, plan, status, stripe_customer_id, stripe_sub_id, current_period_end, billing_interval)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (stripe_sub_id) DO UPDATE
          SET status = EXCLUDED.status,
              stripe_customer_id = EXCLUDED.stripe_customer_id,
-             current_period_end = EXCLUDED.current_period_end
+             current_period_end = EXCLUDED.current_period_end,
+             billing_interval = EXCLUDED.billing_interval
        RETURNING *`,
-      [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd],
+      [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd, stripeSub.billingInterval],
     );
     return rows[0];
   },
