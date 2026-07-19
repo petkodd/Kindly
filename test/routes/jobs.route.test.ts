@@ -11,6 +11,7 @@ vi.mock('@/lib/db', () => ({ db: () => q }));
 // Imported AFTER the mock so the handlers pick up the mocked db().
 import { GET as weeklySummaryGET } from '../../src/app/api/jobs/generate-weekly-summary/route';
 import { GET as purgeGET } from '../../src/app/api/jobs/purge-hard-deletes/route';
+import { GET as retryReferralRewardsGET } from '../../src/app/api/jobs/retry-referral-rewards/route';
 
 function cronReq(url: string, secret: string | null): NextRequest {
   const headers: Record<string, string> = {};
@@ -68,5 +69,30 @@ describe('GET /api/jobs/purge-hard-deletes', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body).toMatchObject({ purgedUsers: 0, purgedParents: 0, purgedTurns: 0 });
+  });
+});
+
+describe('GET /api/jobs/retry-referral-rewards', () => {
+  it('401s without the cron secret', async () => {
+    const res = await retryReferralRewardsGET(
+      cronReq('http://localhost/api/jobs/retry-referral-rewards', null),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('401s a wrong cron secret', async () => {
+    const res = await retryReferralRewardsGET(
+      cronReq('http://localhost/api/jobs/retry-referral-rewards', 'wrong'),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('runs the job and returns a result summary given the correct secret (no-op on a clean DB)', async () => {
+    const res = await retryReferralRewardsGET(
+      cronReq('http://localhost/api/jobs/retry-referral-rewards', 'cron-secret-123'),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: true, attempted: 0, applied: 0 });
   });
 });

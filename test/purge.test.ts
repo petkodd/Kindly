@@ -3,6 +3,7 @@ import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { parentRepo } from '../src/lib/repos/parent';
 import { referralRepo } from '../src/lib/repos/referral';
+import { referralRewardRepo } from '../src/lib/repos/referralReward';
 import { auditRepo } from '../src/lib/repos/audit';
 import { purgeHardDeletes } from '../src/lib/jobs/purge';
 
@@ -102,6 +103,62 @@ describe('purgeHardDeletes', () => {
     );
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0].actor_id).toBeNull();
+  });
+
+  it('anonymizes referral_rewards.referred_user_id instead of failing the delete (referrer stays alive)', async () => {
+    // referrals.redeemed_by has no ON DELETE (see the referrals test above),
+    // so purging only the redeemer leaves the referral — and therefore the
+    // reward row — in place. referral_rewards.referred_user_id has no ON
+    // DELETE either; without the nullification, this DELETE would FK-violate.
+    const referrer = await makeUser('reward-referrer@example.com');
+    const redeemer = await makeUser('reward-redeemer@example.com');
+    const code = await referralRepo.generate(q, referrer);
+    const referral = await referralRepo.redeem(q, code.code, { redeemerId: redeemer, householdHash: 'hh-2' });
+    await referralRewardRepo.getOrCreatePending(q, {
+      referralId: referral.id,
+      referrerUserId: referrer,
+      referredUserId: redeemer,
+      amountCents: 5900,
+      currency: 'usd',
+    });
+
+    await softDeleteUser(redeemer, daysAgo(31));
+    const result = await purgeHardDeletes(q, { now: NOW });
+
+    expect(result.purgedUsers).toBe(1);
+    expect(await count('users')).toBe(1); // referrer survives
+    const { rows } = await q.query<{ referrer_user_id: string | null; referred_user_id: string | null }>(
+      `SELECT referrer_user_id, referred_user_id FROM referral_rewards WHERE referral_id = $1`,
+      [referral.id],
+    );
+    expect(rows).toHaveLength(1); // the reward row survives, anonymized on the purged side
+    expect(rows[0].referrer_user_id).toBe(referrer);
+    expect(rows[0].referred_user_id).toBeNull();
+  });
+
+  it('purging the referrer cascades the referral and its reward away cleanly (no FK error)', async () => {
+    // referrals.referrer_id IS cascading (ON DELETE CASCADE), so purging the
+    // referrer takes the referral, and in turn the reward row (referral_id
+    // ON DELETE CASCADE), with it — this must not raise, even though
+    // referral_rewards.referrer_user_id itself has no ON DELETE action.
+    const referrer = await makeUser('reward-referrer2@example.com');
+    const redeemer = await makeUser('reward-redeemer2@example.com');
+    const code = await referralRepo.generate(q, referrer);
+    const referral = await referralRepo.redeem(q, code.code, { redeemerId: redeemer, householdHash: 'hh-3' });
+    await referralRewardRepo.getOrCreatePending(q, {
+      referralId: referral.id,
+      referrerUserId: referrer,
+      referredUserId: redeemer,
+      amountCents: 5900,
+      currency: 'usd',
+    });
+
+    await softDeleteUser(referrer, daysAgo(31));
+    const result = await purgeHardDeletes(q, { now: NOW });
+
+    expect(result.purgedUsers).toBe(1);
+    const { rows } = await q.query(`SELECT id FROM referral_rewards WHERE referral_id = $1`, [referral.id]);
+    expect(rows).toHaveLength(0);
   });
 
   it('purges a soft-deleted parent whose buyer is alive, leaving siblings intact', async () => {

@@ -26,3 +26,31 @@ export function getStripeClient(): Stripe {
 export function resetStripeClient(): void {
   cached = undefined;
 }
+
+let cachedPrice: { amountCents: number; currency: string } | undefined;
+
+/**
+ * The alpha plan's price, read live from Stripe rather than hardcoded —
+ * mirrors the marketing-copy-drift concern already called out above
+ * src/lib/content.ts's PRICING export. Used to size the referral-reward
+ * balance credit (one month's plan price). Memoized: the Price rarely
+ * changes and this is called on every reward application.
+ */
+export async function getAlphaPlanPrice(): Promise<{ amountCents: number; currency: string }> {
+  if (cachedPrice) return cachedPrice;
+  const priceId = process.env.STRIPE_PRICE_ID;
+  if (!priceId) {
+    throw new Error('STRIPE_PRICE_ID is not set. See .env.example.');
+  }
+  const price = await getStripeClient().prices.retrieve(priceId);
+  if (price.unit_amount == null) {
+    throw new Error(`Stripe price ${priceId} has no fixed unit_amount.`);
+  }
+  cachedPrice = { amountCents: price.unit_amount, currency: price.currency };
+  return cachedPrice;
+}
+
+/** Test seam: reset the memoized price (e.g. after changing the mocked Stripe response). */
+export function resetPriceCache(): void {
+  cachedPrice = undefined;
+}

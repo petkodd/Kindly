@@ -10,6 +10,7 @@
   ],
   "crons": [
     { "path": "/api/jobs/generate-weekly-summary", "schedule": "0 8 * * 1" },
-    { "path": "/api/jobs/purge-hard-deletes", "schedule": "0 5 * * *" }
+    { "path": "/api/jobs/purge-hard-deletes", "schedule": "0 5 * * *" },
+    { "path": "/api/jobs/retry-referral-rewards", "schedule": "0 6 * * *" }
   ]
 }

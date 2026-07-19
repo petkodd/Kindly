@@ -1,8 +1,10 @@
+import * as Sentry from '@sentry/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { resolveBuyer, readJsonBody, errorToResponse, clientIp, householdFingerprint } from '@/lib/auth';
 import { referralRepo } from '@/lib/repos/referral';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
+import { applyReferralReward } from '@/lib/billing/referralReward';
 import { RateLimitError, ValidationError } from '@/lib/types';
 
 // Throttle redemption attempts per IP the same way login/magic-link do — the
@@ -34,7 +36,20 @@ export async function POST(req: NextRequest) {
     const code = body.code as string;
     if (!code) throw new ValidationError('code is required');
     const householdHash = householdFingerprint(ip);
-    await referralRepo.redeem(pool, code, { redeemerId: buyerId, householdHash });
+    const referral = await referralRepo.redeem(pool, code, { redeemerId: buyerId, householdHash });
+
+    // The redemption itself (the fraud-guarded event above) and reward
+    // application (the Stripe billing consequence) are deliberately two
+    // different completion states — a Stripe hiccup must never turn an
+    // already-successful redemption into a 500. Reward status is inspectable
+    // via the admin referral-rewards endpoints regardless of outcome here.
+    try {
+      await applyReferralReward(pool, referral);
+    } catch (err) {
+      console.error('referral reward application failed', err);
+      Sentry.captureException(err);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     const { status, body } = errorToResponse(err);

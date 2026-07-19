@@ -51,6 +51,24 @@ export const subscriptionRepo = {
   },
 
   /**
+   * A buyer's most recent subscription row that already has a Stripe
+   * customer attached, or null. Used to resolve which Stripe customer to
+   * credit for a referral reward — deliberately NOT "most recent overall":
+   * a buyer's newest subscription row (for a different parent) might not
+   * have a stripe_customer_id synced yet (checkout in progress, webhook not
+   * yet delivered) while an older row for another parent does.
+   */
+  async getMostRecentWithStripeCustomerForBuyer(q: Querier, buyerId: string): Promise<Subscription | null> {
+    const { rows } = await q.query<Subscription>(
+      `SELECT * FROM subscriptions
+        WHERE buyer_id = $1 AND stripe_customer_id IS NOT NULL
+        ORDER BY created_at DESC LIMIT 1`,
+      [buyerId],
+    );
+    return rows[0] ?? null;
+  },
+
+  /**
    * The single gate other code should call to decide whether a specific
    * parent's talk access is currently paid for: true while trialing/active,
    * true for a past_due subscription still within the grace window, false

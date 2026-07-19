@@ -3,12 +3,26 @@ import { NextRequest } from 'next/server';
 import { makeTestDb } from '../db';
 import type { Querier } from '../../src/lib/querier';
 import { referralRepo } from '../../src/lib/repos/referral';
+import { referralRewardRepo } from '../../src/lib/repos/referralReward';
 import { signSession, SESSION_COOKIE } from '../../src/lib/session';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
 
-// Imported AFTER the mock so the handler picks up the mocked db().
+// applyReferralReward calls getAlphaPlanPrice/getStripeClient — mocked so the
+// route's reward-application step is exercised without a real Stripe key.
+// Neither the referrer nor redeemer has a Stripe customer in these tests, so
+// the reward resolves to a 'failed'/'no_stripe_customer' row rather than
+// 'applied' — what matters here is that a row is created at all, and that
+// this failure never turns the (already-successful) redemption into an
+// error response. The happy/failure/idempotency paths of reward application
+// itself are covered in test/routes/referralReward.route.test.ts.
+vi.mock('@/lib/billing', () => ({
+  getStripeClient: () => ({ customers: { createBalanceTransaction: vi.fn() } }),
+  getAlphaPlanPrice: () => Promise.resolve({ amountCents: 5900, currency: 'usd' }),
+}));
+
+// Imported AFTER the mocks so the handler picks up the mocked db()/billing().
 import { POST as redeemPOST } from '../../src/app/api/referrals/redeem/route';
 
 async function makeUser(email: string): Promise<string> {
@@ -100,5 +114,19 @@ describe('POST /api/referrals/redeem', () => {
     }); // no x-forwarded-for header → clientIp() returns 'unknown'
     const res = await redeemPOST(req);
     expect(res.status).toBe(400);
+  });
+
+  it('creates a referral_rewards row on successful redemption, without blocking the 200', async () => {
+    const referrer = await makeUser('ref5@example.com');
+    const referral = await referralRepo.generate(q, referrer);
+    const redeemer = await makeUser('redeemer5@example.com');
+
+    const res = await redeemPOST(redeemReq(redeemer, { code: referral.code }, '3.3.3.3'));
+    expect(res.status).toBe(200);
+
+    const reward = await referralRewardRepo.getByReferralId(q, referral.id);
+    expect(reward).not.toBeNull();
+    expect(reward?.referrer_user_id).toBe(referrer);
+    expect(reward?.referred_user_id).toBe(redeemer);
   });
 });

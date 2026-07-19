@@ -7,12 +7,13 @@ import type { Querier } from '../querier';
  * keeping the "your data is gone within 30 days" promise true.
  *
  * What one run does, in order:
- *  1. Anonymize the non-cascading references to purgeable users. Six columns
+ *  1. Anonymize the non-cascading references to purgeable users. Eight columns
  *     reference users(id) without ON DELETE (consents.granted_by,
  *     memories.created_by, safety_flags.resolved_by,
  *     summary_deliveries.recipient_user, referrals.redeemed_by,
- *     audit_log.actor_id). Rows that live under the user's own parents cascade
- *     away anyway; these NULLs cover rows OUTSIDE their cascade tree (e.g. a
+ *     audit_log.actor_id, referral_rewards.referrer_user_id,
+ *     referral_rewards.referred_user_id). Rows that live under the user's own
+ *     parents cascade away anyway; these NULLs cover rows OUTSIDE their cascade tree (e.g. a
  *     referral they redeemed, an audit row they wrote as admin) which would
  *     otherwise block the DELETE with an FK violation. The row survives,
  *     anonymized — the identity link is what's purged.
@@ -57,6 +58,8 @@ const USER_REF_NULLIFICATIONS: { table: string; column: string }[] = [
   { table: 'summary_deliveries', column: 'recipient_user' },
   { table: 'referrals', column: 'redeemed_by' },
   { table: 'audit_log', column: 'actor_id' },
+  { table: 'referral_rewards', column: 'referrer_user_id' },
+  { table: 'referral_rewards', column: 'referred_user_id' },
 ];
 
 export async function purgeHardDeletes(

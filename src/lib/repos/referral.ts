@@ -33,6 +33,12 @@ function newCode(): string {
 }
 
 export const referralRepo = {
+  /** A referral by id, or null. Used by reward retry paths, which re-enter from the Referral row. */
+  async getById(q: Querier, id: string): Promise<Referral | null> {
+    const { rows } = await q.query<Referral>(`SELECT * FROM referrals WHERE id = $1`, [id]);
+    return rows[0] ?? null;
+  },
+
   /** The referrer's most recent code, or null if they've never generated one. */
   async getForBuyer(q: Querier, referrerId: string): Promise<Referral | null> {
     if (!referrerId) throw new ValidationError('referrerId is required');
