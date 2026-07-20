@@ -225,6 +225,23 @@ export const PRICING = {
   },
 };
 
+/**
+ * The Family plan, narrowed to guarantee priceMonthlyCents/priceAnnualCents
+ * are present — only that entry in PRICING.plans carries them (founding is a
+ * one-time intro offer, not a recurring interval choice), so TS otherwise
+ * infers those fields as optional across the shared plans[] shape. Single
+ * source of truth for both the pricing page and onboarding checkout, which
+ * both need this exact plan.
+ */
+export function getFamilyPlan() {
+  const raw = PRICING.plans.find((p) => p.id === 'family')!;
+  return {
+    ...raw,
+    priceMonthlyCents: raw.priceMonthlyCents!,
+    priceAnnualCents: raw.priceAnnualCents!,
+  };
+}
+
 export const SENIOR_LIVING = {
   hero: {
     h1: 'Resident engagement, reimagined',

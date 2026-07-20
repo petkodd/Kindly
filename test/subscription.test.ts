@@ -176,6 +176,59 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
     expect(sub?.status).toBe('canceled');
   });
 
+  it('a later sync with an unresolved interval does not regress a known billing_interval back to NULL', async () => {
+    const buyer = await makeBuyer('j@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    const first = await subscriptionRepo.upsertFromStripeSubscription(q, {
+      id: 'sub_interval_keep',
+      customer: 'cus_interval_keep',
+      status: 'active',
+      current_period_end: periodEndUnix,
+      metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: 'year',
+    });
+    expect(first?.billing_interval).toBe('year');
+
+    // A later event (e.g. a status-only update) whose payload doesn't
+    // resolve a recurring interval — must not clobber the known value.
+    const second = await subscriptionRepo.upsertFromStripeSubscription(q, {
+      id: 'sub_interval_keep',
+      customer: 'cus_interval_keep',
+      status: 'past_due',
+      current_period_end: periodEndUnix,
+      metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: null,
+    });
+    expect(second?.status).toBe('past_due');
+    expect(second?.billing_interval).toBe('year');
+  });
+
+  it('the no-buyer_id UPDATE-only branch also preserves billing_interval via COALESCE', async () => {
+    const buyer = await makeBuyer('k@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    await subscriptionRepo.upsertFromStripeSubscription(q, {
+      id: 'sub_no_buyer_update',
+      customer: 'cus_x',
+      status: 'active',
+      current_period_end: periodEndUnix,
+      metadata: { buyer_id: buyer, parent_id: parent.id },
+      billingInterval: 'year',
+    });
+
+    // Same subscription id, but this event's metadata lacks buyer_id (goes
+    // through the UPDATE-only branch) and its interval doesn't resolve.
+    const updated = await subscriptionRepo.upsertFromStripeSubscription(q, {
+      id: 'sub_no_buyer_update',
+      customer: 'cus_x',
+      status: 'past_due',
+      current_period_end: periodEndUnix,
+      metadata: {},
+      billingInterval: null,
+    });
+    expect(updated?.status).toBe('past_due');
+    expect(updated?.billing_interval).toBe('year');
+  });
+
   it('skips (does not throw) an event for a subscription we cannot attribute — missing metadata.buyer_id and no existing row', async () => {
     // Realistic case: a subscription created outside our checkout flow (Stripe
     // dashboard, test mode) or an out-of-order webhook delivery. This must

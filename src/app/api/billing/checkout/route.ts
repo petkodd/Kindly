@@ -47,17 +47,21 @@ export async function POST(req: NextRequest) {
     }
     const interval = intervalInput as BillingInterval;
 
+    await parentRepo.getOwned(pool, parentId, buyerId); // isolation — checked before any billing-config state is revealed
+
     let priceId: string;
     try {
       priceId = getPriceIdForInterval(interval);
-    } catch {
+    } catch (err) {
       // That specific interval isn't configured yet (e.g. the annual Price
       // hasn't been created) — degrade the same way as no billing at all,
       // rather than 500ing, so annual can ship ahead of the Price existing.
+      // Logged (not swallowed) so a *different* failure reason here — a
+      // typo'd env var name, a malformed id — isn't indistinguishable from
+      // the expected "not configured yet" rollout state.
+      console.error('checkout price resolution failed', interval, err);
       return notConfigured();
     }
-
-    await parentRepo.getOwned(pool, parentId, buyerId); // isolation
 
     // Refuse to start a second trial/subscription for a parent that already
     // has one current — without this, a transient failure in the post-checkout

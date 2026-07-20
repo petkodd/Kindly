@@ -24,16 +24,17 @@ interface FamilyPlan {
  * only after a client-side interaction).
  */
 export function FamilyPlanCard({ plan }: { plan: FamilyPlan }) {
-  const [interval, setInterval] = useState<BillingInterval>('year');
+  // Not named `interval`/`setInterval` — that shadows the window.setInterval global.
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('year');
   const savingsPercent = computeAnnualSavingsPercent(plan.priceMonthlyCents, plan.priceAnnualCents);
 
   return (
     <div className="flex flex-col rounded-2xl border border-line bg-mist p-8">
       <h2 className="text-xl font-semibold text-ink">{plan.name}</h2>
       <div className="mt-4">
-        <BillingIntervalToggle value={interval} onChange={setInterval} label={`${plan.name} plan billing`} />
+        <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} label={`${plan.name} plan billing`} />
       </div>
-      {interval === 'month' ? (
+      {billingInterval === 'month' ? (
         <p className="mt-4">
           <span className="font-display text-3xl font-semibold text-ink">{formatUsdCents(plan.priceMonthlyCents)}</span>{' '}
           <span className="text-base text-muted">/month</span>
@@ -61,7 +62,10 @@ export function FamilyPlanCard({ plan }: { plan: FamilyPlan }) {
         ))}
       </ul>
       <TrackedCtaLink
-        href={plan.cta.href}
+        // Carries the selected interval into onboarding — otherwise a
+        // visitor who picks Monthly here lands back on checkout's own
+        // (Annual) default with no memory of that choice.
+        href={`${plan.cta.href}?interval=${billingInterval}`}
         ctaId={`plan_${plan.id}`}
         slug="/pricing"
         className="btn-secondary mt-8 w-full"

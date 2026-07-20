@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { buildMetadata, pricingJsonLd } from '@/lib/seo';
-import { PRICING } from '@/lib/content';
+import { PRICING, getFamilyPlan } from '@/lib/content';
 import { formatUsdCents } from '@/lib/pricing';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { FamilyPlanCard } from '@/components/FamilyPlanCard';
@@ -13,15 +13,7 @@ export const metadata: Metadata = buildMetadata({
 
 export default function Page() {
   const { hero, plans, faq, cta } = PRICING;
-  const familyPlanRaw = plans.find((p) => p.id === 'family')!;
-  // Narrow: only the 'family' entry carries these fields (founding doesn't
-  // have a recurring monthly/annual price), so TS infers them as optional
-  // across the shared plans[] shape — assert once here, not per call site.
-  const familyPlan = {
-    ...familyPlanRaw,
-    priceMonthlyCents: familyPlanRaw.priceMonthlyCents!,
-    priceAnnualCents: familyPlanRaw.priceAnnualCents!,
-  };
+  const familyPlan = getFamilyPlan();
 
   // pricingJsonLd maps 1:1 over whatever list it's given — pass an extra
   // synthetic entry for the Family plan's annual price so the structured

@@ -93,10 +93,14 @@ export const subscriptionRepo = {
 
     if (!buyerId) {
       // Can't INSERT (buyer_id is NOT NULL) — at most update an existing row
-      // by status/period, never touching attribution.
+      // by status/period, never touching attribution. COALESCE on
+      // billing_interval: a payload that doesn't resolve an interval (see
+      // toSubscriptionLike) must not erase an already-known one — it should
+      // leave the last known value in place, not regress it to NULL.
       const { rows } = await q.query<Subscription>(
         `UPDATE subscriptions
-            SET status = $2, stripe_customer_id = $3, current_period_end = $4, billing_interval = $5
+            SET status = $2, stripe_customer_id = $3, current_period_end = $4,
+                billing_interval = COALESCE($5, billing_interval)
           WHERE stripe_sub_id = $1
           RETURNING *`,
         [stripeSub.id, status, stripeSub.customer, currentPeriodEnd, stripeSub.billingInterval],
@@ -113,7 +117,7 @@ export const subscriptionRepo = {
          SET status = EXCLUDED.status,
              stripe_customer_id = EXCLUDED.stripe_customer_id,
              current_period_end = EXCLUDED.current_period_end,
-             billing_interval = EXCLUDED.billing_interval
+             billing_interval = COALESCE(EXCLUDED.billing_interval, subscriptions.billing_interval)
        RETURNING *`,
       [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd, stripeSub.billingInterval],
     );

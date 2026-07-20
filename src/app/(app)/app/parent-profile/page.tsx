@@ -145,6 +145,7 @@ function TalkToKindlySection({ parentId }: { parentId: string }) {
 interface SubscriptionInfo {
   status: 'trialing' | 'active' | 'past_due' | 'canceled';
   current_period_end: string | null;
+  billing_interval: 'month' | 'year' | null;
 }
 
 /**
@@ -185,12 +186,16 @@ function BillingSection({ parentId }: { parentId: string }) {
     setError('');
     setBusy(true);
     try {
-      // Defaults to annual, matching pricing/onboarding — this is a lapsed/
-      // never-subscribed recovery path, not one of the two toggle surfaces
-      // named in the task's acceptance criteria, so no visible toggle here.
+      // A returning subscriber keeps the interval they were already on
+      // (recovering from a lapsed subscription shouldn't silently switch
+      // someone from monthly to a bigger annual charge); a parent who never
+      // subscribed at all has no prior interval to preserve, so defaults to
+      // annual, matching pricing/onboarding. Not one of the two toggle
+      // surfaces named in the task's acceptance criteria, so no visible
+      // toggle here — just a safer default.
       const { url, already_subscribed: alreadySubscribed } = await api.post<{ url: string | null; already_subscribed?: boolean }>(
         '/api/billing/checkout',
-        { parent_id: parentId, interval: 'year' },
+        { parent_id: parentId, interval: subscription?.billing_interval ?? 'year' },
       );
       if (alreadySubscribed) {
         setIsCurrent(true);

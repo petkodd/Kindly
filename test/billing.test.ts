@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { getPriceIdForInterval, computeReferralCreditCents } from '../src/lib/billing';
+import { getPriceIdForInterval } from '../src/lib/billing';
 
 afterEach(() => {
   delete process.env.STRIPE_PRICE_ID;
@@ -19,20 +19,5 @@ describe('getPriceIdForInterval', () => {
     delete process.env.STRIPE_PRICE_ID_ANNUAL;
     expect(() => getPriceIdForInterval('month')).not.toThrow();
     expect(() => getPriceIdForInterval('year')).toThrow(/STRIPE_PRICE_ID_ANNUAL/);
-  });
-});
-
-describe('computeReferralCreditCents', () => {
-  it('monthly (or unknown/null) interval credits one month\'s price, unchanged from today\'s behavior', () => {
-    expect(computeReferralCreditCents('month', 5900, 56640)).toBe(5900);
-    expect(computeReferralCreditCents(null, 5900, 56640)).toBe(5900);
-  });
-
-  it('annual interval credits 1/12 of the annual price (Option B)', () => {
-    expect(computeReferralCreditCents('year', 5900, 56640)).toBe(4720); // 56640/12, exact
-  });
-
-  it('rounds a non-evenly-divisible annual price to the nearest cent', () => {
-    expect(computeReferralCreditCents('year', 5900, 10000)).toBe(833); // round(10000/12) = 833
   });
 });

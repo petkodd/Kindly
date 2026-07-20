@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
 import { inputOnPageCls } from '@/lib/formStyles';
-import { PRICING } from '@/lib/content';
+import { getFamilyPlan } from '@/lib/content';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import { BillingIntervalToggle } from '@/components/BillingIntervalToggle';
 import type { BillingInterval } from '@/lib/billing';
@@ -36,6 +36,11 @@ function OnboardingWizard() {
   const searchParams = useSearchParams();
   const billingResult = searchParams.get('billing'); // 'success' | 'cancel' | null
   const returningParentId = searchParams.get('parent_id');
+  // Carries the pricing page's toggle choice through to checkout — without
+  // this, a visitor who picks Monthly on /pricing would land back on
+  // BillingStep's own default (Annual) with no memory of that choice.
+  const intervalParam = searchParams.get('interval');
+  const initialInterval: BillingInterval = intervalParam === 'month' ? 'month' : 'year';
 
   // Step 0 = "Who is this for?", only reachable on a brand-new visit (resuming
   // an existing parent already knows the answer from parent.relationship).
@@ -206,7 +211,12 @@ function OnboardingWizard() {
       {step === 2 && parent && <MemoriesStep forSelf={isSelf} parent={parent} onDone={handleMemoriesDone} />}
       {step === 3 && parent && <ConsentStep parent={parent} onDone={() => setStep(4)} />}
       {step === 4 && parent && (
-        <BillingStep parent={parent} billingResult={billingResult} onDone={() => setStep(5)} />
+        <BillingStep
+          parent={parent}
+          billingResult={billingResult}
+          initialInterval={initialInterval}
+          onDone={() => setStep(5)}
+        />
       )}
       {step === 5 && parent && (
         <DoneStep forSelf={isSelf} parent={parent} talkToken={talkToken} setTalkToken={setTalkToken} />
@@ -411,21 +421,14 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
 }
 
 function BillingStep({
-  parent, billingResult, onDone,
-}: { parent: Parent; billingResult: string | null; onDone: () => void }) {
+  parent, billingResult, initialInterval, onDone,
+}: { parent: Parent; billingResult: string | null; initialInterval: BillingInterval; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(billingResult === 'success');
   // Not named `interval`/`setInterval` — that shadows the window.setInterval global.
-  const [billingInterval, setBillingInterval] = useState<BillingInterval>('year');
-  const familyPlanRaw = PRICING.plans.find((p) => p.id === 'family')!;
-  // Narrow: only 'family' carries these fields — see the same pattern in
-  // src/app/(public)/pricing/page.tsx.
-  const familyPlan = {
-    ...familyPlanRaw,
-    priceMonthlyCents: familyPlanRaw.priceMonthlyCents!,
-    priceAnnualCents: familyPlanRaw.priceAnnualCents!,
-  };
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(initialInterval);
+  const familyPlan = getFamilyPlan();
   const savingsPercent = computeAnnualSavingsPercent(familyPlan.priceMonthlyCents, familyPlan.priceAnnualCents);
 
   // Returning from a successful Stripe Checkout: the webhook may take a

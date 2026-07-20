@@ -31,6 +31,17 @@ describe('PricingPage', () => {
     expect(screen.getByText(/Save 20%/)).toBeTruthy();
   });
 
+  it('the Family CTA link carries the selected interval into checkout', () => {
+    render(<PricingPage />);
+    const cta = screen.getByRole('link', { name: 'Choose Family' }) as HTMLAnchorElement;
+    expect(cta.getAttribute('href')).toBe('/app/onboarding?interval=year');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
+    expect(screen.getByRole('link', { name: 'Choose Family' }).getAttribute('href')).toBe(
+      '/app/onboarding?interval=month',
+    );
+  });
+
   it('includes both intervals in the JSON-LD structured data', () => {
     render(<PricingPage />);
     const script = document.querySelector('script[type="application/ld+json"]');
