@@ -1,4 +1,7 @@
 import type Stripe from 'stripe';
+import { getPlanPriceId, getStripeSecretKeyRaw } from './config';
+
+export * from './config';
 
 let cached: Stripe | undefined;
 
@@ -13,7 +16,7 @@ let cached: Stripe | undefined;
  */
 export function getStripeClient(): Stripe {
   if (cached) return cached;
-  const apiKey = process.env.STRIPE_SECRET_KEY;
+  const apiKey = getStripeSecretKeyRaw();
   if (!apiKey) {
     throw new Error('STRIPE_SECRET_KEY is not set. See .env.example.');
   }
@@ -29,20 +32,15 @@ export function resetStripeClient(): void {
 
 export type BillingInterval = 'month' | 'year';
 
-function priceEnvVar(interval: BillingInterval): string {
-  return interval === 'year' ? 'STRIPE_PRICE_ID_ANNUAL' : 'STRIPE_PRICE_ID';
-}
-
 /**
- * The raw Stripe Price id configured for a billing interval. Throws if
- * unset — callers decide how to degrade (e.g. the checkout route's existing
- * 503 "billing not configured" path), same contract as getStripeClient.
+ * The raw Stripe Price id configured for the Family Companion plan's billing
+ * interval. Throws if unset — callers decide how to degrade (e.g. the
+ * checkout route's existing 503 "billing not configured" path), same
+ * contract as getStripeClient. Thin wrapper over getPlanPriceId (./config)
+ * for the one plan/interval pair the checkout route currently supports.
  */
 export function getPriceIdForInterval(interval: BillingInterval): string {
-  const envVar = priceEnvVar(interval);
-  const priceId = process.env[envVar];
-  if (!priceId) throw new Error(`${envVar} is not set. See .env.example.`);
-  return priceId;
+  return getPlanPriceId(interval === 'year' ? 'family_companion_annual' : 'family_companion_monthly');
 }
 
 // Referral-reward-for-annual mechanism (deferred, not implemented here):

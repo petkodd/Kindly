@@ -26,7 +26,7 @@ vi.mock('@/lib/billing', () => ({
   // plain reimplementation here is safe and avoids partial-mock/importActual
   // gotchas with internal cross-references inside the real module.
   getPriceIdForInterval: (interval: 'month' | 'year') => {
-    const envVar = interval === 'year' ? 'STRIPE_PRICE_ID_ANNUAL' : 'STRIPE_PRICE_ID';
+    const envVar = interval === 'year' ? 'STRIPE_PRICE_FAMILY_ANNUAL' : 'STRIPE_PRICE_FAMILY_MONTHLY';
     const priceId = process.env[envVar];
     if (!priceId) throw new Error(`${envVar} is not set.`);
     return priceId;
@@ -73,9 +73,9 @@ describe('POST /api/billing/checkout', () => {
     expect(res.status).toBe(401);
   });
 
-  it('503s when Stripe is not configured (no STRIPE_SECRET_KEY/STRIPE_PRICE_ID)', async () => {
+  it('503s when Stripe is not configured (no STRIPE_SECRET_KEY/STRIPE_PRICE_FAMILY_MONTHLY)', async () => {
     delete process.env.STRIPE_SECRET_KEY;
-    delete process.env.STRIPE_PRICE_ID;
+    delete process.env.STRIPE_PRICE_FAMILY_MONTHLY;
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
@@ -88,7 +88,7 @@ describe('POST /api/billing/checkout', () => {
 
   it('404s checking out for a parent owned by another buyer (isolation)', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_123';
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_123';
     const owner = await makeBuyer(q, 'owner@example.com');
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
@@ -101,7 +101,7 @@ describe('POST /api/billing/checkout', () => {
 
   it('creates a subscription-mode Checkout Session with a 7-day trial and card collection forced', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_123';
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_123';
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     stripeMock.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_abc' });
@@ -121,10 +121,10 @@ describe('POST /api/billing/checkout', () => {
     expect(call.success_url).toContain(`parent_id=${parent.id}`);
   });
 
-  it('interval:\'year\' uses STRIPE_PRICE_ID_ANNUAL instead of the monthly price', async () => {
+  it('interval:\'year\' uses STRIPE_PRICE_FAMILY_ANNUAL instead of the monthly price', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_monthly';
-    process.env.STRIPE_PRICE_ID_ANNUAL = 'price_annual';
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_monthly';
+    process.env.STRIPE_PRICE_FAMILY_ANNUAL = 'price_annual';
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     stripeMock.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_annual' });
@@ -142,8 +142,8 @@ describe('POST /api/billing/checkout', () => {
 
   it('interval omitted defaults to monthly (back-compat with older clients)', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_monthly';
-    process.env.STRIPE_PRICE_ID_ANNUAL = 'price_annual';
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_monthly';
+    process.env.STRIPE_PRICE_FAMILY_ANNUAL = 'price_annual';
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     stripeMock.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_x' });
@@ -156,7 +156,7 @@ describe('POST /api/billing/checkout', () => {
 
   it('400s an invalid interval value — never a raw client-supplied Price id', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_monthly';
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_monthly';
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
@@ -172,8 +172,8 @@ describe('POST /api/billing/checkout', () => {
 
   it('503s interval:\'year\' when only the annual Price is unconfigured, without touching Stripe', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_monthly';
-    delete process.env.STRIPE_PRICE_ID_ANNUAL;
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_monthly';
+    delete process.env.STRIPE_PRICE_FAMILY_ANNUAL;
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
@@ -189,7 +189,7 @@ describe('POST /api/billing/checkout', () => {
 
   it('refuses to start a second trial when the parent already has a current subscription', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_PRICE_ID = 'price_123';
+    process.env.STRIPE_PRICE_FAMILY_MONTHLY = 'price_123';
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await q.query(
