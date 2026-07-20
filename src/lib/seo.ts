@@ -49,6 +49,7 @@ export function buildMetadata({
       card: 'summary_large_image',
       title,
       description,
+      images: [`${SITE.url}/og/default.png`],
     },
   };
 }
@@ -60,6 +61,7 @@ export function organizationJsonLd() {
     '@type': 'Organization',
     name: SITE.name,
     url: SITE.url,
+    logo: `${SITE.url}/apple-touch-icon.png`,
     description: SITE.description,
     slogan: SITE.tagline,
   };
