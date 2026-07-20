@@ -143,8 +143,8 @@ export const HOW_IT_WORKS = {
 };
 
 /**
- * Alpha has exactly ONE Stripe price behind checkout (STRIPE_PRICE_ID, see
- * src/app/api/billing/checkout/route.ts) — every plan CTA on this page starts
+ * Alpha has exactly ONE Stripe price behind checkout (STRIPE_PRICE_FAMILY_MONTHLY,
+ * see src/lib/billing/config.ts) — every plan CTA on this page starts
  * the same 7-day-trial-then-Family-price checkout. Do not add another plan
  * here without also adding a real second Stripe Price + plan-selection logic
  * in the checkout route; otherwise this page will again advertise a price or
@@ -179,8 +179,8 @@ export const PRICING = {
       name: 'Family',
       price: '$59',
       period: '/month',
-      // Monthly must match STRIPE_PRICE_ID; annual must match
-      // STRIPE_PRICE_ID_ANNUAL ($566.40/yr = 20% off monthly). Drives the
+      // Monthly must match STRIPE_PRICE_FAMILY_MONTHLY; annual must match
+      // STRIPE_PRICE_FAMILY_ANNUAL ($566.40/yr = 20% off monthly). Drives the
       // Monthly/Annual toggle (src/components/BillingIntervalToggle.tsx) —
       // keep in sync with the live Stripe Prices or this page drifts from
       // what's actually charged (see the warning above PRICING).
