@@ -9,12 +9,19 @@ function toSubscriptionLike(sub: Stripe.Subscription): StripeSubscriptionLike {
   // version, not on the subscription itself. Alpha has exactly one price per
   // subscription, so the first item's period end is the subscription's.
   const currentPeriodEnd = sub.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000);
+  // Read live from the Price's own recurring.interval rather than inferring
+  // from which env var string matches — stays correct even if Price ids are
+  // rotated. Anything other than month/year (shouldn't happen for our plans)
+  // maps to null, not guessed.
+  const interval = sub.items.data[0]?.price?.recurring?.interval;
+  const billingInterval = interval === 'month' || interval === 'year' ? interval : null;
   return {
     id: sub.id,
     customer: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
     status: sub.status,
     current_period_end: currentPeriodEnd,
     metadata: sub.metadata,
+    billingInterval,
   };
 }
 

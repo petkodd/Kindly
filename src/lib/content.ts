@@ -179,6 +179,13 @@ export const PRICING = {
       name: 'Family',
       price: '$59',
       period: '/month',
+      // Monthly must match STRIPE_PRICE_ID; annual must match
+      // STRIPE_PRICE_ID_ANNUAL ($566.40/yr = 20% off monthly). Drives the
+      // Monthly/Annual toggle (src/components/BillingIntervalToggle.tsx) —
+      // keep in sync with the live Stripe Prices or this page drifts from
+      // what's actually charged (see the warning above PRICING).
+      priceMonthlyCents: 5900,
+      priceAnnualCents: 56640,
       tagline: 'Our standard plan for one parent and their family',
       bullets: [
         'Daily voice conversation with Kindly',
@@ -217,6 +224,23 @@ export const PRICING = {
     secondary: { label: 'See how it works', href: '/how-it-works' },
   },
 };
+
+/**
+ * The Family plan, narrowed to guarantee priceMonthlyCents/priceAnnualCents
+ * are present — only that entry in PRICING.plans carries them (founding is a
+ * one-time intro offer, not a recurring interval choice), so TS otherwise
+ * infers those fields as optional across the shared plans[] shape. Single
+ * source of truth for both the pricing page and onboarding checkout, which
+ * both need this exact plan.
+ */
+export function getFamilyPlan() {
+  const raw = PRICING.plans.find((p) => p.id === 'family')!;
+  return {
+    ...raw,
+    priceMonthlyCents: raw.priceMonthlyCents!,
+    priceAnnualCents: raw.priceAnnualCents!,
+  };
+}
 
 export const SENIOR_LIVING = {
   hero: {

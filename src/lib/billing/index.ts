@@ -26,3 +26,34 @@ export function getStripeClient(): Stripe {
 export function resetStripeClient(): void {
   cached = undefined;
 }
+
+export type BillingInterval = 'month' | 'year';
+
+function priceEnvVar(interval: BillingInterval): string {
+  return interval === 'year' ? 'STRIPE_PRICE_ID_ANNUAL' : 'STRIPE_PRICE_ID';
+}
+
+/**
+ * The raw Stripe Price id configured for a billing interval. Throws if
+ * unset — callers decide how to degrade (e.g. the checkout route's existing
+ * 503 "billing not configured" path), same contract as getStripeClient.
+ */
+export function getPriceIdForInterval(interval: BillingInterval): string {
+  const envVar = priceEnvVar(interval);
+  const priceId = process.env[envVar];
+  if (!priceId) throw new Error(`${envVar} is not set. See .env.example.`);
+  return priceId;
+}
+
+// Referral-reward-for-annual mechanism (deferred, not implemented here):
+// once feature/referral-program merges, an annual subscriber's "one free
+// month" should credit 1/12 of the annual price (Option B from the
+// annual-billing task doc) rather than a full month's price — chosen over
+// extending a subscription schedule's period boundaries for the same
+// reliability reason the base referral reward already uses a balance
+// credit over subscription mutation. Deliberately not built as code yet:
+// nothing in this branch calls it, and unexercised exported utilities are
+// worse than a documented follow-up. Implement alongside the actual
+// applyReferralReward/applySide wiring in src/lib/billing/referralReward.ts
+// (feature/referral-program), using getPriceIdForInterval + a live
+// stripe.prices.retrieve for both intervals to size the credit.

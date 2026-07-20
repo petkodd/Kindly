@@ -19,6 +19,8 @@ export interface StripeSubscriptionLike {
   status: string;
   current_period_end: number; // unix seconds
   metadata: Record<string, string | undefined>;
+  /** Read live from the Stripe Price's recurring.interval — null if absent/unrecognized. */
+  billingInterval: 'month' | 'year' | null;
 }
 
 function mapStripeStatus(status: string): SubscriptionStatus {
@@ -91,13 +93,17 @@ export const subscriptionRepo = {
 
     if (!buyerId) {
       // Can't INSERT (buyer_id is NOT NULL) — at most update an existing row
-      // by status/period, never touching attribution.
+      // by status/period, never touching attribution. COALESCE on
+      // billing_interval: a payload that doesn't resolve an interval (see
+      // toSubscriptionLike) must not erase an already-known one — it should
+      // leave the last known value in place, not regress it to NULL.
       const { rows } = await q.query<Subscription>(
         `UPDATE subscriptions
-            SET status = $2, stripe_customer_id = $3, current_period_end = $4
+            SET status = $2, stripe_customer_id = $3, current_period_end = $4,
+                billing_interval = COALESCE($5, billing_interval)
           WHERE stripe_sub_id = $1
           RETURNING *`,
-        [stripeSub.id, status, stripeSub.customer, currentPeriodEnd],
+        [stripeSub.id, status, stripeSub.customer, currentPeriodEnd, stripeSub.billingInterval],
       );
       return rows[0] ?? null;
     }
@@ -105,14 +111,15 @@ export const subscriptionRepo = {
     const parentId = stripeSub.metadata.parent_id ?? null;
     const { rows } = await q.query<Subscription>(
       `INSERT INTO subscriptions
-         (buyer_id, parent_id, plan, status, stripe_customer_id, stripe_sub_id, current_period_end)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (buyer_id, parent_id, plan, status, stripe_customer_id, stripe_sub_id, current_period_end, billing_interval)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (stripe_sub_id) DO UPDATE
          SET status = EXCLUDED.status,
              stripe_customer_id = EXCLUDED.stripe_customer_id,
-             current_period_end = EXCLUDED.current_period_end
+             current_period_end = EXCLUDED.current_period_end,
+             billing_interval = COALESCE(EXCLUDED.billing_interval, subscriptions.billing_interval)
        RETURNING *`,
-      [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd],
+      [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd, stripeSub.billingInterval],
     );
     return rows[0];
   },

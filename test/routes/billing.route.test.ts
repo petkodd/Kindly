@@ -22,6 +22,15 @@ vi.mock('@/lib/billing', () => ({
     subscriptions: { retrieve: stripeMock.subscriptionsRetrieve },
     webhooks: { constructEvent: stripeMock.constructEvent },
   }),
+  // Mirrors the real (pure, env-only) implementation — no Stripe call, so a
+  // plain reimplementation here is safe and avoids partial-mock/importActual
+  // gotchas with internal cross-references inside the real module.
+  getPriceIdForInterval: (interval: 'month' | 'year') => {
+    const envVar = interval === 'year' ? 'STRIPE_PRICE_ID_ANNUAL' : 'STRIPE_PRICE_ID';
+    const priceId = process.env[envVar];
+    if (!priceId) throw new Error(`${envVar} is not set.`);
+    return priceId;
+  },
 }));
 
 // Imported AFTER the mocks so the handlers pick up the mocked db()/billing().
@@ -31,13 +40,21 @@ import { GET as subscriptionGET } from '../../src/app/api/parents/[id]/subscript
 
 function fakeStripeSubscription(overrides: Partial<{
   id: string; customer: string; status: string; buyerId: string; parentId: string; currentPeriodEndUnix: number;
+  interval: 'month' | 'year' | null;
 }> = {}) {
   return {
     id: overrides.id ?? 'sub_123',
     customer: overrides.customer ?? 'cus_123',
     status: overrides.status ?? 'trialing',
     metadata: { buyer_id: overrides.buyerId ?? 'buyer-1', parent_id: overrides.parentId ?? 'parent-1' },
-    items: { data: [{ current_period_end: overrides.currentPeriodEndUnix ?? Math.floor(Date.now() / 1000) + 7 * 86400 }] },
+    items: {
+      data: [
+        {
+          current_period_end: overrides.currentPeriodEndUnix ?? Math.floor(Date.now() / 1000) + 7 * 86400,
+          price: { recurring: overrides.interval === undefined ? { interval: 'month' } : overrides.interval ? { interval: overrides.interval } : null },
+        },
+      ],
+    },
   };
 }
 
@@ -102,6 +119,72 @@ describe('POST /api/billing/checkout', () => {
     expect(call.subscription_data.metadata).toEqual({ buyer_id: buyer, parent_id: parent.id });
     expect(call.line_items).toEqual([{ price: 'price_123', quantity: 1 }]);
     expect(call.success_url).toContain(`parent_id=${parent.id}`);
+  });
+
+  it('interval:\'year\' uses STRIPE_PRICE_ID_ANNUAL instead of the monthly price', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.STRIPE_PRICE_ID = 'price_monthly';
+    process.env.STRIPE_PRICE_ID_ANNUAL = 'price_annual';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    stripeMock.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_annual' });
+
+    const res = await checkoutPOST(
+      buyerReq('http://localhost/api/billing/checkout', buyer, {
+        method: 'POST',
+        body: JSON.stringify({ parent_id: parent.id, interval: 'year' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const call = stripeMock.checkoutCreate.mock.calls[0][0];
+    expect(call.line_items).toEqual([{ price: 'price_annual', quantity: 1 }]);
+  });
+
+  it('interval omitted defaults to monthly (back-compat with older clients)', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.STRIPE_PRICE_ID = 'price_monthly';
+    process.env.STRIPE_PRICE_ID_ANNUAL = 'price_annual';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    stripeMock.checkoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_x' });
+
+    await checkoutPOST(
+      buyerReq('http://localhost/api/billing/checkout', buyer, { method: 'POST', body: JSON.stringify({ parent_id: parent.id }) }),
+    );
+    expect(stripeMock.checkoutCreate.mock.calls[0][0].line_items).toEqual([{ price: 'price_monthly', quantity: 1 }]);
+  });
+
+  it('400s an invalid interval value — never a raw client-supplied Price id', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.STRIPE_PRICE_ID = 'price_monthly';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+
+    const res = await checkoutPOST(
+      buyerReq('http://localhost/api/billing/checkout', buyer, {
+        method: 'POST',
+        body: JSON.stringify({ parent_id: parent.id, interval: 'price_evil_injected' }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(stripeMock.checkoutCreate).not.toHaveBeenCalled();
+  });
+
+  it('503s interval:\'year\' when only the annual Price is unconfigured, without touching Stripe', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.STRIPE_PRICE_ID = 'price_monthly';
+    delete process.env.STRIPE_PRICE_ID_ANNUAL;
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+
+    const res = await checkoutPOST(
+      buyerReq('http://localhost/api/billing/checkout', buyer, {
+        method: 'POST',
+        body: JSON.stringify({ parent_id: parent.id, interval: 'year' }),
+      }),
+    );
+    expect(res.status).toBe(503);
+    expect(stripeMock.checkoutCreate).not.toHaveBeenCalled();
   });
 
   it('refuses to start a second trial when the parent already has a current subscription', async () => {
@@ -222,6 +305,66 @@ describe('POST /api/billing/webhook', () => {
 
     const { rows } = await q.query(`SELECT status FROM subscriptions WHERE stripe_sub_id = 'sub_cancel_me'`);
     expect(rows[0].status).toBe('canceled');
+  });
+
+  it('persists billing_interval from the Stripe Price\'s recurring.interval (month)', async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+
+    stripeMock.constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: { object: { subscription: 'sub_monthly', customer: 'cus_1' } },
+    });
+    stripeMock.subscriptionsRetrieve.mockResolvedValue(
+      fakeStripeSubscription({ id: 'sub_monthly', buyerId: buyer, parentId: parent.id, interval: 'month' }),
+    );
+
+    await webhookPOST(
+      new NextRequest('http://localhost/api/billing/webhook', { method: 'POST', headers: { 'stripe-signature': 'valid' }, body: '{}' }),
+    );
+    const { rows } = await q.query(`SELECT billing_interval FROM subscriptions WHERE stripe_sub_id = 'sub_monthly'`);
+    expect(rows[0].billing_interval).toBe('month');
+  });
+
+  it('persists billing_interval from the Stripe Price\'s recurring.interval (year)', async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+
+    stripeMock.constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: { object: { subscription: 'sub_annual', customer: 'cus_1' } },
+    });
+    stripeMock.subscriptionsRetrieve.mockResolvedValue(
+      fakeStripeSubscription({ id: 'sub_annual', buyerId: buyer, parentId: parent.id, interval: 'year' }),
+    );
+
+    await webhookPOST(
+      new NextRequest('http://localhost/api/billing/webhook', { method: 'POST', headers: { 'stripe-signature': 'valid' }, body: '{}' }),
+    );
+    const { rows } = await q.query(`SELECT billing_interval FROM subscriptions WHERE stripe_sub_id = 'sub_annual'`);
+    expect(rows[0].billing_interval).toBe('year');
+  });
+
+  it('stores a null billing_interval for an unrecognized/missing recurring interval, rather than guessing', async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_123';
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+
+    stripeMock.constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: { object: { subscription: 'sub_weird', customer: 'cus_1' } },
+    });
+    stripeMock.subscriptionsRetrieve.mockResolvedValue(
+      fakeStripeSubscription({ id: 'sub_weird', buyerId: buyer, parentId: parent.id, interval: null }),
+    );
+
+    await webhookPOST(
+      new NextRequest('http://localhost/api/billing/webhook', { method: 'POST', headers: { 'stripe-signature': 'valid' }, body: '{}' }),
+    );
+    const { rows } = await q.query(`SELECT billing_interval FROM subscriptions WHERE stripe_sub_id = 'sub_weird'`);
+    expect(rows[0].billing_interval).toBeNull();
   });
 
   it('an event for an unattributable subscription (no metadata.buyer_id, no existing row) is acknowledged, not a 500', async () => {

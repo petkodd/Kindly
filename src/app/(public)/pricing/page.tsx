@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { buildMetadata, pricingJsonLd } from '@/lib/seo';
-import { PRICING } from '@/lib/content';
+import { PRICING, getFamilyPlan } from '@/lib/content';
+import { formatUsdCents } from '@/lib/pricing';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { FamilyPlanCard } from '@/components/FamilyPlanCard';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Kindly Pricing — AI Companion Plans for Families',
@@ -11,11 +13,27 @@ export const metadata: Metadata = buildMetadata({
 
 export default function Page() {
   const { hero, plans, faq, cta } = PRICING;
+  const familyPlan = getFamilyPlan();
+
+  // pricingJsonLd maps 1:1 over whatever list it's given — pass an extra
+  // synthetic entry for the Family plan's annual price so the structured
+  // data documents both intervals, without changing the visual layout (the
+  // toggle switches within the one Family card, it doesn't add a third card).
+  const jsonLdPlans = [
+    ...plans.map((p) => ({ name: p.name, price: p.price, period: p.period, tagline: p.tagline })),
+    {
+      name: `${familyPlan.name} (Annual)`,
+      price: formatUsdCents(familyPlan.priceAnnualCents),
+      period: '/year',
+      tagline: familyPlan.tagline,
+    },
+  ];
+
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingJsonLd(plans)) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingJsonLd(jsonLdPlans)) }}
       />
 
       <section className="container-k py-20">
@@ -26,41 +44,45 @@ export default function Page() {
 
       <section className="bg-cloud py-20">
         <div className="container-k grid gap-8 md:grid-cols-2">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`flex flex-col rounded-2xl border p-8 ${
-                plan.highlighted ? 'border-2 border-sageDeep bg-mist' : 'border-line bg-mist'
-              }`}
-            >
-              {plan.highlighted && (
-                <span className="mb-3 inline-block w-fit rounded-full bg-sageDeep px-3 py-1 text-sm font-semibold text-cloud">
-                  Best for new families
-                </span>
-              )}
-              <h2 className="text-xl font-semibold text-ink">{plan.name}</h2>
-              <p className="mt-4">
-                <span className="font-display text-3xl font-semibold text-ink">{plan.price}</span>{' '}
-                <span className="text-base text-muted">{plan.period}</span>
-              </p>
-              <p className="mt-3 text-base text-muted">{plan.tagline}</p>
-              <ul className="mt-6 flex-1 space-y-3">
-                {plan.bullets.map((b) => (
-                  <li key={b} className="text-base text-ink">
-                    {b}
-                  </li>
-                ))}
-              </ul>
-              <TrackedCtaLink
-                href={plan.cta.href}
-                ctaId={`plan_${plan.id}`}
-                slug="/pricing"
-                className={plan.highlighted ? 'btn-primary mt-8 w-full' : 'btn-secondary mt-8 w-full'}
+          {plans.map((plan) =>
+            plan.id === 'family' ? (
+              <FamilyPlanCard key={plan.id} plan={familyPlan} />
+            ) : (
+              <div
+                key={plan.id}
+                className={`flex flex-col rounded-2xl border p-8 ${
+                  plan.highlighted ? 'border-2 border-sageDeep bg-mist' : 'border-line bg-mist'
+                }`}
               >
-                {plan.cta.label}
-              </TrackedCtaLink>
-            </div>
-          ))}
+                {plan.highlighted && (
+                  <span className="mb-3 inline-block w-fit rounded-full bg-sageDeep px-3 py-1 text-sm font-semibold text-cloud">
+                    Best for new families
+                  </span>
+                )}
+                <h2 className="text-xl font-semibold text-ink">{plan.name}</h2>
+                <p className="mt-4">
+                  <span className="font-display text-3xl font-semibold text-ink">{plan.price}</span>{' '}
+                  <span className="text-base text-muted">{plan.period}</span>
+                </p>
+                <p className="mt-3 text-base text-muted">{plan.tagline}</p>
+                <ul className="mt-6 flex-1 space-y-3">
+                  {plan.bullets.map((b) => (
+                    <li key={b} className="text-base text-ink">
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <TrackedCtaLink
+                  href={plan.cta.href}
+                  ctaId={`plan_${plan.id}`}
+                  slug="/pricing"
+                  className={plan.highlighted ? 'btn-primary mt-8 w-full' : 'btn-secondary mt-8 w-full'}
+                >
+                  {plan.cta.label}
+                </TrackedCtaLink>
+              </div>
+            ),
+          )}
         </div>
       </section>
 

@@ -130,6 +130,8 @@ export interface Subscription {
   stripe_sub_id: string | null;
   current_period_end: string | null;
   created_at: string;
+  /** NULL for rows created before annual billing shipped — treat as 'month'. */
+  billing_interval: 'month' | 'year' | null;
 }
 
 /** Thrown when a caller tries to reach a parent they don't own. API maps this to 404. */

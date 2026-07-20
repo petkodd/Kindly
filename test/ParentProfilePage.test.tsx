@@ -137,6 +137,42 @@ describe('ParentProfilePage', () => {
       expect(await screen.findByRole('button', { name: /start 7-day free trial/i })).toBeTruthy();
     });
 
+    it('defaults the recovery checkout call to annual billing when there is no prior subscription', async () => {
+      let checkoutBody: unknown = null;
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+        'POST /api/billing/checkout': (init) => {
+          checkoutBody = JSON.parse(String(init?.body));
+          return json({ url: 'https://checkout.stripe.com/session_abc' });
+        },
+      });
+      render(<ParentProfilePage />);
+      fireEvent.click(await screen.findByRole('button', { name: /start 7-day free trial/i }));
+      await waitFor(() => expect(checkoutBody).toEqual({ parent_id: 'p1', interval: 'year' }));
+    });
+
+    it('recovering a LAPSED monthly subscriber keeps them on monthly, not a silent switch to annual', async () => {
+      let checkoutBody: unknown = null;
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () =>
+          json({
+            subscription: { status: 'canceled', current_period_end: '2026-06-01T00:00:00Z', billing_interval: 'month' },
+            is_current: false,
+          }),
+        'POST /api/billing/checkout': (init) => {
+          checkoutBody = JSON.parse(String(init?.body));
+          return json({ url: 'https://checkout.stripe.com/session_abc' });
+        },
+      });
+      render(<ParentProfilePage />);
+      fireEvent.click(await screen.findByRole('button', { name: /start 7-day free trial/i }));
+      await waitFor(() => expect(checkoutBody).toEqual({ parent_id: 'p1', interval: 'month' }));
+    });
+
     it('shows the current status instead of a trial CTA once billing is current', async () => {
       stubFetch({
         'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
