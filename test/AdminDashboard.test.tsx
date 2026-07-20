@@ -47,6 +47,33 @@ const FLAG = {
   created_at: '2026-07-05T10:00:00Z',
 };
 
+const METRICS = {
+  retention: {
+    w1: { eligible: 4, retained: 2, pct: 0.5 },
+    w2: { eligible: 0, retained: 0, pct: null },
+    w4: { eligible: 3, retained: 1, pct: 1 / 3 },
+  },
+  cost_buckets: [
+    {
+      bucket_start: '2026-07-18',
+      active_users: 2,
+      voice_minutes: 5,
+      total_cost_micros: 300_000,
+      cost_per_active_user_micros: 150_000,
+      cost_per_voice_minute_micros: 60_000,
+    },
+    {
+      bucket_start: '2026-07-19',
+      active_users: 1,
+      voice_minutes: 0,
+      total_cost_micros: 0,
+      cost_per_active_user_micros: 0,
+      cost_per_voice_minute_micros: null,
+    },
+  ],
+  granularity: 'day',
+};
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -58,6 +85,7 @@ describe('AdminDashboard', () => {
     stubFetch({
       'GET /api/admin/overview': () => json({ overview: OVERVIEW }),
       'GET /api/admin/flags': () => json({ flags: [FLAG] }),
+      'GET /api/admin/metrics?granularity=day': () => json(METRICS),
     });
     render(<AdminDashboard />);
 
@@ -67,11 +95,46 @@ describe('AdminDashboard', () => {
     expect(screen.getByText('Mentioned self-harm')).toBeTruthy();
   });
 
+  it('renders cost & retention metrics, including null cells for zero-denominator buckets/windows', async () => {
+    stubFetch({
+      'GET /api/admin/overview': () => json({ overview: OVERVIEW }),
+      'GET /api/admin/flags': () => json({ flags: [] }),
+      'GET /api/admin/metrics?granularity=day': () => json(METRICS),
+    });
+    render(<AdminDashboard />);
+
+    expect(await screen.findByText('50%')).toBeTruthy(); // W1 pct
+    expect(screen.getByText('—', { selector: 'p.text-3xl' })).toBeTruthy(); // W2 pct is null
+    expect(screen.getByText('$0.30')).toBeTruthy(); // 2026-07-18 total cost (300,000 micros)
+    // 2026-07-19 bucket: zero voice minutes -> cost/voice-minute renders "—", not a crash.
+    const rows = screen.getAllByRole('row');
+    const day19Row = rows.find((r) => r.textContent?.includes('2026-07-19'));
+    expect(day19Row?.textContent).toContain('—');
+  });
+
+  it('switches to weekly granularity on toggle click', async () => {
+    const fetchMock = stubFetch({
+      'GET /api/admin/overview': () => json({ overview: OVERVIEW }),
+      'GET /api/admin/flags': () => json({ flags: [] }),
+      'GET /api/admin/metrics?granularity=day': () => json(METRICS),
+      'GET /api/admin/metrics?granularity=week': () => json({ ...METRICS, granularity: 'week' }),
+    });
+    render(<AdminDashboard />);
+    await screen.findByText('50%');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Weekly' }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => url === '/api/admin/metrics?granularity=week')).toBe(true),
+    );
+  });
+
   it('resolves a flag and refetches the queue', async () => {
     let resolved = false;
     stubFetch({
       'GET /api/admin/overview': () => json({ overview: OVERVIEW }),
       'GET /api/admin/flags': () => json({ flags: resolved ? [] : [FLAG] }),
+      'GET /api/admin/metrics?granularity=day': () => json(METRICS),
       'PATCH /api/admin/flags/f1': () => {
         resolved = true;
         return json({ flag: { ...FLAG, status: 'resolved' } });
@@ -87,6 +150,7 @@ describe('AdminDashboard', () => {
     stubFetch({
       'GET /api/admin/overview': () => json({ overview: OVERVIEW }),
       'GET /api/admin/flags': () => json({ flags: [{ ...FLAG, status }] }),
+      'GET /api/admin/metrics?granularity=day': () => json(METRICS),
       'PATCH /api/admin/flags/f1': (init) => {
         status = JSON.parse(String(init?.body)).status;
         return json({ flag: { ...FLAG, status } });
@@ -110,6 +174,8 @@ describe('AdminDashboard', () => {
       'GET /api/admin/overview': () =>
         json({ error: { code: 'unauthorized', message: 'Admin access required.' } }, 401),
       'GET /api/admin/flags': () =>
+        json({ error: { code: 'unauthorized', message: 'Admin access required.' } }, 401),
+      'GET /api/admin/metrics?granularity=day': () =>
         json({ error: { code: 'unauthorized', message: 'Admin access required.' } }, 401),
     });
     render(<AdminDashboard />);

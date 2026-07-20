@@ -6,6 +6,7 @@ import { parentRepo } from '../../src/lib/repos/parent';
 import { consentRepo } from '../../src/lib/repos/consent';
 import { conversationRepo } from '../../src/lib/repos/conversation';
 import { accessTokenRepo } from '../../src/lib/repos/accessToken';
+import { usageCostRepo } from '../../src/lib/repos/usageCost';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -110,6 +111,39 @@ describe('POST /api/talk/voice', () => {
       [conversationId, parentId],
     );
     expect(parseFloat(rows[0].voice_minutes)).toBeGreaterThan(0);
+
+    // Both the STT and TTS calls get a real-time usage_costs row, FK'd to the
+    // turn each one produced.
+    const costRows = await q.query<{ turn_id: string; provider: string; cost_micros: string }>(
+      `SELECT turn_id, provider, cost_micros FROM usage_costs
+       WHERE conversation_id = $1 ORDER BY provider`,
+      [conversationId],
+    );
+    expect(costRows.rows).toHaveLength(2);
+    const [sttRow, ttsRow] = costRows.rows;
+    expect(sttRow.provider).toBe('deepgram_stt');
+    expect(sttRow.turn_id).toBe(turns[0].id);
+    expect(Number(sttRow.cost_micros)).toBeGreaterThan(0);
+    expect(ttsRow.provider).toBe('elevenlabs_tts');
+    expect(ttsRow.turn_id).toBe(turns[1].id);
+    expect(Number(ttsRow.cost_micros)).toBeGreaterThan(0);
+  });
+
+  it('still returns the transcript/reply/audio if writing usage_costs fails (cost accounting is auxiliary)', async () => {
+    vi.spyOn(usageCostRepo, 'recordSttCost').mockRejectedValueOnce(new Error('boom'));
+    const { token, conversationId } = await makeOpenVoiceSession();
+    const req = new NextRequest('http://localhost/api/talk/voice', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: voiceForm(conversationId),
+    });
+    const res = await voicePOST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.transcript).toBe('string');
+
+    const turns = await conversationRepo.listTurns(q, conversationId);
+    expect(turns.map((t) => t.role)).toEqual(['parent', 'kindly']);
   });
 
   it('404s a conversation that does not belong to the token\'s parent (isolation)', async () => {

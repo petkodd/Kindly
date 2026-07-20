@@ -5,6 +5,7 @@ import { parentRepo } from '@/lib/repos/parent';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { memoryRepo } from '@/lib/repos/memory';
 import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
+import { usageCostRepo } from '@/lib/repos/usageCost';
 import { getAiClient } from '@/lib/ai';
 import type { ConversationTurn, RetrievedMemory, SafetyScan } from '@/lib/ai';
 import { crisisResourceV1 } from '@/lib/ai/prompts';
@@ -20,9 +21,11 @@ const unauthorized = () =>
 /**
  * POST /api/talk/voice
  * Body: multipart/form-data — `audio` (Blob) + `conversation_id` (string).
- * Pipeline: STT → safety scan + companion reply (concurrent) → TTS → log
- * voice_minutes. Same safety contract as the text turn: P0/P1 crisis resources
- * always prepend the reply; scan failures fail safe (P2 for human review).
+ * Pipeline: STT → safety scan + companion reply (concurrent) → TTS → persist
+ * turns → log voice_minutes → record usage_costs (auxiliary — swallowed on
+ * failure, see the try/catch around it below). Same safety contract as the
+ * text turn: P0/P1 crisis resources always prepend the reply; scan failures
+ * fail safe (P2 for human review).
  *
  * <2.5s perceived start is a performance target for streaming TTS (follow-up).
  * Alpha returns the full audio as a data URL once the pipeline completes.
@@ -116,9 +119,26 @@ export async function POST(req: NextRequest) {
     });
 
     // Persist the exchange now that we have a reply AND synthesized audio.
-    await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', transcript);
-    await conversationRepo.addTurn(pool, conversationId, parentId, 'kindly', replyText);
+    const parentTurn = await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', transcript);
+    const kindlyTurn = await conversationRepo.addTurn(pool, conversationId, parentId, 'kindly', replyText);
     await conversationRepo.addVoiceMinutes(pool, conversationId, parentId, durationSeconds);
+
+    // Cost accounting is auxiliary to the product experience: the transcript,
+    // reply, and audio are already correct and persisted above, so a failure
+    // writing usage_costs is caught/logged rather than failing this request.
+    try {
+      await Promise.all([
+        usageCostRepo.recordSttCost(pool, { turnId: parentTurn.id, conversationId, parentId, durationSeconds }),
+        usageCostRepo.recordTtsCost(pool, {
+          turnId: kindlyTurn.id,
+          conversationId,
+          parentId,
+          characterCount: replyText.length,
+        }),
+      ]);
+    } catch (err) {
+      console.error('usage cost write failed', conversationId, err);
+    }
 
     return NextResponse.json({
       conversation_id: conversationId,

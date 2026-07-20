@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
+import { CostRetentionPanel } from './CostRetentionPanel';
+import { Metric } from './Metric';
 
 interface Overview {
   buyers: number;
@@ -83,6 +85,8 @@ export function AdminDashboard() {
         </div>
       </section>
 
+      <CostRetentionPanel />
+
       <section>
         <h2 className="text-xl font-semibold text-ink">Safety flag queue</h2>
         <p className="mt-1 text-base text-muted">Open and in-review flags, highest severity first.</p>
@@ -98,26 +102,6 @@ export function AdminDashboard() {
           </ul>
         )}
       </section>
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  sub,
-  alert,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  alert?: boolean;
-}) {
-  return (
-    <div className={`rounded-xl border bg-cloud p-5 ${alert ? 'border-clay' : 'border-line'}`}>
-      <p className="text-sm text-muted">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold ${alert ? 'text-clay' : 'text-ink'}`}>{value}</p>
-      {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
     </div>
   );
 }
