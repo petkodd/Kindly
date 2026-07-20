@@ -1,5 +1,5 @@
 import type Stripe from 'stripe';
-import { getPlanPriceId, getStripeSecretKeyRaw } from './config';
+import { getPlanIntervalPriceId, getStripeSecretKeyRaw } from './config';
 
 export * from './config';
 
@@ -36,11 +36,12 @@ export type BillingInterval = 'month' | 'year';
  * The raw Stripe Price id configured for the Family Companion plan's billing
  * interval. Throws if unset — callers decide how to degrade (e.g. the
  * checkout route's existing 503 "billing not configured" path), same
- * contract as getStripeClient. Thin wrapper over getPlanPriceId (./config)
- * for the one plan/interval pair the checkout route currently supports.
+ * contract as getStripeClient. Thin wrapper over getPlanIntervalPriceId
+ * (./config) fixed to the 'family_companion' plan family, since that's the
+ * only one the checkout route wires up today.
  */
 export function getPriceIdForInterval(interval: BillingInterval): string {
-  return getPlanPriceId(interval === 'year' ? 'family_companion_annual' : 'family_companion_monthly');
+  return getPlanIntervalPriceId('family_companion', interval);
 }
 
 // Referral-reward-for-annual mechanism (deferred, not implemented here):

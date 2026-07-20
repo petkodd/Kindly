@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
-import { getStripeClient, getPriceIdForInterval, type BillingInterval } from '@/lib/billing';
+import { getStripeClient, getPriceIdForInterval, getStripeSecretKeyRaw, type BillingInterval } from '@/lib/billing';
 import { parentRepo } from '@/lib/repos/parent';
 import { subscriptionRepo } from '@/lib/repos/subscription';
 import { userRepo } from '@/lib/repos/user';
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!buyerId) return unauthorized();
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kindly.example.com';
-  if (!process.env.STRIPE_SECRET_KEY) return notConfigured();
+  if (!getStripeSecretKeyRaw()) return notConfigured();
 
   try {
     const pool = db();

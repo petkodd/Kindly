@@ -34,6 +34,20 @@ export function getPlanPriceId(plan: PlanId): string {
   return priceId;
 }
 
+/** A plan that comes in a monthly/annual pair (as opposed to a one-time plan like the Gift Package or Facility Pilot). */
+export type PlanFamily = 'family_companion' | 'premium_care';
+
+/**
+ * getPlanPriceId, generalized over a monthly/annual plan family and a
+ * billing interval. Family Companion's checkout route uses this today (via
+ * getPriceIdForInterval in ./index.ts); Premium Care's checkout code can
+ * reuse it directly instead of copy-pasting a family-specific wrapper.
+ */
+export function getPlanIntervalPriceId(family: PlanFamily, interval: 'month' | 'year'): string {
+  const plan = `${family}_${interval === 'year' ? 'annual' : 'monthly'}` as PlanId;
+  return getPlanPriceId(plan);
+}
+
 /**
  * All 6 plan -> Price id mappings at once. Same per-plan throw-on-missing
  * contract as getPlanPriceId. NOT yet safe to call in alpha — only the two

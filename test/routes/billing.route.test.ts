@@ -16,22 +16,30 @@ const stripeMock = {
   subscriptionsRetrieve: vi.fn(),
   constructEvent: vi.fn(),
 };
-vi.mock('@/lib/billing', () => ({
-  getStripeClient: () => ({
-    checkout: { sessions: { create: stripeMock.checkoutCreate } },
-    subscriptions: { retrieve: stripeMock.subscriptionsRetrieve },
-    webhooks: { constructEvent: stripeMock.constructEvent },
-  }),
-  // Mirrors the real (pure, env-only) implementation — no Stripe call, so a
-  // plain reimplementation here is safe and avoids partial-mock/importActual
-  // gotchas with internal cross-references inside the real module.
-  getPriceIdForInterval: (interval: 'month' | 'year') => {
-    const envVar = interval === 'year' ? 'STRIPE_PRICE_FAMILY_ANNUAL' : 'STRIPE_PRICE_FAMILY_MONTHLY';
-    const priceId = process.env[envVar];
-    if (!priceId) throw new Error(`${envVar} is not set.`);
-    return priceId;
-  },
-}));
+vi.mock('@/lib/billing', async (importOriginal) => {
+  // Spread the real module (getPlanPriceId, getStripeSecretKeyRaw, etc. —
+  // none of which call Stripe or getStripeClient internally, so there's no
+  // partial-mock/importOriginal cross-reference hazard here) and override
+  // only the two functions that do touch the network or need deterministic
+  // env-var behavior in tests.
+  const actual = await importOriginal<typeof import('@/lib/billing')>();
+  return {
+    ...actual,
+    getStripeClient: () => ({
+      checkout: { sessions: { create: stripeMock.checkoutCreate } },
+      subscriptions: { retrieve: stripeMock.subscriptionsRetrieve },
+      webhooks: { constructEvent: stripeMock.constructEvent },
+    }),
+    // Mirrors the real (pure, env-only) implementation — no Stripe call, so a
+    // plain reimplementation here is fine.
+    getPriceIdForInterval: (interval: 'month' | 'year') => {
+      const envVar = interval === 'year' ? 'STRIPE_PRICE_FAMILY_ANNUAL' : 'STRIPE_PRICE_FAMILY_MONTHLY';
+      const priceId = process.env[envVar];
+      if (!priceId) throw new Error(`${envVar} is not set.`);
+      return priceId;
+    },
+  };
+});
 
 // Imported AFTER the mocks so the handlers pick up the mocked db()/billing().
 import { POST as checkoutPOST } from '../../src/app/api/billing/checkout/route';
