@@ -11,10 +11,11 @@ import { SITE } from '@/lib/seo';
  */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
-  title: {
-    default: `${SITE.name} — A Warm AI Companion for Aging Parents`,
-    template: `%s | ${SITE.name}`,
-  },
+  // Every page in the app already writes a complete, branded title (e.g. via
+  // buildMetadata), so there's no `%s | Kindly` template here — that would
+  // double up the brand name on every page. `default` only covers routes
+  // that don't set their own title.
+  title: `${SITE.name} — A Warm AI Companion for Aging Parents`,
   description: SITE.description,
   icons: {
     icon: [
