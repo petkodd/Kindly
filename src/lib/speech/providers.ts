@@ -14,7 +14,7 @@ export function createSpeechClient(opts: {
   /** ElevenLabs voice ID. Default: Adam (pNInz6obpgDQGcFmaJgB). */
   elevenlabsVoiceId?: string;
 }): SpeechClient {
-  const voiceId = opts.elevenlabsVoiceId ?? 'pNInz6obpgDQGcFmaJgB';
+  const voiceId = opts.elevenlabsVoiceId || 'pNInz6obpgDQGcFmaJgB';
 
   return {
     async speechToText(audio: Buffer, mimeType: string): Promise<SttResult> {
