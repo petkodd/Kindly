@@ -43,6 +43,9 @@ report('env keys present', true);
 const buildDir = mkdtempSync(path.join(tmpdir(), 'kindly-speech-verify-'));
 try {
   const speechDir = path.join(rootDir, 'src/lib/speech');
+  // Flags are hardcoded rather than read from tsconfig.json: this only needs
+  // to transpile to runnable CJS, not type-check, so it deliberately doesn't
+  // inherit the project's strictness settings.
   execFileSync(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     [
