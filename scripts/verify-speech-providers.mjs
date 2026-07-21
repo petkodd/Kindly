@@ -274,7 +274,7 @@ try {
         Number(record.unit_rate_micros) === ELEVENLABS_TTS_MICROS_PER_CHARACTER &&
         Number(record.cost_micros) === expectedCostMicros;
       report(
-        'usageCostRepo.recordTtsCost matches $0.05/1000 chars',
+        'usageCostRepo.recordTtsCost matches ELEVENLABS_TTS_MICROS_PER_CHARACTER',
         costOk,
         `characterCount=${primaryReplyText.length}, unit_rate_micros=${record.unit_rate_micros}, ` +
           `cost_micros=${record.cost_micros} (expected ${expectedCostMicros})`,
