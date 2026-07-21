@@ -5,16 +5,18 @@ import { SpeechError, type SpeechClient, type SttResult, type TtsResult } from '
  * Both are called via fetch — no SDK dependency required.
  *
  * Deepgram: POST audio bytes to the Nova-2 model with smart_format enabled.
- * ElevenLabs: POST text to the TTS endpoint, receive mp3 bytes, return as
- * a base64 data URL (blob storage upgrade is tracked as a follow-up).
+ * ElevenLabs: POST text to the TTS endpoint using eleven_multilingual_v2
+ * (chosen over the turbo models for voice quality — latency isn't yet a
+ * constraint here), receive mp3 bytes, return as a base64 data URL (blob
+ * storage upgrade is tracked as a follow-up).
  */
 export function createSpeechClient(opts: {
   deepgramApiKey: string;
   elevenlabsApiKey: string;
-  /** ElevenLabs voice ID. Default: Adam (pNInz6obpgDQGcFmaJgB). */
+  /** ElevenLabs voice ID. Default: Bella (EXAVITQu4vr4xnSDxMaL). */
   elevenlabsVoiceId?: string;
 }): SpeechClient {
-  const voiceId = opts.elevenlabsVoiceId || 'pNInz6obpgDQGcFmaJgB';
+  const voiceId = opts.elevenlabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
 
   return {
     async speechToText(audio: Buffer, mimeType: string): Promise<SttResult> {
@@ -61,7 +63,7 @@ export function createSpeechClient(opts: {
           },
           body: JSON.stringify({
             text,
-            model_id: 'eleven_turbo_v2_5',
+            model_id: 'eleven_multilingual_v2',
             voice_settings: { stability, similarity_boost: 0.75 },
           }),
         },

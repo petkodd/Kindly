@@ -36,3 +36,6 @@ yarn-error.log*
 
 # raw marketing photo drops — processed into public/images/*.webp, never committed
 /design-assets/
+
+# manual speech-provider verification output (scripts/verify-speech-providers.mjs)
+/scripts/output/

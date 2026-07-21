@@ -11,8 +11,9 @@
  * Deepgram Nova-2 STT: $0.0043/minute, billed per-second with no minimum
  * rounding (so raw audio duration IS the billed quantity for this
  * integration) — https://brasstranscripts.com/blog/deepgram-pricing-per-minute-2025-real-time-vs-batch
- * ElevenLabs Turbo v2.5 TTS: $0.05 per 1,000 characters —
- * https://elevenlabs.io/pricing/api
+ * ElevenLabs Multilingual v2 TTS: $0.10 per 1,000 characters (double the
+ * Turbo v2.5 rate — providers.ts switched models 2026-07 for voice quality;
+ * this rate must move with it) — https://elevenlabs.io/pricing/api
  *
  * Rates are kept at full precision (not pre-rounded) and expressed in micros
  * (millionths of a dollar) per unit; only the final cost_micros is rounded,
@@ -20,7 +21,7 @@
  * rate — needed for the cost pipeline's fixture-exactness tests.
  */
 export const DEEPGRAM_STT_MICROS_PER_SECOND = (0.0043 / 60) * 1_000_000;
-export const ELEVENLABS_TTS_MICROS_PER_CHARACTER = (0.05 / 1_000) * 1_000_000;
+export const ELEVENLABS_TTS_MICROS_PER_CHARACTER = (0.10 / 1_000) * 1_000_000;
 
 export function deepgramCostMicros(durationSeconds: number): number {
   return Math.round(durationSeconds * DEEPGRAM_STT_MICROS_PER_SECOND);

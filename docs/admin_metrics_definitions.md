@@ -29,7 +29,7 @@ Rate constants (`src/lib/billing/usageRates.ts`) — list pricing captured 2026-
 | Provider | Rate | Unit | Source |
 |---|---|---|---|
 | Deepgram Nova-2 STT | $0.0043/minute, billed per-second, no rounding | second | [brasstranscripts.com](https://brasstranscripts.com/blog/deepgram-pricing-per-minute-2025-real-time-vs-batch) |
-| ElevenLabs Turbo v2.5 TTS | $0.05 per 1,000 characters | character | [elevenlabs.io/pricing/api](https://elevenlabs.io/pricing/api) |
+| ElevenLabs Multilingual v2 TTS | $0.10 per 1,000 characters | character | [elevenlabs.io/pricing/api](https://elevenlabs.io/pricing/api) |
 
 Cost is stored as **micros** (millionths of a dollar) to avoid float precision loss on sub-cent per-turn amounts. `quantity` and the full-precision `unit_rate_micros` are stored alongside the rounded `cost_micros`, so every row is independently reproducible and auditable rather than only carrying a bare total.
 
