@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe('createSpeechClient textToSpeech voice ID fallback', () => {
-  const DEFAULT_VOICE_ID = 'pNInz6obpgDQGcFmaJgB';
+  const DEFAULT_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL';
 
   it.each([
     ['unset', undefined],
