@@ -65,9 +65,36 @@ describe('sibling invite (pending → accepted)', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('a directly-seeded recipient (no status) still counts as accepted', async () => {
+  // Regression for the consent-gate bypass: a recipient row without an
+  // explicit 'accepted' status must never be treated as accepted, since that
+  // status is the only signal that the recipient actually clicked their
+  // invite. Covers missing, null, 'pending', and 'revoked' status values.
+  it.each([
+    ['missing status field', undefined],
+    ['null status', null],
+    ['pending status', 'pending'],
+    ['revoked status', 'revoked'],
+  ])('excludes a recipient with %s from the accepted list', async (_label, status) => {
     const parentId = await makeParent();
-    await consentRepo.record(q, { parentId, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId,
+      kind: 'summary_recipient',
+      detail: status === undefined ? null : { recipient_email: 'mike@example.com', status },
+    });
+    expect(await consentRepo.listAcceptedRecipients(q, parentId)).toHaveLength(0);
+    // ...and therefore never receives the weekly summary email either.
+    await expect(summaryRepo.send(q, parentId, 'Robert', new Date())).rejects.toBeInstanceOf(
+      PreconditionError,
+    );
+  });
+
+  it('only an explicit accepted status is eligible for delivery', async () => {
+    const parentId = await makeParent();
+    await consentRepo.record(q, {
+      parentId,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
     expect(await consentRepo.listAcceptedRecipients(q, parentId)).toHaveLength(1);
   });
 });

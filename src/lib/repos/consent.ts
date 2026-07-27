@@ -156,15 +156,19 @@ export const consentRepo = {
   },
 
   /**
-   * Summary recipients eligible for delivery: active, and NOT pending. Legacy
-   * consents recorded without a status (e.g. seeded directly) count as eligible;
-   * only an explicit 'pending' status is excluded.
+   * Summary recipients eligible for delivery: active, and explicitly accepted.
+   * A missing/null status, 'pending', 'revoked', or any other value is NOT
+   * accepted — a recipient only ever reaches 'accepted' by clicking their
+   * emailed invite token (acceptRecipientInvite). Treating an absent status as
+   * accepted would let a directly-inserted or malformed consent row (e.g. from
+   * the now-closed /api/parents/:id/consent bypass) receive a parent's summary
+   * without the recipient ever having consented.
    */
   async listAcceptedRecipients(q: Querier, parentId: string): Promise<Consent[]> {
     const { rows } = await q.query<Consent>(
       `SELECT * FROM consents
        WHERE parent_id = $1 AND kind = 'summary_recipient' AND revoked_at IS NULL
-         AND (detail->>'status' IS NULL OR detail->>'status' <> 'pending')
+         AND detail->>'status' = 'accepted'
        ORDER BY granted_at ASC`,
       [parentId],
     );
@@ -174,8 +178,8 @@ export const consentRepo = {
   /**
    * Safe recipient view for the buyer UI: { id, email, status } only. The token
    * hash in detail never leaves the repo boundary. Status normalization mirrors
-   * listAcceptedRecipients — a legacy consent with no explicit status counts as
-   * accepted; only an explicit 'pending' is pending.
+   * listAcceptedRecipients — only an explicit 'accepted' reads as accepted;
+   * anything else (missing, 'pending', 'revoked', ...) reads as pending.
    */
   async listRecipients(q: Querier, parentId: string): Promise<SummaryRecipientView[]> {
     const rows = await consentRepo.list(q, parentId, 'summary_recipient');
@@ -184,7 +188,7 @@ export const consentRepo = {
       return {
         id: c.id,
         email: detail.recipient_email ?? '',
-        status: detail.status === 'pending' ? 'pending' : 'accepted',
+        status: detail.status === 'accepted' ? 'accepted' : 'pending',
       };
     });
   },

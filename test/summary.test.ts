@@ -115,7 +115,7 @@ describe('weekly summary send (consent-gated)', () => {
     await consentRepo.record(q, {
       parentId: id,
       kind: 'summary_recipient',
-      detail: { recipient_email: 'mike@example.com' },
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
     });
 
     const { summary, deliveries } = await summaryRepo.send(q, id, firstName, REF);
@@ -127,7 +127,11 @@ describe('weekly summary send (consent-gated)', () => {
 
   it('is idempotent — sending twice does not duplicate deliveries', async () => {
     const { id, firstName } = await seedParent();
-    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { status: 'accepted' },
+    });
 
     const first = await summaryRepo.send(q, id, firstName, REF);
     expect(first.deliveries).toHaveLength(1);
@@ -145,14 +149,22 @@ describe('weekly summary send (consent-gated)', () => {
 
   it('does not attribute the delivery to the buyer (recipient_user stays null)', async () => {
     const { id, firstName } = await seedParent();
-    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { status: 'accepted' },
+    });
     const { deliveries } = await summaryRepo.send(q, id, firstName, REF);
     expect(deliveries[0].recipient_user).toBeNull();
   });
 
   it('re-previewing after send does not downgrade a sent summary', async () => {
     const { id, firstName } = await seedParent();
-    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { status: 'accepted' },
+    });
     const { summary } = await summaryRepo.send(q, id, firstName, REF);
     expect(summary.status).toBe('sent');
 
