@@ -104,7 +104,7 @@ describe('referral codes', () => {
     const referrer = await makeUser('ref@example.com');
     const redeemer = await makeUser('new@example.com');
     const referral = await referralRepo.generate(q, referrer);
-    expect(referral.code).toHaveLength(8);
+    expect(referral.code).toHaveLength(10);
 
     const redeemed = await referralRepo.redeem(q, referral.code, {
       redeemerId: redeemer,
@@ -120,6 +120,20 @@ describe('referral codes', () => {
         householdHash: 'hh-2',
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  // Regression for the brute-force enumeration finding: a redeem endpoint
+  // with no rate limiting needs a code space too large to guess. 10 chars
+  // from a 32-symbol alphabet is ~49 bits (32^10 ≈ 1.1e15 possibilities).
+  it('generates codes with enough entropy to resist brute-force guessing', async () => {
+    const referrer = await makeUser('ref@example.com');
+    const codes = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      const referral = await referralRepo.generate(q, referrer);
+      expect(referral.code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$/); // 10 chars, unambiguous alphabet only
+      codes.add(referral.code);
+    }
+    expect(codes.size).toBe(20); // no collisions across a small sample
   });
 
   it('requires a household hash (the guard cannot be disabled by omission)', async () => {
