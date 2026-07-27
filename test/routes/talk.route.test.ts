@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { makeTestDb } from '../db';
 import type { Querier } from '../../src/lib/querier';
@@ -6,6 +6,8 @@ import { parentRepo } from '../../src/lib/repos/parent';
 import { consentRepo } from '../../src/lib/repos/consent';
 import { accessTokenRepo } from '../../src/lib/repos/accessToken';
 import { PARENT_TOKEN_COOKIE } from '../../src/lib/parentSession';
+import { fakeAiClient } from '../../src/lib/ai/fake';
+import { SAFE_FALLBACK_REPLY } from '../../src/lib/ai/outputFilter';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -52,6 +54,10 @@ function bearerReq(url: string, token: string | null, body?: unknown): NextReque
 
 beforeEach(() => {
   q = makeTestDb();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('POST /api/talk/auth', () => {
@@ -133,6 +139,61 @@ describe('POST /api/talk/message', () => {
       bearerReq('http://localhost/api/talk/message', token, { conversation_id: conversationId, content: '   ' }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it('redacts a banned-output-violating reply to the safe fallback, persists the redacted text, and audit-logs the violation', async () => {
+    vi.spyOn(fakeAiClient, 'companionReply').mockResolvedValueOnce({
+      text: "I promise I won't tell your family what you said.",
+    });
+
+    const { token } = await makeReadyParent();
+    const opened = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
+    const { conversation_id: conversationId } = await opened.json();
+
+    const res = await messagePOST(
+      bearerReq('http://localhost/api/talk/message', token, { conversation_id: conversationId, content: 'Can you keep a secret?' }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.reply).toBe(SAFE_FALLBACK_REPLY);
+
+    const { rows } = await q.query<{ target_id: string; meta: { violated: string[] } }>(
+      `SELECT action, target_id, meta FROM audit_log WHERE action = 'banned_output_redacted'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].target_id).toBe(conversationId);
+    expect(rows[0].meta.violated).toContain('secrecyPromise');
+
+    const turns = await q.query<{ role: string; content: string }>(
+      `SELECT role, content FROM conversation_turns WHERE conversation_id = $1 ORDER BY created_at`,
+      [conversationId],
+    );
+    const kindlyTurns = turns.rows.filter((t) => t.role === 'kindly');
+    const latestKindlyTurn = kindlyTurns[kindlyTurns.length - 1]; // [0] is the session-open greeting
+    expect(latestKindlyTurn.content).toBe(SAFE_FALLBACK_REPLY); // the persisted turn is the redacted text, never the raw violation
+  });
+
+  it('flags an elderspeak-only reply for review without redacting it', async () => {
+    vi.spyOn(fakeAiClient, 'companionReply').mockResolvedValueOnce({
+      text: 'Time for your nap now, sweetie pie!',
+    });
+
+    const { token } = await makeReadyParent();
+    const opened = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
+    const { conversation_id: conversationId } = await opened.json();
+
+    const res = await messagePOST(
+      bearerReq('http://localhost/api/talk/message', token, { conversation_id: conversationId, content: 'Hello' }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.reply).toBe('Time for your nap now, sweetie pie!'); // not redacted
+
+    const { rows } = await q.query<{ meta: { flaggedForReview: string[] } }>(
+      `SELECT action, meta FROM audit_log WHERE action = 'banned_output_review_flag'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].meta.flaggedForReview).toContain('elderspeak');
   });
 });
 

@@ -29,7 +29,14 @@ const AI_DISCLOSURE = "Hello, I'm Kindly — an AI companion, here to chat with 
 const SAFETY_RULES: { severity: Exclude<SafetySeverity, 'none'>; terms: RegExp }[] = [
   { severity: 'p0', terms: /\b(kill myself|suicide|end my life|don'?t want to live)\b/i },
   { severity: 'p1', terms: /\b(chest pain|can'?t breathe|i fell|fell down|stroke)\b/i },
-  { severity: 'p2', terms: /\b(hopeless|not eating|haven'?t eaten|so alone|confused)\b/i },
+  // Isolation/dependency phrasing counts as a p2 welfare signal too — SAFETY_SCAN_SYSTEM_V1
+  // (prompts.ts) names "isolation" explicitly under p2, and unhealthy reliance on Kindly instead
+  // of family (or pressure to keep something secret from them) is exactly that.
+  {
+    severity: 'p2',
+    terms:
+      /\b(hopeless|not eating|haven'?t eaten|so alone|confused|only friend|don'?t need (anyone|anybody) else|never tell my (family|daughter|son|kids|children)|our secret|rather talk to you than (my|your) family)\b/i,
+  },
   { severity: 'p3', terms: /\b(hitting me|took my money|scam|threatened)\b/i },
 ];
 

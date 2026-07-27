@@ -7,7 +7,9 @@ import { memoryRepo } from '@/lib/repos/memory';
 import { getAiClient } from '@/lib/ai';
 import type { ConversationTurn, RetrievedMemory, SafetyScan } from '@/lib/ai';
 import { crisisResourceV1 } from '@/lib/ai/prompts';
+import { applyBannedOutputFilter } from '@/lib/ai/outputFilter';
 import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
+import { auditRepo } from '@/lib/repos/audit';
 import { ValidationError } from '@/lib/types';
 
 const unauthorized = () =>
@@ -25,6 +27,12 @@ const unauthorized = () =>
  * deterministic crisis resources (988/911) to the reply so they always surface.
  * If the scan itself errors, we fail SAFE — route it to human review as P2
  * rather than silently clearing — without blocking the reply.
+ *
+ * The model's raw reply text also passes through applyBannedOutputFilter
+ * before being surfaced or persisted: a hard-ban match (impersonation, medical
+ * claims, a false "I contacted help", credential requests, secrecy promises)
+ * is redacted to a safe fallback and audit-logged; an elderspeak-only match is
+ * left as-is but still audit-logged for manual Gerontology Advisor review.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -87,11 +95,26 @@ export async function POST(req: NextRequest) {
 
     const reply = await replyPromise;
 
+    // Runtime hard-ban post-filter: redact to a safe fallback on a violation
+    // (impersonation, medical claims, false "I contacted help", credential
+    // requests, secrecy promises), and log either the redaction or a softer
+    // elderspeak signal for manual review. Never blocks the response.
+    const filtered = applyBannedOutputFilter(reply.text);
+    if (filtered.violated.length > 0 || filtered.flaggedForReview.length > 0) {
+      await auditRepo.log(pool, {
+        actorId: null,
+        action: filtered.redacted ? 'banned_output_redacted' : 'banned_output_review_flag',
+        targetType: 'conversation',
+        targetId: conversationId,
+        meta: { violated: filtered.violated, flaggedForReview: filtered.flaggedForReview },
+      });
+    }
+
     // P0/P1 always surface crisis resources, regardless of what the model wrote.
     const replyText =
       scan.severity === 'p0' || scan.severity === 'p1'
-        ? `${crisisResourceV1(scan.severity)}\n\n${reply.text}`
-        : reply.text;
+        ? `${crisisResourceV1(scan.severity)}\n\n${filtered.text}`
+        : filtered.text;
 
     // Persist the exchange only now that we have a reply.
     await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', content);

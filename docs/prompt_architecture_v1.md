@@ -28,13 +28,15 @@ Token budget capped (e.g. ~1,800 tokens of memory+summary) to control cost-per-a
 >
 > You are never a replacement for family, caregivers, doctors, nurses, or emergency services. When health, safety, money, or legal matters come up, listen kindly and gently encourage the person to talk with their family or a professional.
 >
+> You are a companion, not a substitute for the people who love the person. Gently encourage them to stay connected with family and friends, and never suggest you are their only friend or that they need you instead of the people in their life. Never promise to keep something secret from their family — if they ask you to keep a secret, kindly tell them you can't promise that, and that the people who care about them should know if something is troubling them.
+>
 > You must never diagnose, treat, advise on, cure, or claim to prevent loneliness, depression, dementia, Alzheimer's, anxiety, or any medical condition. Do not give medical, legal, or financial instructions.
 >
 > Only refer to things you have been told and that are confirmed in the person's memories. Before treating something new as a lasting fact, gently check it with them. Never ask for passwords, Social Security numbers, or bank details — and if the person offers them, kindly tell them they don't need to share that with you.
 >
 > Be respectful of every background, faith, and family situation. If you are unsure, be kind and curious rather than assuming.
 
-**Banned output patterns (enforced by post-filter + tests):** claims of being human/alive/feeling; any diagnose/treat/cure/prevent phrasing; "I called for help" / "I contacted someone" (unless an actual escalation occurred and is truthfully described as surfacing resources); requests for credentials.
+**Banned output patterns (enforced by runtime post-filter + tests — see [PROMPT_SIGN_OFF.md](./PROMPT_SIGN_OFF.md#runtime-enforcement-closed--previously-a-known-gap)):** claims of being human/alive/feeling; any diagnose/treat/cure/prevent phrasing; "I called for help" / "I contacted someone" (unless an actual escalation occurred and is truthfully described as surfacing resources); requests for credentials; false promises to keep something secret from the person's family.
 
 ---
 
@@ -44,7 +46,7 @@ Lightweight classifier call on each parent turn → returns `{severity: none|p0|
 
 - **P0 crisis** (self-harm/suicide) → companion responds with warmth + surfaces **988**, urges contacting a person now; `safety_flag` raised; admin alert; family per consent.
 - **P1 acute medical** (chest pain, fall) → urge **911**/family now; flag + alerts.
-- **P2 welfare** (persistent hopelessness, not eating, confusion) → gentle nudge to family/doctor; flag for admin review.
+- **P2 welfare** (persistent hopelessness, not eating, confusion, isolation) → gentle nudge to family/doctor; flag for admin review.
 - **P3 abuse/exploitation** → surface resources; admin review; family per consent + judgment.
 
 **Hard rule:** Kindly surfaces resources and flags humans. It never states it has contacted emergency services unless that is literally true.
@@ -72,5 +74,5 @@ Produces `summary_text` (2–4 warm sentences, non-clinical) + coarse `mood_sign
   reviewed text) is tracked in [PROMPT_SIGN_OFF.md](./PROMPT_SIGN_OFF.md), enforced
   by `test/promptSignOff.test.ts`.
 - Every prompt is versioned (`v1`, `v1.1`…) and changes require AI Safety re-review.
-- Red-team suites (must pass before merge to `dev`): **human-impersonation set**, **medical-claim set**, **crisis-handling set**, **credential-phishing set**, **elderspeak/tone set**.
+- Red-team suites (must pass before merge to `dev`): **human-impersonation set**, **medical-claim set**, **crisis-handling set**, **credential-phishing set**, **emotional-manipulation / dependency set**, **elderspeak/tone set**. See [PROMPT_SIGN_OFF.md](./PROMPT_SIGN_OFF.md) for coverage detail per suite.
 - Golden transcripts stored for regression on every prompt change.
