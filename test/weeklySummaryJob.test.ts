@@ -79,7 +79,11 @@ describe('generate_weekly_summary job', () => {
 
   it('does not rewrite a summary that has already been sent', async () => {
     const active = await makeActiveParent('sarah@example.com', 'Robert');
-    await consentRepo.record(q, { parentId: active, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: active,
+      kind: 'summary_recipient',
+      detail: { status: 'accepted' },
+    });
 
     // Buyer reviews + sends this week's summary.
     const { summary } = await summaryRepo.send(q, active, 'Robert', REF);
