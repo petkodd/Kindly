@@ -82,7 +82,7 @@ describe('generate_weekly_summary job', () => {
     await consentRepo.record(q, {
       parentId: active,
       kind: 'summary_recipient',
-      detail: { status: 'accepted' },
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
     });
 
     // Buyer reviews + sends this week's summary.

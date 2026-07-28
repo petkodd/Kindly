@@ -36,6 +36,34 @@ export function inviteRecipientEmail(input: {
   return { subject, html, text };
 }
 
+/** Plain, warm transactional copy for the weekly family summary. `bodyLong` is
+ *  already family-safe, respectful, non-clinical prose (see composeBody in
+ *  repos/summary.ts) — this only wraps it in subject/HTML/text framing. */
+export function weeklySummaryEmail(input: {
+  parentFirstName: string;
+  bodyLong: string;
+}): { subject: string; html: string; text: string } {
+  const { parentFirstName, bodyLong } = input;
+  const subject = `${parentFirstName}'s week with Kindly`;
+  const text = [
+    bodyLong,
+    '',
+    "You're receiving this because you accepted an invitation to get weekly updates about " +
+      `${parentFirstName}. This is never a raw transcript.`,
+  ].join('\n');
+  const safeName = escapeHtml(parentFirstName);
+  const htmlLines = escapeHtml(bodyLong)
+    .split('\n')
+    .map((line) => (line ? `<p>${line}</p>` : ''))
+    .join('\n');
+  const html = `
+    <h2>${safeName}'s week with Kindly</h2>
+    ${htmlLines}
+    <p style="color:#666;font-size:14px">You're receiving this because you accepted an invitation to get weekly updates about ${safeName}. This is never a raw transcript.</p>
+  `.trim();
+  return { subject, html, text };
+}
+
 /** Plain, warm transactional copy for a passwordless sign-in link. */
 export function magicLinkEmail(input: { verifyUrl: string }): { subject: string; html: string; text: string } {
   const { verifyUrl } = input;

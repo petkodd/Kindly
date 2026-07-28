@@ -5,6 +5,8 @@ import {
   PreconditionError,
 } from '../types';
 import { consentRepo } from './consent';
+import { getEmailClient } from '../email';
+import { weeklySummaryEmail } from '../email/templates';
 
 /**
  * Weekly summaries are the family-facing heartbeat of Kindly. They are built
@@ -197,6 +199,11 @@ export const summaryRepo = {
     const alreadyDelivered = new Set(priorRows.map((d) => d.consent_id));
     const deliveries: SummaryDelivery[] = [...priorRows];
 
+    const { subject, html, text } = weeklySummaryEmail({
+      parentFirstName: firstName,
+      bodyLong: summary.body_long ?? '',
+    });
+
     for (const consent of recipients) {
       if (alreadyDelivered.has(consent.id)) continue;
       // recipient_user stays null: the recipient is identified by the consent
@@ -205,21 +212,58 @@ export const summaryRepo = {
       //
       // ON CONFLICT closes the cross-request race: a concurrent send that won
       // the insert leaves RETURNING empty here, so we never double-deliver
-      // (uq_summary_delivery_consent — migration 0002).
-      const { rows } = await q.query<SummaryDelivery>(
+      // (uq_summary_delivery_consent — migration 0002). Insert as 'pending'
+      // first so a mid-flight crash never leaves a row claiming 'sent' when no
+      // email actually went out. A prior 'failed' row for this recipient is
+      // reset to 'pending' and retried; a 'sent'/'pending' one is left alone
+      // (never reached here — excluded by alreadyDelivered above).
+      const { rows: inserted } = await q.query<SummaryDelivery>(
         `INSERT INTO summary_deliveries
-           (summary_id, recipient_user, channel, consent_id, status, sent_at)
-         VALUES ($1, NULL, 'email', $2, 'sent', now())
-         ON CONFLICT (summary_id, consent_id) DO NOTHING
+           (summary_id, recipient_user, channel, consent_id, status)
+         VALUES ($1, NULL, 'email', $2, 'pending')
+         ON CONFLICT (summary_id, consent_id) DO UPDATE SET status = 'pending'
+           WHERE summary_deliveries.status = 'failed'
          RETURNING *`,
         [summary.id, consent.id],
       );
-      if (rows[0]) deliveries.push(rows[0]);
+      const delivery = inserted[0];
+      if (!delivery) continue; // a concurrent send already claimed this recipient
+
+      const to = (consent.detail as { recipient_email?: string } | null)?.recipient_email;
+      if (!to) {
+        console.error('weekly summary delivery has no recipient_email', consent.id);
+        const { rows } = await q.query<SummaryDelivery>(
+          `UPDATE summary_deliveries SET status = 'failed' WHERE id = $1 RETURNING *`,
+          [delivery.id],
+        );
+        deliveries.push(rows[0]);
+        continue;
+      }
+
+      try {
+        await getEmailClient().send({ to, subject, html, text });
+        const { rows } = await q.query<SummaryDelivery>(
+          `UPDATE summary_deliveries SET status = 'sent', sent_at = now() WHERE id = $1 RETURNING *`,
+          [delivery.id],
+        );
+        deliveries.push(rows[0]);
+      } catch (err) {
+        console.error('weekly summary email delivery failed', err);
+        const { rows } = await q.query<SummaryDelivery>(
+          `UPDATE summary_deliveries SET status = 'failed' WHERE id = $1 RETURNING *`,
+          [delivery.id],
+        );
+        deliveries.push(rows[0]);
+      }
     }
 
+    // Only mark the summary 'sent' once at least one delivery actually went
+    // out — an all-failed round leaves it in 'preview' so it can be retried,
+    // instead of the DB claiming a delivery that never happened.
+    const anySent = deliveries.some((d) => d.status === 'sent');
     const { rows } = await q.query<WeeklySummary>(
-      `UPDATE weekly_summaries SET status = 'sent' WHERE id = $1 RETURNING *`,
-      [summary.id],
+      `UPDATE weekly_summaries SET status = $2 WHERE id = $1 RETURNING *`,
+      [summary.id, anySent ? 'sent' : 'preview'],
     );
 
     return { summary: rows[0], deliveries };
