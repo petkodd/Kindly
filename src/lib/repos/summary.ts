@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import type { Querier } from '../querier';
 import {
   type WeeklySummary,
@@ -231,7 +232,15 @@ export const summaryRepo = {
 
       const to = (consent.detail as { recipient_email?: string } | null)?.recipient_email;
       if (!to) {
-        console.error('weekly summary delivery has no recipient_email', consent.id);
+        // Data-integrity issue, not a transient provider failure — an accepted
+        // consent row should never lack a recipient_email. Never log/tag the
+        // consent detail itself (may carry an email address); the consent id
+        // is enough to look the row up.
+        console.error('weekly summary delivery has no recipient_email', delivery.id);
+        Sentry.captureMessage('weekly summary delivery has no recipient_email', {
+          level: 'error',
+          tags: { consent_id: consent.id, delivery_id: delivery.id },
+        });
         const { rows } = await q.query<SummaryDelivery>(
           `UPDATE summary_deliveries SET status = 'failed' WHERE id = $1 RETURNING *`,
           [delivery.id],
@@ -248,7 +257,12 @@ export const summaryRepo = {
         );
         deliveries.push(rows[0]);
       } catch (err) {
-        console.error('weekly summary email delivery failed', err);
+        // Never log the recipient address or summary content — only the
+        // (non-PII) delivery/consent ids, so this is safe to alert on as-is.
+        console.error('weekly summary email delivery failed', delivery.id, err);
+        Sentry.captureException(err, {
+          tags: { consent_id: consent.id, delivery_id: delivery.id, area: 'weekly_summary_delivery' },
+        });
         const { rows } = await q.query<SummaryDelivery>(
           `UPDATE summary_deliveries SET status = 'failed' WHERE id = $1 RETURNING *`,
           [delivery.id],
