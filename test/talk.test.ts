@@ -180,6 +180,19 @@ describe('conversation consent gate + lifecycle', () => {
     await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(PaymentRequiredError);
   });
 
+  it('ALLOWS opening a session for an unexpired Founding Family Beta entitlement', async () => {
+    const parentId = await makeParent(true);
+    await q.query(`UPDATE subscriptions SET status = 'beta', current_period_end = now() + interval '14 days' WHERE parent_id = $1`, [parentId]);
+    const convo = await conversationRepo.openSession(q, parentId, 'text');
+    expect(convo.parent_id).toBe(parentId);
+  });
+
+  it('BLOCKS opening a session once the Founding Family Beta entitlement has expired (no grace period, 402)', async () => {
+    const parentId = await makeParent(true);
+    await q.query(`UPDATE subscriptions SET status = 'beta', current_period_end = now() - interval '1 hour' WHERE parent_id = $1`, [parentId]);
+    await expect(conversationRepo.openSession(q, parentId)).rejects.toBeInstanceOf(PaymentRequiredError);
+  });
+
   it('ISOLATION: a parent cannot add a turn to another parent\'s conversation', async () => {
     const alice = await makeParent(true);
     const mallory = await makeParent(true);

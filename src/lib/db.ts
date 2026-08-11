@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 
 /**
  * Single shared pg Pool. On Vercel, set DATABASE_URL to a Postgres
@@ -27,4 +27,48 @@ export function db(): Pool {
     });
   }
   return pool;
+}
+
+/**
+ * Run `fn` inside a real, single-connection transaction: BEGIN, then COMMIT
+ * on success or ROLLBACK on any thrown error, always releasing the client
+ * back to the pool. Use this whenever two or more writes must succeed or
+ * fail together (e.g. redeeming a one-time invite together with granting the
+ * entitlement it unlocks — see the Founding Family Beta activation route) —
+ * a bare `pool.query()` per statement auto-commits each one independently
+ * and gives no such guarantee.
+ *
+ * `PoolClient` satisfies `Querier` (see ./querier.ts) structurally, so `fn`
+ * can pass its client straight into any existing repo function unchanged.
+ *
+ * Note for tests: pg-mem's `Pool.connect()`-based client accepts
+ * BEGIN/COMMIT/ROLLBACK without error, but does not actually discard writes
+ * on ROLLBACK (verified against pg-mem 3.0.3 — its wire-protocol adapter
+ * forks a snapshot on BEGIN but executes queries against the live store
+ * regardless, so ROLLBACK has nothing to restore). Tests that exercise this
+ * helper therefore cannot assert "a mid-transaction failure left no trace" —
+ * only real Postgres proves that (validated manually; see
+ * docs/founding-family-beta.md). What tests CAN and do assert against
+ * pg-mem: the same failure never leaves a *permanently unrecoverable* state —
+ * a retry with the same caller+invite always converges to exactly one
+ * entitlement (see betaActivate.route.test.ts's recovery tests).
+ */
+export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // Best-effort — if the connection is already broken, releasing it
+      // below still hands it back for the pool to discard/replace.
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }

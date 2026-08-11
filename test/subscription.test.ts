@@ -96,6 +96,28 @@ describe('subscriptionRepo.isBillingCurrent', () => {
     expect(await subscriptionRepo.isBillingCurrent(q, parent)).toBe(false);
   });
 
+  it('is true for an unexpired beta entitlement', async () => {
+    const buyer = await makeBuyer('beta-active@example.com');
+    const parent = await makeParent(buyer);
+    await q.query(
+      `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+       VALUES ($1, $2, 'family', 'beta', $3)`,
+      [buyer, parent, new Date(Date.now() + 86400000)],
+    );
+    expect(await subscriptionRepo.isBillingCurrent(q, parent)).toBe(true);
+  });
+
+  it('is false once a beta entitlement has expired — no grace period', async () => {
+    const buyer = await makeBuyer('beta-expired@example.com');
+    const parent = await makeParent(buyer);
+    await q.query(
+      `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end)
+       VALUES ($1, $2, 'family', 'beta', $3)`,
+      [buyer, parent, new Date(Date.now() - 1000)],
+    );
+    expect(await subscriptionRepo.isBillingCurrent(q, parent)).toBe(false);
+  });
+
   it('REGRESSION: a buyer with two parents keeps the active one billed even after the other lapses', async () => {
     // This is the exact bug the per-parent scoping fixes: billing must never
     // be resolved by "the buyer's most recent subscription" — each parent's
@@ -245,5 +267,102 @@ describe('subscriptionRepo.upsertFromStripeSubscription', () => {
     expect(result).toBeNull();
     const { rows } = await q.query(`SELECT count(*)::int AS n FROM subscriptions WHERE stripe_sub_id = 'sub_no_buyer'`);
     expect(rows[0].n).toBe(0);
+  });
+
+  // Regression coverage for reusing `subscriptions` for the Founding Family
+  // Beta entitlement: a beta row always has stripe_sub_id = NULL, and
+  // upsertFromStripeSubscription's UPDATE-only ("no buyer_id") branch keys
+  // strictly on `WHERE stripe_sub_id = $1` for a real (non-null) Stripe
+  // subscription id — SQL's `NULL = 'sub_x'` is never true, so a Stripe
+  // webhook event can never match, let alone overwrite, a beta row.
+  it('a Stripe webhook event for an unrelated subscription never touches an existing beta row (stripe_sub_id is NULL there)', async () => {
+    const buyer = await makeBuyer('webhook-beta-safety@example.com');
+    const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
+    const { rows: inviteRows } = await q.query<{ id: string }>(
+      `INSERT INTO beta_invites (email_normalized, token_hash, expires_at)
+       VALUES ('webhook-beta-safety@example.com', 'hash_webhook_safety', now() + interval '14 days') RETURNING id`,
+    );
+    const grant = await subscriptionRepo.grantBeta(q, {
+      buyerId: buyer,
+      parentId: parent.id,
+      betaInviteId: inviteRows[0].id,
+      days: 14,
+    });
+    expect(grant.outcome).toBe('granted');
+
+    // A webhook event for a completely unrelated Stripe subscription/buyer,
+    // with no metadata.buyer_id (the UPDATE-only branch).
+    const result = await subscriptionRepo.upsertFromStripeSubscription(q, {
+      id: 'sub_unrelated_123',
+      customer: 'cus_unrelated',
+      status: 'active',
+      current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400,
+      metadata: {},
+      billingInterval: 'month',
+    });
+    expect(result).toBeNull(); // no existing row with that stripe_sub_id — correctly a no-op
+
+    const { rows: betaRow } = await q.query(`SELECT status, stripe_sub_id FROM subscriptions WHERE parent_id = $1`, [parent.id]);
+    expect(betaRow).toHaveLength(1);
+    expect(betaRow[0].status).toBe('beta'); // unchanged
+    expect(betaRow[0].stripe_sub_id).toBeNull(); // unchanged
+  });
+});
+
+describe('subscriptionRepo.grantBeta', () => {
+  async function makeInvite(email: string): Promise<string> {
+    const { rows } = await q.query<{ id: string }>(
+      `INSERT INTO beta_invites (email_normalized, token_hash, expires_at)
+       VALUES ($1, $2, now() + interval '14 days') RETURNING id`,
+      [email, `hash_${Math.random()}`],
+    );
+    return rows[0].id;
+  }
+
+  it('grants a beta entitlement with no stripe fields set, ending `days` from now', async () => {
+    const buyer = await makeBuyer('grant1@example.com');
+    const parent = await makeParent(buyer);
+    const invite = await makeInvite('grant1@example.com');
+
+    const before = Date.now();
+    const result = await subscriptionRepo.grantBeta(q, { buyerId: buyer, parentId: parent, betaInviteId: invite, days: 14 });
+
+    expect(result.outcome).toBe('granted');
+    expect(result.subscription?.status).toBe('beta');
+    expect(result.subscription?.stripe_customer_id).toBeNull();
+    expect(result.subscription?.stripe_sub_id).toBeNull();
+    expect(result.subscription?.beta_invite_id).toBe(invite);
+    const endsAt = new Date(result.subscription!.current_period_end!).getTime();
+    // ~14 days from now, generously bounded for test timing slack.
+    expect(endsAt).toBeGreaterThan(before + 13 * 86400000);
+    expect(endsAt).toBeLessThan(before + 15 * 86400000);
+  });
+
+  it('does not overwrite an existing current (trialing/active) subscription with a beta grant', async () => {
+    const buyer = await makeBuyer('grant2@example.com');
+    const parent = await makeParent(buyer);
+    await insertSubscription(buyer, parent, { status: 'active', currentPeriodEnd: new Date(Date.now() + 30 * 86400000) });
+    const invite = await makeInvite('grant2@example.com');
+
+    const result = await subscriptionRepo.grantBeta(q, { buyerId: buyer, parentId: parent, betaInviteId: invite, days: 14 });
+    expect(result.outcome).toBe('existing_paid_access');
+    expect(result.subscription?.status).toBe('active');
+
+    const { rows } = await q.query(`SELECT count(*)::int AS n FROM subscriptions WHERE parent_id = $1`, [parent]);
+    expect(rows[0].n).toBe(1); // no second row created
+  });
+
+  it('parallel grantBeta calls for the same invite create only one subscription row', async () => {
+    const buyer = await makeBuyer('grant3@example.com');
+    const parent = await makeParent(buyer);
+    const invite = await makeInvite('grant3@example.com');
+
+    await Promise.all([
+      subscriptionRepo.grantBeta(q, { buyerId: buyer, parentId: parent, betaInviteId: invite, days: 14 }),
+      subscriptionRepo.grantBeta(q, { buyerId: buyer, parentId: parent, betaInviteId: invite, days: 14 }),
+    ]);
+
+    const { rows } = await q.query(`SELECT count(*)::int AS n FROM subscriptions WHERE beta_invite_id = $1`, [invite]);
+    expect(rows[0].n).toBe(1);
   });
 });

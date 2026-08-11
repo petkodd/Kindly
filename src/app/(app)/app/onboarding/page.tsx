@@ -41,6 +41,24 @@ function OnboardingWizard() {
   // BillingStep's own default (Annual) with no memory of that choice.
   const intervalParam = searchParams.get('interval');
   const initialInterval: BillingInterval = intervalParam === 'month' ? 'month' : 'year';
+  const router = useRouter();
+  // Founding Family Beta invite token, captured once from the URL and held
+  // only in memory (never localStorage/cookies) — see BillingStep. Stripped
+  // from the visible URL right after capture (below) so it doesn't linger in
+  // browser history, analytics, or a copy/pasted link once it's been handed
+  // to the wizard; the server-side activation call is what actually
+  // validates/consumes it, not its mere presence here.
+  const [inviteToken] = useState(() => searchParams.get('invite'));
+  useEffect(() => {
+    if (!searchParams.get('invite')) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('invite');
+    const qs = params.toString();
+    router.replace(qs ? `/app/onboarding?${qs}` : '/app/onboarding', { scroll: false });
+    // Run once on mount only — re-stripping on every searchParams change
+    // would fight the very replace() call this effect just made.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Step 0 = "Who is this for?", only reachable on a brand-new visit (resuming
   // an existing parent already knows the answer from parent.relationship).
@@ -215,6 +233,7 @@ function OnboardingWizard() {
           parent={parent}
           billingResult={billingResult}
           initialInterval={initialInterval}
+          inviteToken={inviteToken}
           onDone={() => setStep(5)}
         />
       )}
@@ -421,8 +440,11 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
 }
 
 function BillingStep({
-  parent, billingResult, initialInterval, onDone,
-}: { parent: Parent; billingResult: string | null; initialInterval: BillingInterval; onDone: () => void }) {
+  parent, billingResult, initialInterval, inviteToken, onDone,
+}: {
+  parent: Parent; billingResult: string | null; initialInterval: BillingInterval;
+  inviteToken: string | null; onDone: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(billingResult === 'success');
@@ -449,6 +471,35 @@ function BillingStep({
     // Only re-run if the parent/result we're confirming for actually changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [billingResult, parent.id]);
+
+  // A parent who already has current access (a prior successful beta
+  // activation, or an already-active/trialing subscription) should never see
+  // billing UI again — most importantly a beta user navigating back to Step 5
+  // (refresh, back button) must land straight on Step 6, not be offered a
+  // second activation. Skipped when billingResult === 'success' — that path
+  // already confirms + advances via the effect above.
+  const [checkingStatus, setCheckingStatus] = useState(billingResult !== 'success');
+  useEffect(() => {
+    if (billingResult === 'success') return;
+    let active = true;
+    (async () => {
+      try {
+        const { is_current: isCurrent } = await api.get<{ is_current: boolean }>(`/api/parents/${parent.id}/subscription`);
+        if (active && isCurrent) {
+          onDone();
+          return;
+        }
+      } catch {
+        /* non-fatal — worst case the buyer just sees the normal billing UI */
+      } finally {
+        if (active) setCheckingStatus(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parent.id]);
 
   async function startTrial() {
     setError('');
@@ -482,6 +533,18 @@ function BillingStep({
     );
   }
 
+  if (checkingStatus) {
+    return (
+      <div className="mt-6 space-y-5">
+        <p className="text-lg text-muted">Loading…</p>
+      </div>
+    );
+  }
+
+  if (inviteToken) {
+    return <FoundingBetaBillingStep parent={parent} inviteToken={inviteToken} onDone={onDone} />;
+  }
+
   return (
     <div className="mt-6 space-y-5">
       <h1 className="font-display text-3xl font-semibold text-ink">Start your free trial</h1>
@@ -508,6 +571,53 @@ function BillingStep({
       <button type="button" onClick={startTrial} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Redirecting…' : 'Start 7-day free trial'}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Founding Family Beta path — rendered instead of the Stripe trial UI when
+ * the wizard captured an ?invite= token from the URL (see OnboardingWizard).
+ * The button's own click handler is the only thing that ever submits the
+ * token; nothing here decides eligibility client-side — that's entirely
+ * server-side in POST /api/billing/beta/activate, which never calls Stripe.
+ */
+function FoundingBetaBillingStep({
+  parent, inviteToken, onDone,
+}: { parent: Parent; inviteToken: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function activate() {
+    if (busy) return; // extra guard alongside the button's own disabled state
+    setError('');
+    setBusy(true);
+    try {
+      await api.post('/api/billing/beta/activate', { parent_id: parent.id, invite_token: inviteToken });
+      // Mirrors the Stripe-success path: activation (buyer_attestation gate)
+      // is a separate step from billing, always performed after billing
+      // succeeds, before advancing.
+      await api.post(`/api/parents/${parent.id}/activate`);
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not activate your beta access. Please try again.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-5">
+      <p className="eyebrow">Set up DearlyHere</p>
+      <h1 className="font-display text-3xl font-semibold text-ink">Join the Founding Family Beta</h1>
+      <p className="text-lg text-muted">
+        Try DearlyHere free for 14 days. No card required. Your family will receive personal
+        onboarding and direct support while helping us improve the experience.
+      </p>
+      {error && <p className="text-base text-clay">{error}</p>}
+      <button type="button" onClick={activate} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+        {busy ? 'Setting things up…' : 'Continue with free beta'}
+      </button>
+      <p className="text-sm text-muted">You will not be charged automatically when the beta ends.</p>
     </div>
   );
 }

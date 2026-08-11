@@ -184,6 +184,51 @@ describe('ParentProfilePage', () => {
       expect(await screen.findByText(/free trial/i)).toBeTruthy();
       expect(screen.queryByRole('button', { name: /start 7-day free trial/i })).toBeNull();
     });
+
+    // Regression coverage for reusing `subscriptions` for the Founding Family
+    // Beta entitlement (status='beta', stripe_customer_id/stripe_sub_id/
+    // billing_interval all null) — proves the UI renders correctly and never
+    // crashes on the null Stripe fields a beta row always has.
+    it('shows an active Founding Family Beta as current, with no crash on its null billing_interval/Stripe fields', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () =>
+          json({
+            subscription: {
+              status: 'beta',
+              current_period_end: '2026-08-15T00:00:00Z',
+              billing_interval: null,
+            },
+            is_current: true,
+          }),
+      });
+      render(<ParentProfilePage />);
+      expect(await screen.findByText(/Founding Family Beta/i)).toBeTruthy();
+      expect(screen.getByText(/ends 8\/15\/2026/i)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /start 7-day free trial/i })).toBeNull();
+    });
+
+    it('shows the ended-beta message (not the generic lapsed message) once an expired beta is no longer current', async () => {
+      stubFetch({
+        'GET /api/parents': () => json({ parents: [{ id: 'p1', first_name: 'Robert' }] }),
+        'GET /api/parents/p1': () => json({ parent: ACTIVATED_PARENT }),
+        'GET /api/parents/p1/subscription': () =>
+          json({
+            subscription: {
+              status: 'beta',
+              current_period_end: '2026-01-01T00:00:00Z', // in the past
+              billing_interval: null,
+            },
+            is_current: false,
+          }),
+      });
+      render(<ParentProfilePage />);
+      expect(await screen.findByText(/Founding Family Beta has ended/i)).toBeTruthy();
+      expect(screen.queryByText(/subscription has lapsed/i)).toBeNull(); // the generic lapsed message, not shown
+      // The recovery path (convert to a real plan) is still offered.
+      expect(screen.getByRole('button', { name: /start 7-day free trial/i })).toBeTruthy();
+    });
   });
 
   describe('"Talk to Kindly" section (self profiles only)', () => {
