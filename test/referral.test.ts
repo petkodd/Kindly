@@ -65,9 +65,36 @@ describe('sibling invite (pending → accepted)', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('a directly-seeded recipient (no status) still counts as accepted', async () => {
+  // Regression for the consent-gate bypass: a recipient row without an
+  // explicit 'accepted' status must never be treated as accepted, since that
+  // status is the only signal that the recipient actually clicked their
+  // invite. Covers missing, null, 'pending', and 'revoked' status values.
+  it.each([
+    ['missing status field', undefined],
+    ['null status', null],
+    ['pending status', 'pending'],
+    ['revoked status', 'revoked'],
+  ])('excludes a recipient with %s from the accepted list', async (_label, status) => {
     const parentId = await makeParent();
-    await consentRepo.record(q, { parentId, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId,
+      kind: 'summary_recipient',
+      detail: status === undefined ? null : { recipient_email: 'mike@example.com', status },
+    });
+    expect(await consentRepo.listAcceptedRecipients(q, parentId)).toHaveLength(0);
+    // ...and therefore never receives the weekly summary email either.
+    await expect(summaryRepo.send(q, parentId, 'Robert', new Date())).rejects.toBeInstanceOf(
+      PreconditionError,
+    );
+  });
+
+  it('only an explicit accepted status is eligible for delivery', async () => {
+    const parentId = await makeParent();
+    await consentRepo.record(q, {
+      parentId,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
     expect(await consentRepo.listAcceptedRecipients(q, parentId)).toHaveLength(1);
   });
 });
@@ -93,6 +120,20 @@ describe('referral codes', () => {
         householdHash: 'hh-2',
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  // Regression for the brute-force enumeration finding: a redeem endpoint
+  // with no rate limiting needs a code space too large to guess. 10 chars
+  // from a 32-symbol alphabet is ~49 bits (32^10 ≈ 1.1e15 possibilities).
+  it('generates codes with enough entropy to resist brute-force guessing', async () => {
+    const referrer = await makeUser('ref@example.com');
+    const codes = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      const referral = await referralRepo.generate(q, referrer);
+      expect(referral.code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$/); // 10 chars, unambiguous alphabet only
+      codes.add(referral.code);
+    }
+    expect(codes.size).toBe(20); // no collisions across a small sample
   });
 
   it('requires a household hash (the guard cannot be disabled by omission)', async () => {

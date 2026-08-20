@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { parentRepo } from '../src/lib/repos/parent';
 import { consentRepo } from '../src/lib/repos/consent';
 import { summaryRepo, weekBounds } from '../src/lib/repos/summary';
 import { PreconditionError } from '../src/lib/types';
+import { fakeEmailClient, resetEmailClient } from '../src/lib/email';
 
 let q: Querier;
 
@@ -44,6 +45,12 @@ async function addConversation(
 
 beforeEach(() => {
   q = makeTestDb();
+  delete process.env.EMAIL_API_KEY; // force the fake client
+  resetEmailClient();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('weekBounds', () => {
@@ -115,7 +122,7 @@ describe('weekly summary send (consent-gated)', () => {
     await consentRepo.record(q, {
       parentId: id,
       kind: 'summary_recipient',
-      detail: { recipient_email: 'mike@example.com' },
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
     });
 
     const { summary, deliveries } = await summaryRepo.send(q, id, firstName, REF);
@@ -125,9 +132,55 @@ describe('weekly summary send (consent-gated)', () => {
     expect(deliveries[0].status).toBe('sent');
   });
 
+  it('actually calls the email client with the recipient and rendered summary', async () => {
+    const sendSpy = vi.spyOn(fakeEmailClient, 'send');
+    const { id, firstName } = await seedParent();
+    await addConversation(id, '2026-06-29T10:00:00Z', 'Talked about the garden.', 'warm');
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
+
+    await summaryRepo.send(q, id, firstName, REF);
+
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    const sent = sendSpy.mock.calls[0][0];
+    expect(sent.to).toBe('mike@example.com');
+    expect(sent.subject).toContain(firstName);
+    expect(sent.html).toContain('Talked about the garden.');
+  });
+
+  it('marks a delivery failed (and leaves the summary in preview) when the email provider errors', async () => {
+    vi.spyOn(fakeEmailClient, 'send').mockRejectedValueOnce(new Error('provider down'));
+    const { id, firstName } = await seedParent();
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
+
+    const { summary, deliveries } = await summaryRepo.send(q, id, firstName, REF);
+    expect(deliveries[0].status).toBe('failed');
+    expect(deliveries[0].sent_at).toBeNull();
+    expect(summary.status).toBe('preview');
+
+    // Retrying (e.g. the buyer clicks "send" again) resends to the same
+    // recipient rather than silently no-op'ing against the failed row.
+    const retry = await summaryRepo.send(q, id, firstName, REF);
+    expect(retry.deliveries).toHaveLength(1);
+    expect(retry.deliveries[0].id).toBe(deliveries[0].id);
+    expect(retry.deliveries[0].status).toBe('sent');
+    expect(retry.summary.status).toBe('sent');
+  });
+
   it('is idempotent — sending twice does not duplicate deliveries', async () => {
     const { id, firstName } = await seedParent();
-    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
 
     const first = await summaryRepo.send(q, id, firstName, REF);
     expect(first.deliveries).toHaveLength(1);
@@ -145,14 +198,22 @@ describe('weekly summary send (consent-gated)', () => {
 
   it('does not attribute the delivery to the buyer (recipient_user stays null)', async () => {
     const { id, firstName } = await seedParent();
-    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
     const { deliveries } = await summaryRepo.send(q, id, firstName, REF);
     expect(deliveries[0].recipient_user).toBeNull();
   });
 
   it('re-previewing after send does not downgrade a sent summary', async () => {
     const { id, firstName } = await seedParent();
-    await consentRepo.record(q, { parentId: id, kind: 'summary_recipient' });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
     const { summary } = await summaryRepo.send(q, id, firstName, REF);
     expect(summary.status).toBe('sent');
 
