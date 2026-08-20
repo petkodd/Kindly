@@ -607,10 +607,10 @@ function FoundingBetaBillingStep({
 
   return (
     <div className="mt-6 space-y-5">
-      <p className="eyebrow">Set up DearlyHere</p>
+      <p className="eyebrow">Set up Kindly</p>
       <h1 className="font-display text-3xl font-semibold text-ink">Join the Founding Family Beta</h1>
       <p className="text-lg text-muted">
-        Try DearlyHere free for 14 days. No card required. Your family will receive personal
+        Try Kindly free for 14 days. No card required. Your family will receive personal
         onboarding and direct support while helping us improve the experience.
       </p>
       {error && <p className="text-base text-clay">{error}</p>}
