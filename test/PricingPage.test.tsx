@@ -51,4 +51,27 @@ describe('PricingPage', () => {
     expect(offerNames).toContain('Family');
     expect(offerNames).toContain('Family (Annual)');
   });
+
+  it('renders the highlighted Founding Family card with its badge, price, and CTA', () => {
+    render(<PricingPage />);
+    expect(screen.getByText('Founding Family')).toBeTruthy();
+    expect(screen.getByText('Best for new families')).toBeTruthy();
+    expect(screen.getByText('$29')).toBeTruthy();
+    // "Set up the gift" also appears as the page's hero CTA, so there are
+    // multiple matches — every one of them must point at onboarding.
+    const ctas = screen.getAllByRole('link', { name: 'Set up the gift' }) as HTMLAnchorElement[];
+    expect(ctas.length).toBeGreaterThan(0);
+    for (const cta of ctas) expect(cta.getAttribute('href')).toBe('/app/onboarding');
+  });
+
+  it('never shows a Monthly/Annual toggle on the Founding Family card — only the Family plan has an annual price', () => {
+    render(<PricingPage />);
+    // Exactly one toggle on the page (the shared, view-level one), not one per card.
+    expect(screen.getAllByRole('button', { name: 'Monthly' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Annual' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
+    // Switching the shared toggle must not touch the Founding Family price.
+    expect(screen.getByText('$29')).toBeTruthy();
+  });
 });
