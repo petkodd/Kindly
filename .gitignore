@@ -39,3 +39,7 @@ yarn-error.log*
 
 # manual speech-provider verification output (scripts/verify-speech-providers.mjs)
 /scripts/output/
+
+# locally-downloaded CLI tool archives (e.g. the Stripe CLI release tarball) —
+# never a project artifact, must not be committed
+*.tar.gz
