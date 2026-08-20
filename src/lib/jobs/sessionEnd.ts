@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import type { Querier } from '../querier';
 import type { AiClient, ConversationTurn, MoodSignal } from '../ai';
 import { getAiClient } from '../ai';
@@ -5,6 +6,7 @@ import { sanitizeFamilySummary } from '../ai/prompts';
 import { conversationRepo } from '../repos/conversation';
 import { memoryRepo } from '../repos/memory';
 import { parentRepo } from '../repos/parent';
+import { auditRepo } from '../repos/audit';
 
 /**
  * Session-end jobs from api_plan_v1.md, run when a conversation ends:
@@ -94,10 +96,26 @@ export async function runSessionEndJobs(
   if (needsSummary) {
     const summary = await ai.summarizeConversation({ firstName: parent.first_name, turns });
     // Code-level backstop: never surface restricted detail to family, even if
-    // the model ignored the prompt.
+    // the model ignored the prompt. A redaction firing means
+    // CONVERSATION_SUMMARY_SYSTEM_V1 was NOT followed in production — that's
+    // a prompt-adherence regression worth a human noticing, not just a line
+    // in a server log nobody tails (console.error alone is silent in
+    // practice — the same reasoning that put Sentry alerting on weekly-summary
+    // delivery failures applies here). Never log the summary text itself,
+    // only the (non-PII) conversation/parent ids.
     const safe = sanitizeFamilySummary(summary.summaryText, parent.first_name);
     if (safe.redacted) {
       console.warn(`session-end: redacted restricted content from summary of ${conversationId}`);
+      Sentry.captureMessage('session-end: redacted restricted content from family summary', {
+        level: 'warning',
+        tags: { conversation_id: conversationId, parent_id: convo.parent_id, area: 'summary_redaction' },
+      });
+      await auditRepo.log(q, {
+        actorId: null,
+        action: 'summary_redacted',
+        targetType: 'conversation',
+        targetId: conversationId,
+      });
     }
     await conversationRepo.recordSummary(q, conversationId, safe.text, summary.moodSignal);
     moodSignal = summary.moodSignal;

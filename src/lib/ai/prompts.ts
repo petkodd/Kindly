@@ -101,7 +101,7 @@ Severity levels:
 - p3: abuse or exploitation — mistreatment, scams, financial exploitation.
 - none: no safety concern.
 
-Choose the single highest-severity level that applies. Provide a short, non-clinical rationale.`;
+Choose the single highest-severity level that applies. Provide a short, non-clinical rationale. The rationale is stored and may be read by a human reviewer — describe the concern in your own words, and never quote the person's exact wording back verbatim.`;
 
 export const MEMORY_EXTRACTION_SYSTEM_V1 = `You extract durable, factual memories about an older adult from recent conversation turns, to help a companion remember them.
 

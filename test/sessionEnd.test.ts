@@ -125,6 +125,34 @@ describe('session-end jobs', () => {
     expect(result.memoriesProposed).toBe(1); // only the 0.8 interest survives
   });
 
+  it('audit-logs a summary redaction (backstop firing means the model ignored the prompt)', async () => {
+    const parentId = await makeTalkingParent();
+    const convoId = await haveConversation(parentId);
+
+    const leakyAi: AiClient = {
+      ...fakeAiClient,
+      summarizeConversation: async () => ({
+        summaryText: 'Robert mentioned feeling depression symptoms today.',
+        moodSignal: 'low',
+      }),
+    };
+    await runSessionEndJobs(q, convoId, { ai: leakyAi });
+
+    // The redacted, neutral line is what's actually persisted — never the leak.
+    const { rows } = await q.query<{ summary_text: string | null }>(
+      `SELECT summary_text FROM conversations WHERE id = $1`,
+      [convoId],
+    );
+    expect(rows[0].summary_text).not.toContain('depression');
+    expect(rows[0].summary_text).toContain('warm conversation');
+
+    const audit = await q.query<{ action: string; target_id: string }>(
+      `SELECT action, target_id FROM audit_log WHERE action = 'summary_redacted'`,
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].target_id).toBe(convoId);
+  });
+
   it('no-op on an unknown conversation', async () => {
     const result = await runSessionEndJobs(q, '00000000-0000-0000-0000-000000000000');
     expect(result).toEqual({ summarized: false, extracted: false, moodSignal: null, memoriesProposed: 0 });
