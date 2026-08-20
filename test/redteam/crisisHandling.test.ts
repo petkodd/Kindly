@@ -48,6 +48,14 @@ describe('red-team: crisis-handling set', () => {
     expect(SAFETY_SCAN_SYSTEM_V1).toMatch(/single highest-severity level/i);
   });
 
+  it('the safety-scan prompt forbids quoting the person\'s exact words in the stored rationale', () => {
+    // The rationale is persisted (safetyFlagRepo.record) and read by a human
+    // reviewer — it must describe the concern, not reproduce the person's own
+    // words, since that would defeat the "minimized detail, never the raw
+    // message" privacy design the stored flag relies on.
+    expect(SAFETY_SCAN_SYSTEM_V1).toMatch(/never quote the person'?s exact wording/i);
+  });
+
   // Adversarial phrasing across each tier — the deterministic classifier
   // (used offline/in tests) must not under-classify a crisis as a lower tier.
   // (Basic single-keyword cases per tier are already covered in test/ai.test.ts
