@@ -1,8 +1,5 @@
-'use client';
-
-import { useState } from 'react';
 import { TrackedCtaLink } from './TrackedCtaLink';
-import { BillingIntervalToggle } from './BillingIntervalToggle';
+import { PlanFeatureList } from './PlanFeatureList';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import type { BillingInterval } from '@/lib/billing';
 
@@ -17,23 +14,16 @@ interface FamilyPlan {
 }
 
 /**
- * The Family plan card with a Monthly/Annual toggle. Defaults to 'year' —
- * since Next.js server-renders a Client Component's initial state, the
- * server-rendered HTML already shows Annual pricing on first paint (the SEO
- * requirement: default pricing must be in the initial HTML, not injected
- * only after a client-side interaction).
+ * The Family plan card. Billing interval is controlled by the shared
+ * view-level toggle in PricingCards (not owned here) — the interval is only
+ * ever applied to this card's price/CTA, never to the Founding Family card.
  */
-export function FamilyPlanCard({ plan }: { plan: FamilyPlan }) {
-  // Not named `interval`/`setInterval` — that shadows the window.setInterval global.
-  const [billingInterval, setBillingInterval] = useState<BillingInterval>('year');
+export function FamilyPlanCard({ plan, billingInterval }: { plan: FamilyPlan; billingInterval: BillingInterval }) {
   const savingsPercent = computeAnnualSavingsPercent(plan.priceMonthlyCents, plan.priceAnnualCents);
 
   return (
     <div className="flex flex-col rounded-2xl border border-line bg-mist p-8">
       <h2 className="text-xl font-semibold text-ink">{plan.name}</h2>
-      <div className="mt-4">
-        <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} label={`${plan.name} plan billing`} />
-      </div>
       {billingInterval === 'month' ? (
         <p className="mt-4">
           <span className="font-display text-3xl font-semibold text-ink">{formatUsdCents(plan.priceMonthlyCents)}</span>{' '}
@@ -54,13 +44,7 @@ export function FamilyPlanCard({ plan }: { plan: FamilyPlan }) {
         </p>
       )}
       <p className="mt-3 text-base text-muted">{plan.tagline}</p>
-      <ul className="mt-6 flex-1 space-y-3">
-        {plan.bullets.map((b) => (
-          <li key={b} className="text-base text-ink">
-            {b}
-          </li>
-        ))}
-      </ul>
+      <PlanFeatureList bullets={plan.bullets} />
       <TrackedCtaLink
         // Carries the selected interval into onboarding — otherwise a
         // visitor who picks Monthly here lands back on checkout's own
