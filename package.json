@@ -12,7 +12,8 @@
     "db:migrate": "node db/migrate.mjs",
     "beta:invite": "node scripts/beta-invite.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:prompt-signoffs": "node scripts/check-prompt-signoffs.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.1",

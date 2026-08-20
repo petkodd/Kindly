@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({ db: () => q }));
 import { GET as overviewGET } from '../../src/app/api/admin/overview/route';
 import { GET as flagsGET } from '../../src/app/api/admin/flags/route';
 import { PATCH as flagPATCH } from '../../src/app/api/admin/flags/[fid]/route';
+import { GET as promptSignoffStatusGET } from '../../src/app/api/admin/prompt-signoff-status/route';
 
 async function makeAdmin(): Promise<string> {
   const user = await userRepo.create(q, { email: `admin${Math.random()}@example.com`, password: 'originalpass' });
@@ -132,5 +133,37 @@ describe('PATCH /api/admin/flags/:fid', () => {
     const { rows } = await q.query(`SELECT action, target_id FROM audit_log WHERE action = 'update_flag'`);
     expect(rows).toHaveLength(1);
     expect(rows[0].target_id).toBe(flag.id);
+  });
+});
+
+describe('GET /api/admin/prompt-signoff-status', () => {
+  it('401s without an admin session', async () => {
+    const res = await promptSignoffStatusGET(adminReq('http://localhost/api/admin/prompt-signoff-status', null));
+    expect(res.status).toBe(401);
+  });
+
+  it("reports every production prompt as not fully approved today (nothing has been reviewed yet), audit-logged", async () => {
+    const admin = await makeAdmin();
+    const res = await promptSignoffStatusGET(adminReq('http://localhost/api/admin/prompt-signoff-status', admin));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.all_approved).toBe(false);
+    expect(body.prompts.map((p: { promptKey: string }) => p.promptKey)).toEqual(
+      expect.arrayContaining([
+        'COMPANION_SYSTEM_V1',
+        'SAFETY_SCAN_SYSTEM_V1',
+        'MEMORY_EXTRACTION_SYSTEM_V1',
+        'CONVERSATION_SUMMARY_SYSTEM_V1',
+      ]),
+    );
+    for (const prompt of body.prompts) {
+      expect(prompt.fullyApproved).toBe(false);
+      expect(prompt.roles.ai_safety.approved).toBe(false);
+      expect(prompt.roles.gerontology.approved).toBe(false);
+      expect(prompt.roles.privacy.approved).toBe(false);
+    }
+
+    const { rows } = await q.query(`SELECT action FROM audit_log WHERE action = 'view_prompt_signoff_status'`);
+    expect(rows).toHaveLength(1);
   });
 });

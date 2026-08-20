@@ -1,85 +1,136 @@
 import { createHash } from 'node:crypto';
+import signoffsData from '../../../prompts/signoffs.json';
 
 /**
  * Formal sign-off ledger for the versioned prompts in prompts.ts (see
- * docs/PROMPT_SIGN_OFF.md for the human-readable record). Every prompt is
- * pinned to the SHA-256 of the exact text it was last reviewed at — if the
- * live constant drifts from that hash, promptSignOff.test.ts fails, so an
- * edit can't ship silently under an unchanged version/status. Bumping the
- * pinned hash is how a reviewer's sign-off (or a return to `draft` for
- * re-review) gets recorded.
+ * docs/PROMPT_SIGN_OFF.md for the human-readable record, prompts/README.md for
+ * how to record a sign-off). The raw append-only log of who-approved-what-when
+ * lives in prompts/signoffs.json, written by scripts/sign-prompt.mjs — this
+ * module is the typed read side: it re-hashes the live prompt text and reports
+ * per-role status, so a change can't ship silently under a stale sign-off.
+ *
+ * Two independent enforcement points read this module:
+ * - test/promptSignOff.test.ts (part of `npm test`/CI): DRIFT ONLY — fails if
+ *   a role's most recent approval no longer matches the live prompt hash (a
+ *   prompt edited after being reviewed). Never fails just because a role
+ *   hasn't reviewed yet, since that's the expected pre-launch state today.
+ * - scripts/check-prompt-signoffs.mjs (NOT part of npm test): the strict
+ *   release-readiness gate — requires ALL THREE roles approved at the current
+ *   hash for EVERY prompt. Run deliberately before launch, not on every commit.
  */
 
-export type SignOffStatus = 'draft' | 'approved';
+export type ReviewerRole = 'ai_safety' | 'gerontology' | 'privacy';
 
-export interface SignOffRecord {
-  status: SignOffStatus;
-  /** Names/roles who approved this exact text; required when status is 'approved'. */
-  reviewers: string[];
-  /** SHA-256 of the reviewed prompt text, hex-encoded. */
-  sha256: string;
-  note?: string;
+export const REVIEWER_ROLES: ReviewerRole[] = ['ai_safety', 'gerontology', 'privacy'];
+
+export type SignOffDecision = 'approved' | 'changes_requested';
+
+export interface SignOffEntry {
+  role: ReviewerRole;
+  reviewer: string;
+  decision: SignOffDecision;
+  /** SHA-256 of the exact prompt text this entry was recorded against. */
+  promptHash: string;
+  /** ISO timestamp; entries are compared lexicographically to find the latest per role. */
+  notedAt: string;
+  notes?: string;
 }
+
+export type SignOffLedger = Record<string, SignOffEntry[]>;
+
+export const PROMPT_SIGN_OFF_LOG: SignOffLedger = signoffsData as SignOffLedger;
 
 export function hashPrompt(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
 
-// Hashes below were computed from the prompt text in prompts.ts at the time
-// this ledger was written — see docs/PROMPT_SIGN_OFF.md for the review status.
-export const PROMPT_SIGN_OFF: Record<string, SignOffRecord> = {
-  COMPANION_SYSTEM_V1: {
-    status: 'draft',
-    reviewers: [],
-    sha256: '0241023af77d1bc5df102ad63392f27af6743b3341030ac230ca8a5fe8662d6e',
-    note: 'Pending AI Safety + Gerontology Advisor sign-off (prompt_architecture_v1.md).',
-  },
-  SAFETY_SCAN_SYSTEM_V1: {
-    status: 'draft',
-    reviewers: [],
-    sha256: '9fd0e14b862960470d99a337ba3a6adeed9ca9545ada58341755d4fef8acc198',
-    note: 'Pending AI Safety sign-off.',
-  },
-  MEMORY_EXTRACTION_SYSTEM_V1: {
-    status: 'draft',
-    reviewers: [],
-    sha256: '784bfd50de923b2ca16a286dbdae6a4cbfc91764157c0b301a63932e4790edca',
-    note: 'Pending Privacy Advisor sign-off.',
-  },
-  CONVERSATION_SUMMARY_SYSTEM_V1: {
-    status: 'draft',
-    reviewers: [],
-    sha256: '505926cc225a2730c7c51ed6317c7124c0bf657758e73a9c238671044ae02661',
-    note: 'Pending AI Safety sign-off. Generalized from "older adult" framing to support self-use profiles.',
-  },
-};
+/** Most recent entry per role (by `notedAt`) — a later entry for a role supersedes an earlier one. */
+function latestByRole(entries: SignOffEntry[]): Partial<Record<ReviewerRole, SignOffEntry>> {
+  const latest: Partial<Record<ReviewerRole, SignOffEntry>> = {};
+  for (const entry of entries) {
+    const current = latest[entry.role];
+    if (!current || entry.notedAt > current.notedAt) latest[entry.role] = entry;
+  }
+  return latest;
+}
 
-/**
- * Check a live prompt constant against its ledger entry. `ok` is false both
- * when the text has drifted from the pinned hash AND when there's no ledger
- * entry at all — a new prompt must be added to the ledger before it ships.
- */
-export function verifyPromptSignOff(
-  name: string,
-  liveText: string,
-): { ok: boolean; record: SignOffRecord | null } {
-  const record = PROMPT_SIGN_OFF[name] ?? null;
-  if (!record) return { ok: false, record: null };
-  return { ok: record.sha256 === hashPrompt(liveText), record };
+export interface RoleStatus {
+  /** True only when the latest entry for this role is 'approved' AND matches the current hash. */
+  approved: boolean;
+  /** True when the latest entry was 'approved' but the live text has since drifted — the regression case. */
+  stale: boolean;
+  reviewer?: string;
+  decision?: SignOffDecision;
+  notedAt?: string;
+}
+
+export interface PromptSignOffStatus {
+  promptKey: string;
+  currentHash: string;
+  roles: Record<ReviewerRole, RoleStatus>;
+  /** True only when every required role is approved at the current hash. */
+  fullyApproved: boolean;
 }
 
 /**
- * Fail closed on a malformed ledger entry: 'approved' with no named reviewer
- * would mean nobody is accountable for the sign-off, which defeats the point.
- * Exported (not just run inline below) so the test suite can exercise this
- * exact check against a fabricated bad ledger, instead of re-implementing it.
+ * Pure computation, independent of the committed ledger — exported so tests
+ * can exercise the fullyApproved/stale logic against fabricated entries
+ * without needing a matching row in prompts/signoffs.json.
  */
-export function assertValidLedger(ledger: Record<string, SignOffRecord>): void {
-  for (const [name, record] of Object.entries(ledger)) {
-    if (record.status === 'approved' && record.reviewers.length === 0) {
-      throw new Error(`PROMPT_SIGN_OFF['${name}'] is 'approved' but names no reviewers.`);
+export function computeSignOffStatus(
+  promptKey: string,
+  entries: SignOffEntry[],
+  liveText: string,
+): PromptSignOffStatus {
+  const currentHash = hashPrompt(liveText);
+  const latest = latestByRole(entries);
+
+  const roles = {} as Record<ReviewerRole, RoleStatus>;
+  for (const role of REVIEWER_ROLES) {
+    const entry = latest[role];
+    if (!entry) {
+      roles[role] = { approved: false, stale: false };
+      continue;
     }
+    const matchesHash = entry.promptHash === currentHash;
+    roles[role] = {
+      approved: entry.decision === 'approved' && matchesHash,
+      stale: entry.decision === 'approved' && !matchesHash,
+      reviewer: entry.reviewer,
+      decision: entry.decision,
+      notedAt: entry.notedAt,
+    };
+  }
+
+  return {
+    promptKey,
+    currentHash,
+    roles,
+    fullyApproved: REVIEWER_ROLES.every((role) => roles[role].approved),
+  };
+}
+
+/** Compute per-role sign-off status for one prompt against its current live text. */
+export function getPromptSignOffStatus(promptKey: string, liveText: string): PromptSignOffStatus {
+  return computeSignOffStatus(promptKey, PROMPT_SIGN_OFF_LOG[promptKey] ?? [], liveText);
+}
+
+/**
+ * Fail closed on a malformed entry: an 'approved' decision naming no reviewer
+ * means nobody is accountable for the sign-off, which defeats the point.
+ */
+export function assertValidEntry(entry: SignOffEntry): void {
+  if (entry.decision === 'approved' && !entry.reviewer.trim()) {
+    throw new Error(
+      `sign-off entry (role '${entry.role}', notedAt ${entry.notedAt}) is 'approved' but names no reviewer`,
+    );
   }
 }
 
-assertValidLedger(PROMPT_SIGN_OFF);
+export function assertValidLedger(ledger: SignOffLedger): void {
+  for (const entries of Object.values(ledger)) {
+    for (const entry of entries) assertValidEntry(entry);
+  }
+}
+
+assertValidLedger(PROMPT_SIGN_OFF_LOG);

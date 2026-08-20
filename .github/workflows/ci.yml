@@ -16,6 +16,9 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Prompt sign-off coverage (informational — does not block CI)
+        run: npm run check:prompt-signoffs
+        continue-on-error: true
       - name: Build
         run: npm run build
 
