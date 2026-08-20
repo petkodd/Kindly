@@ -55,13 +55,16 @@ export const BANNED_OUTPUT_PATTERNS_V1 = {
   // "your/my pin" (not a bare \bpin\b, which would flag "bowling pin"/"push
   // pin"/ordinary uses) alongside the fuller "pin number" phrasing.
   credentialRequest: /\b(password|social security|ssn|bank details|pin number|your pin|my pin)\b/i,
-  // Requires a specific object ("your family"/"anyone"/"them"/"your kids") after
-  // "won't tell" so ordinary uses ("I won't tell you what to do") don't match —
-  // this is about a false claim of secrecy from the person's family, not any
-  // use of the words "won't tell". Bounded gaps tolerate filler ("I promise I
-  // really won't tell").
+  // Requires a specific object ("your family"/"anyone"/"them"/"your kids", or a
+  // named relation like "your daughter"/"your husband") after "won't tell" so
+  // ordinary uses ("I won't tell you what to do") don't match — this is about a
+  // false claim of secrecy from the person's family, not any use of the words
+  // "won't tell". The named-relation list matters: a reply naming a specific
+  // family member ("I won't tell your son") is exactly the scenario this
+  // pattern exists to catch, not just the generic "your family" phrasing.
+  // Bounded gaps tolerate filler ("I promise I really won't tell").
   secrecyPromise:
-    /\bI (promise|swear)[\s\S]{0,20}?\b(won'?t|will not|not to) tell\b|\bwon'?t tell (your family|your kids|your children|anyone|them)\b|\b(it'?ll|it will) be our secret\b|\bI'?ll keep (it|this) (a secret|between us)\b|\bjust between us\b|\bour little secret\b/i,
+    /\bI (promise|swear)[\s\S]{0,20}?\b(won'?t|will not|not to) tell\b|\bwon'?t tell (your family|your kids|your children|your daughter|your daughters|your son|your sons|your husband|your wife|your spouse|your partner|your mother|your father|your mom|your dad|your sister|your sisters|your brother|your brothers|your parents|anyone|them)\b|\b(it'?ll|it will) be our secret\b|\bI'?ll keep (it|this) (a secret|between us)\b|\bjust between us\b|\bour little secret\b/i,
   elderspeak:
     /\b(good (girl|boy)|sweetie pie|widdle|(do|did|does|is|are) we (need|want|have to|hungry|ready|feeling)|(let'?s|time for) (your|our) (nap|potty|bathroom|medicine)|let'?s (go|use the) (potty|bathroom))\b|,\s*(sweetie|honey|dear|dearie|sweetheart)\b|\b(sweetie|honey|dearie)\s*,/i,
 } as const;
