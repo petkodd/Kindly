@@ -62,12 +62,80 @@ export const subscriptionRepo = {
     const sub = await subscriptionRepo.getForParent(q, parentId);
     if (!sub) return false;
     if (sub.status === 'trialing' || sub.status === 'active') return true;
+    if (sub.status === 'beta') {
+      // No grace period — a beta grant simply has a hard end date, and past
+      // it there is no automatic conversion/charge (see grantBeta).
+      return !!sub.current_period_end && ref < new Date(sub.current_period_end);
+    }
     if (sub.status === 'past_due') {
       const anchor = sub.current_period_end ? new Date(sub.current_period_end) : new Date(sub.created_at);
       const graceUntil = new Date(anchor.getTime() + GRACE_MS);
       return ref < graceUntil;
     }
     return false; // canceled
+  },
+
+  /**
+   * Grant a Founding Family Beta entitlement for a parent, from a
+   * just-redeemed beta_invites row. Never touches Stripe.
+   *
+   * Idempotency check FIRST: if this exact invite already granted a row
+   * (an earlier call succeeded but the caller never saw the response — a
+   * dropped connection, a retry after a downstream failure such as the
+   * audit-log write, or a genuine concurrent duplicate request), return that
+   * same row as `already_granted` rather than re-deriving the outcome from
+   * `isBillingCurrent` (which, since that earlier grant IS itself a current
+   * beta subscription, would otherwise misreport this as
+   * `existing_paid_access`). This ordering is what makes a retry after a
+   * partial failure recover cleanly — see the activation route and
+   * betaActivate.route.test.ts's recovery tests.
+   *
+   * Preserves existing paid access: only once we know THIS invite hasn't
+   * already granted anything do we check whether the parent has some OTHER
+   * currently billing-current subscription (trial/active/past_due-in-grace)
+   * — if so, this is a no-op that reports `existing_paid_access` rather than
+   * layering a second, competing row on top. A paid/trialing entitlement
+   * must never be downgraded to beta.
+   *
+   * Race-safe without needing this call itself to run inside a transaction:
+   * `beta_invite_id` is UNIQUE (migration 0013), so `ON CONFLICT ... DO
+   * NOTHING` guarantees at most one subscription row can ever be created per
+   * invite, even under true concurrent INSERTs. The loser simply reads back
+   * the winner's row. (The activation route additionally runs this inside
+   * withTransaction alongside the invite redemption + audit log, for true
+   * all-or-nothing atomicity on real Postgres.)
+   */
+  async grantBeta(
+    q: Querier,
+    input: { buyerId: string; parentId: string; betaInviteId: string; days: number },
+  ): Promise<{ outcome: 'granted' | 'already_granted' | 'existing_paid_access'; subscription: Subscription | null }> {
+    const { rows: existingForInvite } = await q.query<Subscription>(
+      `SELECT * FROM subscriptions WHERE beta_invite_id = $1`,
+      [input.betaInviteId],
+    );
+    if (existingForInvite[0]) {
+      return { outcome: 'already_granted', subscription: existingForInvite[0] };
+    }
+
+    if (await subscriptionRepo.isBillingCurrent(q, input.parentId)) {
+      return { outcome: 'existing_paid_access', subscription: await subscriptionRepo.getForParent(q, input.parentId) };
+    }
+    const endsAt = new Date(Date.now() + input.days * 24 * 60 * 60 * 1000).toISOString();
+    const { rows } = await q.query<Subscription>(
+      `INSERT INTO subscriptions (buyer_id, parent_id, plan, status, current_period_end, beta_invite_id)
+       VALUES ($1, $2, $3, 'beta', $4, $5)
+       ON CONFLICT (beta_invite_id) DO NOTHING
+       RETURNING *`,
+      [input.buyerId, input.parentId, ALPHA_PLAN, endsAt, input.betaInviteId],
+    );
+    if (rows[0]) return { outcome: 'granted', subscription: rows[0] };
+
+    // True concurrent race lost between our SELECT above and this INSERT.
+    const { rows: existing } = await q.query<Subscription>(
+      `SELECT * FROM subscriptions WHERE beta_invite_id = $1`,
+      [input.betaInviteId],
+    );
+    return { outcome: 'already_granted', subscription: existing[0] ?? null };
   },
 
   /**

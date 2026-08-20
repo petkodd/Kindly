@@ -143,7 +143,7 @@ function TalkToKindlySection({ parentId }: { parentId: string }) {
 }
 
 interface SubscriptionInfo {
-  status: 'trialing' | 'active' | 'past_due' | 'canceled';
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'beta';
   current_period_end: string | null;
   billing_interval: 'month' | 'year' | null;
 }
@@ -216,7 +216,9 @@ function BillingSection({ parentId }: { parentId: string }) {
     active: 'Active',
     past_due: 'Payment issue — grace period',
     canceled: 'Canceled',
+    beta: 'Founding Family Beta',
   };
+  const wasBeta = subscription?.status === 'beta';
 
   return (
     <section className="rounded-xl border border-line bg-cloud p-6">
@@ -225,14 +227,21 @@ function BillingSection({ parentId }: { parentId: string }) {
         <p className="mt-2 text-base text-muted">
           {statusLabel[subscription.status]}
           {subscription.current_period_end &&
-            ` · renews ${new Date(subscription.current_period_end).toLocaleDateString()}`}
+            ` · ${subscription.status === 'beta' ? 'ends' : 'renews'} ${new Date(subscription.current_period_end).toLocaleDateString()}`}
         </p>
       ) : (
         <>
           <p className="mt-2 text-base text-muted">
-            {subscription
-              ? 'This parent’s subscription has lapsed, so talk access is paused.'
-              : 'This parent doesn’t have an active trial or subscription yet, so talk access is paused.'}
+            {wasBeta ? (
+              <>
+                Your Founding Family Beta has ended. Your family will not be charged
+                automatically — choose a plan when you’re ready to continue.
+              </>
+            ) : subscription ? (
+              'This parent’s subscription has lapsed, so talk access is paused.'
+            ) : (
+              'This parent doesn’t have an active trial or subscription yet, so talk access is paused.'
+            )}
           </p>
           {error && <p className="mt-2 text-base text-clay">{error}</p>}
           <button type="button" onClick={startTrial} disabled={busy} className="btn-primary mt-4 disabled:opacity-60">

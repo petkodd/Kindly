@@ -16,7 +16,7 @@ export type SummaryStatus = 'draft' | 'preview' | 'sent';
 export type DeliveryChannel = 'email' | 'sms';
 
 export type Plan = 'founding' | 'family' | 'premium' | 'gift_3mo' | 'trial';
-export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled';
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'beta';
 
 export interface Parent {
   id: string;
@@ -132,6 +132,8 @@ export interface Subscription {
   created_at: string;
   /** NULL for rows created before annual billing shipped — treat as 'month'. */
   billing_interval: 'month' | 'year' | null;
+  /** Set only for status = 'beta' — the beta_invites row this entitlement was granted from. */
+  beta_invite_id: string | null;
 }
 
 /** Thrown when a caller tries to reach a parent they don't own. API maps this to 404. */
