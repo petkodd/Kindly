@@ -10,3 +10,7 @@ Sentry.init({
   // request bodies or breadcrumb data from the talk UI to Sentry.
   sendDefaultPii: false,
 });
+
+// Hook into App Router navigation transitions (App Router only) — completes
+// the client-side half of tracesSampleRate above with navigation spans.
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
