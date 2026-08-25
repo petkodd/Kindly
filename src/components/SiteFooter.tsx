@@ -31,7 +31,7 @@ export function SiteFooter() {
     <footer className="mt-24 border-t border-line bg-cloud">
       <div className="container-k grid gap-10 py-14 md:grid-cols-4">
         <div>
-          <p className="font-display text-xl font-semibold text-ink">Kindly</p>
+          <p className="font-display text-xl font-semibold text-ink">Dearly</p>
           <p className="mt-2 text-base text-muted">For the moments you can’t be there.</p>
         </div>
         {COLUMNS.map((col) => (
@@ -52,7 +52,7 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="container-k py-6">
           <p className="text-sm leading-relaxed text-muted">{FOOTER_LEGAL}</p>
-          <p className="mt-3 text-sm text-muted">© {new Date().getFullYear()} Kindly. All rights reserved.</p>
+          <p className="mt-3 text-sm text-muted">© {new Date().getFullYear()} Dearly. All rights reserved.</p>
         </div>
       </div>
     </footer>

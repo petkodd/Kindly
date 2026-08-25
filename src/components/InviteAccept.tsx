@@ -47,7 +47,7 @@ function AcceptEntry() {
         <h1 className="font-display text-3xl font-semibold text-ink">This invitation isn&rsquo;t valid</h1>
         <p className="mt-4 text-lg text-muted">
           The link may have expired or already been used. Ask your family member to send a new invitation from
-          their Kindly account.
+          their Dearly account.
         </p>
       </div>
     );

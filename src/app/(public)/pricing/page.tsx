@@ -6,7 +6,7 @@ import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { PricingCards } from '@/components/PricingCards';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Kindly Pricing — AI Companion Plans for Families',
+  title: 'Dearly Pricing — AI Companion Plans for Families',
   description: 'Simple monthly plans for your parent’s AI companion, with a founding-family offer. Voice, memory, and weekly summaries.',
   path: '/pricing',
 });

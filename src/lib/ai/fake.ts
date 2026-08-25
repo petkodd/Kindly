@@ -23,14 +23,14 @@ import type {
  * It is NOT a quality reference for prompt behavior — only for shape + contract.
  */
 
-const AI_DISCLOSURE = "Hello, I'm Kindly — an AI companion, here to chat with you.";
+const AI_DISCLOSURE = "Hello, I'm Dearly — an AI companion, here to chat with you.";
 
 // Keyword tiers for the safety pre-scan. Highest severity that matches wins.
 const SAFETY_RULES: { severity: Exclude<SafetySeverity, 'none'>; terms: RegExp }[] = [
   { severity: 'p0', terms: /\b(kill myself|suicide|end my life|don'?t want to live)\b/i },
   { severity: 'p1', terms: /\b(chest pain|can'?t breathe|i fell|fell down|stroke)\b/i },
   // Isolation/dependency phrasing counts as a p2 welfare signal too — SAFETY_SCAN_SYSTEM_V1
-  // (prompts.ts) names "isolation" explicitly under p2, and unhealthy reliance on Kindly instead
+  // (prompts.ts) names "isolation" explicitly under p2, and unhealthy reliance on Dearly instead
   // of family (or pressure to keep something secret from them) is exactly that.
   {
     severity: 'p2',
@@ -105,7 +105,7 @@ export const fakeAiClient: AiClient = {
     const summaryText =
       parentTurns.length === 0
         ? `${firstName} didn't say much this time.`
-        : `${firstName} had a ${parentTurns.length}-turn chat with Kindly. It was a gentle conversation.`;
+        : `${firstName} had a ${parentTurns.length}-turn chat with Dearly. It was a gentle conversation.`;
 
     return { summaryText, moodSignal };
   },

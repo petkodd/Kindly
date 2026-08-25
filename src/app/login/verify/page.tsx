@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { MagicLinkVerify } from '@/components/MagicLinkVerify';
 
 // Transactional link, not a marketing destination.
-export const metadata: Metadata = { title: 'Signing in — Kindly', robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: 'Signing in — Dearly', robots: { index: false, follow: false } };
 
 export default function MagicLinkVerifyPage() {
   return (

@@ -80,7 +80,7 @@ describe('TalkPage', () => {
     expect(await screen.findByText('Hello Robert!')).toBeTruthy();
   });
 
-  it('sends a message and renders Kindly’s reply', async () => {
+  it('sends a message and renders Dearly’s reply', async () => {
     stubFetch({
       ...AUTH_OK,
       'POST /api/talk/consent': () => json({ consent: {} }, 201),

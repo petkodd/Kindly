@@ -4,7 +4,7 @@ import { BLOG } from '@/lib/content';
 import { WaitlistForm } from '@/components/WaitlistForm';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Kindly Blog — Caring for Aging Parents',
+  title: 'Dearly Blog — Caring for Aging Parents',
   description: 'Practical, warm guidance for adult children caring for aging parents — connection, technology, and staying close from a distance.',
   path: '/blog',
 });

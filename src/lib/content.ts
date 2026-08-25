@@ -7,22 +7,22 @@
 export const HERO = {
   h1: 'For the moments you can’t be there',
   sub:
-    'Kindly gives your aging parent a warm, patient companion to talk to — any time of day. You set it up. They simply talk. And every week, you get a gentle summary of how they’re doing.',
+    'Dearly gives your aging parent a warm, patient companion to talk to — any time of day. You set it up. They simply talk. And every week, you get a gentle summary of how they’re doing.',
   primaryCta: { label: 'Set up the gift', href: '/app/onboarding' },
   secondaryCta: { label: 'See how it works', href: '/how-it-works' },
   trustline: 'Private by design · Cancel anytime · Built for older adults',
   disclosure:
-    'Kindly is an AI companion — not a person, and never a replacement for family, caregivers, or doctors.',
+    'Dearly is an AI companion — not a person, and never a replacement for family, caregivers, or doctors.',
 };
 
 export const PROBLEM = {
   h2: 'You can’t call every day. That’s okay.',
   body:
-    'Life is full. The miles add up. Between work, kids, and everything else, the daily call to Mom or Dad doesn’t always happen — and the guilt does. Kindly isn’t here to replace your call. It’s here to fill the quiet hours in between, so your parent always has someone kind to talk to.',
+    'Life is full. The miles add up. Between work, kids, and everything else, the daily call to Mom or Dad doesn’t always happen — and the guilt does. Dearly isn’t here to replace your call. It’s here to fill the quiet hours in between, so your parent always has someone kind to talk to.',
 };
 
 export const STEPS = {
-  h2: 'How Kindly works',
+  h2: 'How Dearly works',
   items: [
     {
       title: 'You set it up',
@@ -32,7 +32,7 @@ export const STEPS = {
     {
       title: 'They simply talk',
       body:
-        'Your parent opens one large button and starts talking. No passwords, no menus. Kindly listens, remembers what matters, and is patient every single time.',
+        'Your parent opens one large button and starts talking. No passwords, no menus. Dearly listens, remembers what matters, and is patient every single time.',
     },
     {
       title: 'You stay close',
@@ -45,9 +45,9 @@ export const STEPS = {
 export const SENIORS = {
   h2: 'Made for your parent, not just for you',
   body:
-    'Most apps aren’t built for a 78-year-old’s hands or eyes. Kindly is. Large text. Big buttons. Voice-first, so they can just speak. No logins to remember.',
+    'Most apps aren’t built for a 78-year-old’s hands or eyes. Dearly is. Large text. Big buttons. Voice-first, so they can just speak. No logins to remember.',
   bullets: [
-    'Voice-first — your parent talks, Kindly listens',
+    'Voice-first — your parent talks, Dearly listens',
     'One big button to start, nothing to figure out',
     'Large, high-contrast text that’s easy to read',
     'Works on the tablet or computer they already have',
@@ -57,16 +57,16 @@ export const SENIORS = {
 export const TESTIMONIALS = {
   h2: 'A familiar voice, whenever they want to talk',
   body:
-    'Many parents settle into an easy rhythm with Kindly — an afternoon check-in, a story about the grandkids, a few quiet minutes of company. Every conversation is theirs alone, and every week your family gets a gentle glimpse into how they’re doing.',
+    'Many parents settle into an easy rhythm with Dearly — an afternoon check-in, a story about the grandkids, a few quiet minutes of company. Every conversation is theirs alone, and every week your family gets a gentle glimpse into how they’re doing.',
 };
 
 export const TRUST = {
   h2: 'Private and safe, by design',
   body:
-    'Trust is the whole point. Kindly is built on consent, data minimization, and clear boundaries. Your parent’s conversations are theirs. Family summaries are respectful — never raw transcripts.',
+    'Trust is the whole point. Dearly is built on consent, data minimization, and clear boundaries. Your parent’s conversations are theirs. Family summaries are respectful — never raw transcripts.',
   bullets: [
     'Consent-based — your parent always knows what’s shared, and with whom',
-    'Kindly never pretends to be human',
+    'Dearly never pretends to be human',
     'Never a replacement for family, caregivers, doctors, or 911',
     'You control the data, and can delete it anytime',
   ],
@@ -82,17 +82,17 @@ export const PRICING_TEASER = {
 
 export const FINAL_CTA = {
   h2: 'Give your parent someone kind to talk to',
-  body: 'For the moments you can’t be there — Kindly is.',
+  body: 'For the moments you can’t be there — Dearly is.',
   primary: { label: 'Set up the gift', href: '/app/onboarding' },
   secondary: { label: 'Join the waitlist', href: '/waitlist' },
 };
 
 export const FOOTER_LEGAL =
-  'Kindly is an AI companion intended for friendly conversation and connection. It is not a medical device or service and does not diagnose, treat, cure, or prevent any condition. In an emergency, call 911. If you or someone you love is in crisis, call or text 988 (US Suicide & Crisis Lifeline).';
+  'Dearly is an AI companion intended for friendly conversation and connection. It is not a medical device or service and does not diagnose, treat, cure, or prevent any condition. In an emergency, call 911. If you or someone you love is in crisis, call or text 988 (US Suicide & Crisis Lifeline).';
 
 export const HOW_IT_WORKS = {
   hero: {
-    h1: 'How Kindly works',
+    h1: 'How Dearly works',
     sub:
       'Three simple steps: you set it up, your parent talks, and your family stays close. No apps to learn on their end — just one big button.',
   },
@@ -105,7 +105,7 @@ export const HOW_IT_WORKS = {
     {
       title: '2. Your parent simply talks',
       body:
-        'They open one link or one big button — no passwords, no menus, no app store. Kindly greets them by name, says clearly that it’s an AI companion, and listens. They can talk about their day, an old memory, or nothing in particular. Kindly is patient every time, for as long or as short as they like.',
+        'They open one link or one big button — no passwords, no menus, no app store. Dearly greets them by name, says clearly that it’s an AI companion, and listens. They can talk about their day, an old memory, or nothing in particular. Dearly is patient every time, for as long or as short as they like.',
     },
     {
       title: '3. You get a gentle weekly summary',
@@ -116,7 +116,7 @@ export const HOW_IT_WORKS = {
   voice: {
     h2: 'Built to be easy for a 78-year-old, not just for you',
     body:
-      'Kindly is voice-first: your parent speaks, and Kindly listens and replies in a warm, clear voice paced for easier listening. Large text and high contrast are on by default. There is nothing to install and nothing to remember.',
+      'Dearly is voice-first: your parent speaks, and Dearly listens and replies in a warm, clear voice paced for easier listening. Large text and high contrast are on by default. There is nothing to install and nothing to remember.',
   },
   family: {
     h2: 'What your family actually sees',
@@ -130,13 +130,13 @@ export const HOW_IT_WORKS = {
     ],
   },
   boundaries: {
-    h2: 'What Kindly is — and isn’t',
+    h2: 'What Dearly is — and isn’t',
     body:
-      'Kindly is a companion for conversation and connection. It is not a replacement for family, caregivers, or medical care, and it never pretends to be a person. If health, safety, or money concerns come up, Kindly gently encourages your parent to talk with someone who can actually help.',
+      'Dearly is a companion for conversation and connection. It is not a replacement for family, caregivers, or medical care, and it never pretends to be a person. If health, safety, or money concerns come up, Dearly gently encourages your parent to talk with someone who can actually help.',
   },
   cta: {
     h2: 'Ready to set it up?',
-    body: 'It takes a few minutes, and your parent can be talking to Kindly today.',
+    body: 'It takes a few minutes, and your parent can be talking to Dearly today.',
     primary: { label: 'Set up the gift', href: '/app/onboarding' },
     secondary: { label: 'See pricing', href: '/pricing' },
   },
@@ -188,7 +188,7 @@ export const PRICING = {
       priceAnnualCents: 56640,
       tagline: 'Our standard plan for one parent and their family',
       bullets: [
-        'Daily voice conversation with Kindly',
+        'Daily voice conversation with Dearly',
         'A memory built from the people and things your parent cares about',
         'Weekly summary for up to 3 family recipients',
         'A gentle heads-up if something seems worth a check-in',
@@ -251,12 +251,12 @@ export const SENIOR_LIVING = {
   problem: {
     h2: 'Your team can’t be everywhere either',
     body:
-      'Activities staff and caregivers already do the work of a much larger team. Kindly gives every resident someone patient to talk to between visits and activities — filling quiet hours without adding to anyone’s workload.',
+      'Activities staff and caregivers already do the work of a much larger team. Dearly gives every resident someone patient to talk to between visits and activities — filling quiet hours without adding to anyone’s workload.',
   },
   forResidents: {
     h2: 'Built for residents, not just for families',
     body:
-      'Kindly speaks the way your residents actually communicate — patient, voice-first, and never rushed. Large text and a calm, clear voice are on by default, and there’s nothing to log into.',
+      'Dearly speaks the way your residents actually communicate — patient, voice-first, and never rushed. Large text and a calm, clear voice are on by default, and there’s nothing to log into.',
     bullets: [
       'Voice-first conversation, paced for easier listening',
       'One big button to start — no app store, no passwords',
@@ -278,10 +278,10 @@ export const SENIOR_LIVING = {
   boundaries: {
     h2: 'A companion, not a caregiver',
     body:
-      'Kindly is not a medical device and doesn’t diagnose, monitor vitals, or replace your clinical staff. It’s a warm conversational layer that keeps residents connected and gives families a window in — care decisions stay with your team.',
+      'Dearly is not a medical device and doesn’t diagnose, monitor vitals, or replace your clinical staff. It’s a warm conversational layer that keeps residents connected and gives families a window in — care decisions stay with your team.',
   },
   cta: {
-    h2: 'Curious how Kindly could fit your community?',
+    h2: 'Curious how Dearly could fit your community?',
     body: 'We’re happy to walk through a pilot for a small group of residents.',
     primary: { label: 'Join the waitlist', href: '/waitlist' },
     secondary: { label: 'See how it works', href: '/how-it-works' },
@@ -292,12 +292,12 @@ export const GIFT_FOR_AGING_PARENT = {
   hero: {
     h1: 'A gift that keeps your parent company',
     sub:
-      'Kindly is a warm AI companion you set up in minutes and your parent simply talks to — a thoughtful gift for a birthday, a holiday, or just because you wish you could call more often.',
+      'Dearly is a warm AI companion you set up in minutes and your parent simply talks to — a thoughtful gift for a birthday, a holiday, or just because you wish you could call more often.',
   },
   why: {
     h2: 'A different kind of gift',
     body:
-      'Flowers fade. A gadget your parent won’t use ends up in a drawer. Kindly shows up every day — someone patient to talk to about their morning, an old memory, or nothing in particular — and sends a weekly note that lets you know how they’re really doing.',
+      'Flowers fade. A gadget your parent won’t use ends up in a drawer. Dearly shows up every day — someone patient to talk to about their morning, an old memory, or nothing in particular — and sends a weekly note that lets you know how they’re really doing.',
   },
   occasions: {
     h2: 'A thoughtful choice for any occasion',
@@ -311,7 +311,7 @@ export const GIFT_FOR_AGING_PARENT = {
   reassurance: {
     h2: 'For a parent who says “I don’t do computers”',
     body:
-      'You don’t need to teach your parent an app. Kindly opens to one big button, reads clearly, and listens patiently — as many times as it takes. No passwords to forget, no menus to get lost in.',
+      'You don’t need to teach your parent an app. Dearly opens to one big button, reads clearly, and listens patiently — as many times as it takes. No passwords to forget, no menus to get lost in.',
     bullets: [
       'One big button — nothing else to learn',
       'Large text and a calm, clear voice',
@@ -327,7 +327,7 @@ export const GIFT_FOR_AGING_PARENT = {
   },
   cta: {
     h2: 'Give the gift of someone to talk to',
-    body: 'Set it up today, and your parent can be talking to Kindly by this afternoon.',
+    body: 'Set it up today, and your parent can be talking to Dearly by this afternoon.',
     primary: { label: 'Set up the gift', href: '/app/onboarding' },
     secondary: { label: 'Join the waitlist', href: '/waitlist' },
   },
@@ -335,7 +335,7 @@ export const GIFT_FOR_AGING_PARENT = {
 
 export const BLOG = {
   hero: {
-    h1: 'The Kindly blog',
+    h1: 'The Dearly blog',
     sub:
       'Practical, warm guidance for adult children caring for aging parents — connection, technology, and staying close from a distance.',
   },
@@ -350,15 +350,15 @@ export const TRUST_AND_PRIVACY = {
   hero: {
     h1: 'Private and safe, by design',
     sub:
-      'Trust is the whole point of Kindly. Here is exactly what we do, what we don’t do, and how your family stays in control.',
+      'Trust is the whole point of Dearly. Here is exactly what we do, what we don’t do, and how your family stays in control.',
   },
   consent: {
     h2: 'Consent comes first',
     body:
-      'Before Kindly ever talks with your parent, the adult child setting it up confirms they have permission to do so. Before any weekly summary is delivered to a family member, that family member must accept an invitation — no one receives updates about your parent without an explicit yes.',
+      'Before Dearly ever talks with your parent, the adult child setting it up confirms they have permission to do so. Before any weekly summary is delivered to a family member, that family member must accept an invitation — no one receives updates about your parent without an explicit yes.',
     bullets: [
       'A buyer attestation is required before a parent profile is activated',
-      'A conversation consent is required before Kindly’s first message',
+      'A conversation consent is required before Dearly’s first message',
       'Each family recipient must individually accept before receiving summaries',
       'Any recipient can be removed at any time',
     ],
@@ -366,7 +366,7 @@ export const TRUST_AND_PRIVACY = {
   minimization: {
     h2: 'We collect less, on purpose',
     body:
-      'Kindly only stores what helps the companion be useful — confirmed memories your parent has shared, and short conversation summaries. Sensitive details about health, mood, or risk are marked private and are never included in anything shared with family.',
+      'Dearly only stores what helps the companion be useful — confirmed memories your parent has shared, and short conversation summaries. Sensitive details about health, mood, or risk are marked private and are never included in anything shared with family.',
     bullets: [
       'Family summaries are written in plain language — never raw transcripts',
       'Sensitive topics (health, mood, risk) are excluded from anything shareable',
@@ -375,28 +375,28 @@ export const TRUST_AND_PRIVACY = {
     ],
   },
   disclosure: {
-    h2: 'Kindly always says what it is',
+    h2: 'Dearly always says what it is',
     body:
-      'At the start of every conversation — and any time it’s asked — Kindly clearly states that it is an AI companion, not a person. It never claims to have feelings, never pretends to be human, and never asks for passwords, Social Security numbers, or bank details.',
+      'At the start of every conversation — and any time it’s asked — Dearly clearly states that it is an AI companion, not a person. It never claims to have feelings, never pretends to be human, and never asks for passwords, Social Security numbers, or bank details.',
   },
   medical: {
     h2: 'Not a medical service',
     body:
-      'Kindly is built for warm conversation and connection. It is not a medical device, does not diagnose, treat, cure, or prevent any condition, and is never a substitute for a doctor, therapist, or emergency services. When health, safety, legal, or financial topics come up, Kindly encourages your parent to speak with family or a professional — it doesn’t offer instructions of its own.',
+      'Dearly is built for warm conversation and connection. It is not a medical device, does not diagnose, treat, cure, or prevent any condition, and is never a substitute for a doctor, therapist, or emergency services. When health, safety, legal, or financial topics come up, Dearly encourages your parent to speak with family or a professional — it doesn’t offer instructions of its own.',
   },
   safety: {
     h2: 'How we handle a real concern',
     body:
-      'If a conversation suggests a possible crisis or safety concern, Kindly shares the relevant emergency resource (like 911 or the 988 Suicide & Crisis Lifeline) and the situation is flagged for human review by our team. Kindly never claims to have contacted emergency services on your behalf — only a real person or service can do that.',
+      'If a conversation suggests a possible crisis or safety concern, Dearly shares the relevant emergency resource (like 911 or the 988 Suicide & Crisis Lifeline) and the situation is flagged for human review by our team. Dearly never claims to have contacted emergency services on your behalf — only a real person or service can do that.',
   },
   data: {
     h2: 'You stay in control of the data',
     body:
-      'You can review, edit, or delete any memory Kindly has stored. You can revoke a family member’s access to summaries at any time. Deleting an account removes the underlying data on a fixed retention schedule, honored automatically.',
+      'You can review, edit, or delete any memory Dearly has stored. You can revoke a family member’s access to summaries at any time. Deleting an account removes the underlying data on a fixed retention schedule, honored automatically.',
   },
   cta: {
     h2: 'Questions about privacy or safety?',
-    body: 'We’re happy to walk through exactly how Kindly handles your family’s information.',
+    body: 'We’re happy to walk through exactly how Dearly handles your family’s information.',
     primary: { label: 'Set up the gift', href: '/app/onboarding' },
     secondary: { label: 'Join the waitlist', href: '/waitlist' },
   },

@@ -56,7 +56,7 @@ export default function ParentProfilePage() {
             <p className="eyebrow">Their profile</p>
             <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Parent profile</h1>
             <p className="mt-2 text-base text-muted">
-              Tune how Kindly speaks with your parent — the accessibility settings that make each
+              Tune how Dearly speaks with your parent — the accessibility settings that make each
               conversation comfortable for them.
             </p>
           </div>
@@ -102,7 +102,7 @@ function ProfilePanel({ parentId }: { parentId: string }) {
   return (
     <div className="space-y-6">
       <ProfileForm parent={parent} onSaved={setParent} />
-      {parent.relationship === 'self' && parent.activated_at && <TalkToKindlySection parentId={parent.id} />}
+      {parent.relationship === 'self' && parent.activated_at && <TalkToDearlySection parentId={parent.id} />}
       {parent.activated_at && <BillingSection parentId={parent.id} />}
     </div>
   );
@@ -114,7 +114,7 @@ function ProfilePanel({ parentId }: { parentId: string }) {
  * re-runs the same access-link → talk/auth handshake on demand rather than
  * relying on the cookie alone.
  */
-function TalkToKindlySection({ parentId }: { parentId: string }) {
+function TalkToDearlySection({ parentId }: { parentId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -133,7 +133,7 @@ function TalkToKindlySection({ parentId }: { parentId: string }) {
 
   return (
     <section className="rounded-xl border border-line bg-cloud p-6">
-      <h2 className="text-lg font-semibold text-ink">Talk to Kindly</h2>
+      <h2 className="text-lg font-semibold text-ink">Talk to Dearly</h2>
       {error && <p className="mt-2 text-base text-clay">{error}</p>}
       <button type="button" onClick={startTalking} disabled={busy} className="btn-primary mt-4 disabled:opacity-60">
         {busy ? 'One moment…' : 'Start talking'}

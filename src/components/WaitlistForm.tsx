@@ -73,7 +73,7 @@ export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string
       </button>
       {status === 'error' && <p className="text-base text-clay">{message}</p>}
       <p className="text-sm text-muted">
-        We’ll only use your email to contact you about Kindly. No spam, ever.
+        We’ll only use your email to contact you about Dearly. No spam, ever.
       </p>
     </div>
   );

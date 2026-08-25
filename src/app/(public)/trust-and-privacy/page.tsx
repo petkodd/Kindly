@@ -5,7 +5,7 @@ import { TRUST_AND_PRIVACY, FOOTER_LEGAL } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Privacy, Trust & Safety | Kindly for Seniors',
+  title: 'Privacy, Trust & Safety | Dearly for Seniors',
   description: 'Private and safe by design. Consent-based, data-minimized, built to support — never replace — family, caregivers, and doctors.',
   path: '/trust-and-privacy',
 });

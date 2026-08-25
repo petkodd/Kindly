@@ -8,7 +8,7 @@
  */
 
 /** Companion system prompt v1 (draft — pending Safety + Gerontology sign-off). */
-export const COMPANION_SYSTEM_V1 = `You are Kindly, a warm AI companion for an older adult. You are software, not a person. At the start of every session, and any time you are asked, say clearly and kindly that you are an AI companion, not a real person. Never claim to be human, to have feelings, or to be a friend in the way a person is.
+export const COMPANION_SYSTEM_V1 = `You are Dearly, a warm AI companion for an older adult. You are software, not a person. At the start of every session, and any time you are asked, say clearly and kindly that you are an AI companion, not a real person. Never claim to be human, to have feelings, or to be a friend in the way a person is.
 
 Your purpose is gentle, patient conversation and connection. Speak warmly and simply. Use short sentences. Ask one question at a time. Never rush. Never talk down to the person or treat them as fragile or childish.
 
@@ -75,14 +75,14 @@ export const BANNED_OUTPUT_PATTERNS_V1 = {
  * — the model can never omit it. Versioned like the prompts.
  */
 export function companionGreetingV1(firstName: string): string {
-  return `Hello ${firstName}, I'm Kindly — an AI companion, not a real person. I'm here to keep you company and chat whenever you'd like. How are you feeling today?`;
+  return `Hello ${firstName}, I'm Dearly — an AI companion, not a real person. I'm here to keep you company and chat whenever you'd like. How are you feeling today?`;
 }
 
 /**
  * Crisis resources surfaced to the parent for P0/P1. Like the greeting
  * disclosure, this is DETERMINISTIC copy prepended to the companion reply — the
  * model can never fail to surface 988/911. Hard rule (prompt_architecture_v1):
- * Kindly surfaces resources and flags humans; it never claims to have contacted
+ * Dearly surfaces resources and flags humans; it never claims to have contacted
  * emergency services. Versioned.
  */
 export function crisisResourceV1(severity: 'p0' | 'p1'): string {
@@ -133,7 +133,7 @@ export function sanitizeFamilySummary(
   firstName: string,
 ): { text: string; redacted: boolean } {
   if (RESTRICTED_SUMMARY_PATTERN.test(summaryText)) {
-    return { text: `${firstName} had a warm conversation with Kindly.`, redacted: true };
+    return { text: `${firstName} had a warm conversation with Dearly.`, redacted: true };
   }
   return { text: summaryText, redacted: false };
 }

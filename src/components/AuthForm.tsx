@@ -93,7 +93,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         {isSignup ? (
           <>Already have an account? <Link href="/login" className="text-sage underline">Sign in</Link></>
         ) : (
-          <>New to Kindly? <Link href="/signup" className="text-sage underline">Create an account</Link></>
+          <>New to Dearly? <Link href="/signup" className="text-sage underline">Create an account</Link></>
         )}
       </p>
     </div>

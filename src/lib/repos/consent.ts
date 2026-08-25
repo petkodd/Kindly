@@ -8,7 +8,7 @@ function hashToken(raw: string): string {
 }
 
 /**
- * Consent is the spine of Kindly's privacy model. Two gates matter most:
+ * Consent is the spine of Dearly's privacy model. Two gates matter most:
  *  - buyer_attestation must exist before a parent profile can be activated.
  *  - parent_conversation must exist before the first message is processed.
  *  - summary_recipient must exist (per recipient) before any summary is delivered.

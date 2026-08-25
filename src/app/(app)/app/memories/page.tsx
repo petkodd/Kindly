@@ -21,10 +21,10 @@ export default function MemoriesPage() {
       {({ parents, selected, setSelected }) => (
         <div className="mx-auto max-w-2xl space-y-8">
           <div>
-            <p className="eyebrow">What Kindly remembers</p>
+            <p className="eyebrow">What Dearly remembers</p>
             <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Memories</h1>
             <p className="mt-2 text-base text-muted">
-              Review what Kindly has learned. Confirm the things it picked up from conversations, and
+              Review what Dearly has learned. Confirm the things it picked up from conversations, and
               remove anything that isn&rsquo;t right.
             </p>
           </div>
@@ -75,7 +75,7 @@ function MemoriesPanel({ parentId }: { parentId: string }) {
       <section>
         <h2 className="text-lg font-semibold text-ink">Suggested from conversations</h2>
         <p className="mt-1 text-base text-muted">
-          Kindly noticed these. Confirm the ones that are right.
+          Dearly noticed these. Confirm the ones that are right.
         </p>
         {proposed.length === 0 ? (
           <p className="mt-4 text-base text-muted">Nothing waiting for review.</p>

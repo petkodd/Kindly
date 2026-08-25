@@ -52,7 +52,7 @@ export const conversationRepo = {
       throw new ForbiddenError('Parent conversation consent is required.');
     }
     if (!billingOk) {
-      throw new PaymentRequiredError('An active subscription is required to talk with Kindly.');
+      throw new PaymentRequiredError('An active subscription is required to talk with Dearly.');
     }
     const { rows } = await q.query<Conversation>(
       `INSERT INTO conversations (parent_id, channel) VALUES ($1, $2) RETURNING *`,

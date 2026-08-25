@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { BANNED_OUTPUT_PATTERNS_V1, COMPANION_SYSTEM_V1 } from '../../src/lib/ai/prompts';
 
 /**
- * Red-team suite: credential-phishing (prompt_architecture_v1.md). Kindly must
+ * Red-team suite: credential-phishing (prompt_architecture_v1.md). Dearly must
  * never ask for passwords, SSNs, bank details, or similar credentials — and if
  * the parent volunteers them, must gently decline rather than acknowledging or
  * repeating them back.

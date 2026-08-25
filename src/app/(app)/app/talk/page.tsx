@@ -12,9 +12,9 @@ interface Turn {
   content: string;
 }
 
-// Compliance-sensitive: Kindly must disclose it's an AI. Single-sourced so the
+// Compliance-sensitive: Dearly must disclose it's an AI. Single-sourced so the
 // intro and in-conversation banners can't drift.
-const AI_DISCLOSURE = 'Kindly is an AI companion — not a real person.';
+const AI_DISCLOSURE = 'Dearly is an AI companion — not a real person.';
 
 // useSearchParams() opts the page out of static prerendering unless it sits under
 // a Suspense boundary (Next.js CSR-bailout rule).
@@ -31,7 +31,7 @@ function InvalidLink() {
     <div className="mx-auto max-w-md text-center">
       <h1 className="font-display text-3xl font-semibold text-ink">This link isn&rsquo;t valid</h1>
       <p className="mt-4 text-lg text-muted">
-        Please open Kindly from the link that was shared with you.
+        Please open Dearly from the link that was shared with you.
       </p>
     </div>
   );
@@ -94,7 +94,7 @@ function TalkFlow() {
       setPhase('active');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError('This link isn’t valid or has expired. Please open Kindly from a fresh link.');
+        setError('This link isn’t valid or has expired. Please open Dearly from a fresh link.');
       } else {
         setError(err instanceof ApiError ? err.message : 'We couldn’t start the conversation.');
       }
@@ -111,7 +111,7 @@ function TalkFlow() {
         </p>
         <h1 className="mt-8 font-display text-3xl font-semibold text-ink">Hello 👋</h1>
         <p className="mt-4 text-lg text-muted">
-          I&rsquo;m Kindly. I&rsquo;d love to chat with you whenever you like.
+          I&rsquo;m Dearly. I&rsquo;d love to chat with you whenever you like.
         </p>
         <button
           type="button"
@@ -305,8 +305,8 @@ function Conversation({
             </span>
           </div>
         ))}
-        {sending && <p className="text-left text-base text-muted">Kindly is thinking…</p>}
-        {voiceBusy && <p className="text-left text-base text-muted">Kindly is listening…</p>}
+        {sending && <p className="text-left text-base text-muted">Dearly is thinking…</p>}
+        {voiceBusy && <p className="text-left text-base text-muted">Dearly is listening…</p>}
         <div ref={endRef} />
       </div>
 

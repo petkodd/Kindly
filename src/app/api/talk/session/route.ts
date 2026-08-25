@@ -10,7 +10,7 @@ const unauthorized = () =>
 
 /**
  * Open a conversation. 403 (ForbiddenError) if no parent_conversation consent.
- * Returns a greeting that discloses Kindly is an AI, stored as the first turn.
+ * Returns a greeting that discloses Dearly is an AI, stored as the first turn.
  */
 export async function POST(req: NextRequest) {
   try {

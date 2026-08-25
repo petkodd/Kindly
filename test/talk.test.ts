@@ -253,7 +253,7 @@ describe('full talk turn flow (via fake client)', () => {
     const convo = await conversationRepo.openSession(q, parentId);
 
     // Mirror what /api/talk/message does.
-    await conversationRepo.addTurn(q, convo.id, parentId, 'parent', 'Hello Kindly');
+    await conversationRepo.addTurn(q, convo.id, parentId, 'parent', 'Hello Dearly');
     const memories = (await memoryRepo.retrieveForCompanion(q, parentId)).map((m) => ({
       layer: m.layer,
       key: m.mem_key,
@@ -263,7 +263,7 @@ describe('full talk turn flow (via fake client)', () => {
       profile: { firstName: parent.first_name },
       memories,
       history: [],
-      message: 'Hello Kindly',
+      message: 'Hello Dearly',
       isSessionOpen: false,
     });
     await conversationRepo.addTurn(q, convo.id, parentId, 'kindly', reply.text);

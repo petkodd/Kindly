@@ -41,8 +41,8 @@ const PREVIEW = {
   period_start: '2026-06-29',
   period_end: '2026-07-05',
   status: 'preview' as const,
-  body_long: 'Robert had 2 conversations with Kindly this week.',
-  body_short: 'Robert had 2 conversations with Kindly this week.',
+  body_long: 'Robert had 2 conversations with Dearly this week.',
+  body_short: 'Robert had 2 conversations with Dearly this week.',
   has_concern: false,
 };
 
@@ -56,7 +56,7 @@ describe('FamilySummaryPage', () => {
   it('shows an onboarding prompt when the buyer has no parents', async () => {
     stubFetch({ 'GET /api/parents': () => json({ parents: [] }) });
     render(<FamilySummaryPage />);
-    expect(await screen.findByText(/haven’t set up Kindly/i)).toBeTruthy();
+    expect(await screen.findByText(/haven’t set up Dearly/i)).toBeTruthy();
     expect(screen.getByRole('link', { name: /get started/i })).toBeTruthy();
   });
 
@@ -73,7 +73,7 @@ describe('FamilySummaryPage', () => {
     });
     render(<FamilySummaryPage />);
 
-    expect(await screen.findByText(/2 conversations with Kindly/i)).toBeTruthy();
+    expect(await screen.findByText(/2 conversations with Dearly/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /send this week’s summary/i }));
     expect(await screen.findByText(/sent to 1 recipient\./i)).toBeTruthy();
   });
