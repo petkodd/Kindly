@@ -10,7 +10,7 @@ import { getEmailClient } from '../email';
 import { weeklySummaryEmail } from '../email/templates';
 
 /**
- * Weekly summaries are the family-facing heartbeat of Kindly. They are built
+ * Weekly summaries are the family-facing heartbeat of Dearly. They are built
  * ONLY from family-safe signals:
  *  - per-conversation summaries written by the summarize job
  *  - coarse, non-clinical mood signals ('warm'|'flat'|'low')
@@ -71,7 +71,7 @@ function composeBody(
   }
 
   const chatWord = chats === 1 ? 'conversation' : 'conversations';
-  const bodyShort = `${firstName} had ${chats} ${chatWord} with Kindly this week.`;
+  const bodyShort = `${firstName} had ${chats} ${chatWord} with Dearly this week.`;
 
   const lines = [bodyShort];
   if (highlights.length > 0) {
@@ -208,7 +208,7 @@ export const summaryRepo = {
     for (const consent of recipients) {
       if (alreadyDelivered.has(consent.id)) continue;
       // recipient_user stays null: the recipient is identified by the consent
-      // (detail.recipient_email) and is typically not yet a Kindly user. It is
+      // (detail.recipient_email) and is typically not yet a Dearly user. It is
       // NOT the buyer in consent.granted_by.
       //
       // ON CONFLICT closes the cross-request race: a concurrent send that won

@@ -15,7 +15,7 @@ export function SiteHeader() {
     <header className="border-b border-line bg-cloud/80 backdrop-blur">
       <div className="container-k flex items-center justify-between gap-2 py-4 sm:gap-4">
         <Link href="/" className="font-display text-xl font-semibold text-ink sm:text-2xl">
-          Kindly
+          Dearly
         </Link>
         {/* Only shown at lg+ — below that, logo + auth controls alone already
             fill the container width; adding the full nav any earlier crowds

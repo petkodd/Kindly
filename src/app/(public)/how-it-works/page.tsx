@@ -5,7 +5,7 @@ import { HOW_IT_WORKS } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'How Kindly’s AI Companion for Seniors Works',
+  title: 'How Dearly’s AI Companion for Seniors Works',
   description: 'Set it up, your parent talks by voice, and your family gets a respectful weekly summary. Simple, voice-first, senior-friendly.',
   path: '/how-it-works',
 });

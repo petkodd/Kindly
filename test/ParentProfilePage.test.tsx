@@ -58,7 +58,7 @@ describe('ParentProfilePage', () => {
   it('prompts onboarding when there are no parents', async () => {
     stubFetch({ 'GET /api/parents': () => json({ parents: [] }) });
     render(<ParentProfilePage />);
-    expect(await screen.findByText(/haven’t set up Kindly/i)).toBeTruthy();
+    expect(await screen.findByText(/haven’t set up Dearly/i)).toBeTruthy();
   });
 
   it('loads the profile and saves edited accessibility settings', async () => {
@@ -231,7 +231,7 @@ describe('ParentProfilePage', () => {
     });
   });
 
-  describe('"Talk to Kindly" section (self profiles only)', () => {
+  describe('"Talk to Dearly" section (self profiles only)', () => {
     const SELF_PARENT = { ...PARENT, relationship: 'self', activated_at: '2026-07-01T00:00:00Z' };
     const GIFT_PARENT = { ...PARENT, relationship: 'father', activated_at: '2026-07-01T00:00:00Z' };
 
@@ -243,7 +243,7 @@ describe('ParentProfilePage', () => {
       });
       render(<ParentProfilePage />);
       await screen.findByText('Billing');
-      expect(screen.queryByText('Talk to Kindly')).toBeNull();
+      expect(screen.queryByText('Talk to Dearly')).toBeNull();
     });
 
     it('renders for a self profile and performs the access-link -> talk/auth handshake, then navigates', async () => {

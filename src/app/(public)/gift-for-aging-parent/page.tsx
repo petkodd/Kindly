@@ -5,8 +5,8 @@ import { GIFT_FOR_AGING_PARENT } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'A Meaningful Gift for an Aging Parent | Kindly',
-  description: 'Give your elderly parent someone kind to talk to every day. Set up Kindly in minutes, with respectful weekly updates for your family.',
+  title: 'A Meaningful Gift for an Aging Parent | Dearly',
+  description: 'Give your elderly parent someone kind to talk to every day. Set up Dearly in minutes, with respectful weekly updates for your family.',
   path: '/gift-for-aging-parent',
 });
 

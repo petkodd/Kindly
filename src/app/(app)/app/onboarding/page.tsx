@@ -216,7 +216,7 @@ function OnboardingWizard() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <p className="eyebrow">Set up Kindly</p>
+      <p className="eyebrow">Set up Dearly</p>
       <p className="mt-2 text-base text-muted">Step {Math.min(displayStep, totalSteps)} of {totalSteps}</p>
       {step === 0 && <WhoForStep onDone={(self) => { setForSelf(self); setStep(1); }} />}
       {step === 1 && (
@@ -251,7 +251,7 @@ function WhoForStep({ onDone }: { onDone: (forSelf: boolean) => void }) {
       <p className="text-lg text-muted">You can always set up another profile later — for yourself or as a gift.</p>
       <div className="space-y-3">
         <button type="button" onClick={() => onDone(true)} className="btn-primary w-full">
-          Me — I want to talk with Kindly myself
+          Me — I want to talk with Dearly myself
         </button>
         <button type="button" onClick={() => onDone(false)} className="btn-secondary w-full">
           Someone else — I&rsquo;m setting this up as a gift
@@ -376,7 +376,7 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
       <h1 className="font-display text-3xl font-semibold text-ink">
         {forSelf ? 'A few things about you' : `A few things about ${parent.first_name}`}
       </h1>
-      <p className="text-base text-muted">These help Kindly hold a warmer conversation. All optional — you can add more later.</p>
+      <p className="text-base text-muted">These help Dearly hold a warmer conversation. All optional — you can add more later.</p>
       <div>
         <label htmlFor="ob-person" className="block text-base font-semibold text-ink">
           {forSelf ? 'Someone who matters to you' : 'Someone who matters to them'}
@@ -425,11 +425,11 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
     <div className="mt-6 space-y-5">
       <h1 className="font-display text-3xl font-semibold text-ink">One important step</h1>
       <p className="text-lg text-muted">
-        Kindly is only for people who want it. Please confirm {parent.first_name} is happy to talk with an AI companion.
+        Dearly is only for people who want it. Please confirm {parent.first_name} is happy to talk with an AI companion.
       </p>
       <label className="flex items-start gap-3 rounded-xl border border-line bg-cloud p-4 text-base text-ink">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-5 w-5 rounded border-line" />
-        I confirm I have {parent.first_name}’s permission to set up Kindly for them.
+        I confirm I have {parent.first_name}’s permission to set up Dearly for them.
       </label>
       {error && <p className="text-base text-clay">{error}</p>}
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
@@ -549,7 +549,7 @@ function BillingStep({
     <div className="mt-6 space-y-5">
       <h1 className="font-display text-3xl font-semibold text-ink">Start your free trial</h1>
       <p className="text-lg text-muted">
-        Try Kindly free for 7 days. We’ll ask for a card to hold your spot — you won’t be
+        Try Dearly free for 7 days. We’ll ask for a card to hold your spot — you won’t be
         charged until the trial ends, and you can cancel anytime before then.
       </p>
       <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} label="Family plan billing" />
@@ -607,10 +607,10 @@ function FoundingBetaBillingStep({
 
   return (
     <div className="mt-6 space-y-5">
-      <p className="eyebrow">Set up Kindly</p>
+      <p className="eyebrow">Set up Dearly</p>
       <h1 className="font-display text-3xl font-semibold text-ink">Join the Founding Family Beta</h1>
       <p className="text-lg text-muted">
-        Try Kindly free for 14 days. No card required. Your family will receive personal
+        Try Dearly free for 14 days. No card required. Your family will receive personal
         onboarding and direct support while helping us improve the experience.
       </p>
       {error && <p className="text-base text-clay">{error}</p>}
@@ -661,7 +661,7 @@ function SelfDoneStep({ parent }: { parent: Parent }) {
           </button>
         </>
       ) : (
-        <p className="text-lg text-muted">Taking you to Kindly…</p>
+        <p className="text-lg text-muted">Taking you to Dearly…</p>
       )}
     </div>
   );
@@ -720,7 +720,7 @@ function GiftDoneStep({
 
   async function shareLink() {
     try {
-      await navigator.share({ title: 'Talk with Kindly', url: talkUrl });
+      await navigator.share({ title: 'Talk with Dearly', url: talkUrl });
     } catch {
       /* user canceled the share sheet, or it failed — copy is still available */
     }
@@ -744,7 +744,7 @@ function GiftDoneStep({
               </button>
             )}
           </div>
-          <p className="text-sm text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Kindly.</p>
+          <p className="text-sm text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Dearly.</p>
         </div>
       ) : (
         <button type="button" onClick={issueLink} disabled={busy} className="btn-primary w-full disabled:opacity-60">

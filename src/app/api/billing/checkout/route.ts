@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return unauthorized();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kindly.example.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dearly.example.com';
   if (!getStripeSecretKeyRaw()) return notConfigured();
 
   try {

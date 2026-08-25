@@ -15,11 +15,11 @@ export function inviteRecipientEmail(input: {
   acceptUrl: string;
 }): { subject: string; html: string; text: string } {
   const { parentFirstName, acceptUrl } = input;
-  const subject = `You've been invited to ${parentFirstName}'s weekly Kindly summary`;
+  const subject = `You've been invited to ${parentFirstName}'s weekly Dearly summary`;
   const text = [
     `You've been invited to receive a weekly, respectful summary of how ${parentFirstName} is doing.`,
     '',
-    `Kindly is a voice-first AI companion ${parentFirstName} can talk to. Each week, family who accept get a short, warm update — never a raw transcript.`,
+    `Dearly is a voice-first AI companion ${parentFirstName} can talk to. Each week, family who accept get a short, warm update — never a raw transcript.`,
     '',
     `Accept the invitation: ${acceptUrl}`,
     '',
@@ -29,7 +29,7 @@ export function inviteRecipientEmail(input: {
   const safeUrl = escapeHtml(acceptUrl);
   const html = `
     <p>You've been invited to receive a weekly, respectful summary of how <strong>${safeName}</strong> is doing.</p>
-    <p>Kindly is a voice-first AI companion ${safeName} can talk to. Each week, family who accept get a short, warm update — never a raw transcript.</p>
+    <p>Dearly is a voice-first AI companion ${safeName} can talk to. Each week, family who accept get a short, warm update — never a raw transcript.</p>
     <p><a href="${safeUrl}">Accept the invitation</a></p>
     <p style="color:#666;font-size:14px">If you weren't expecting this, you can ignore this email.</p>
   `.trim();
@@ -44,7 +44,7 @@ export function weeklySummaryEmail(input: {
   bodyLong: string;
 }): { subject: string; html: string; text: string } {
   const { parentFirstName, bodyLong } = input;
-  const subject = `${parentFirstName}'s week with Kindly`;
+  const subject = `${parentFirstName}'s week with Dearly`;
   const text = [
     bodyLong,
     '',
@@ -57,7 +57,7 @@ export function weeklySummaryEmail(input: {
     .map((line) => (line ? `<p>${line}</p>` : ''))
     .join('\n');
   const html = `
-    <h2>${safeName}'s week with Kindly</h2>
+    <h2>${safeName}'s week with Dearly</h2>
     ${htmlLines}
     <p style="color:#666;font-size:14px">You're receiving this because you accepted an invitation to get weekly updates about ${safeName}. This is never a raw transcript.</p>
   `.trim();
@@ -67,9 +67,9 @@ export function weeklySummaryEmail(input: {
 /** Plain, warm transactional copy for a passwordless sign-in link. */
 export function magicLinkEmail(input: { verifyUrl: string }): { subject: string; html: string; text: string } {
   const { verifyUrl } = input;
-  const subject = 'Your Kindly sign-in link';
+  const subject = 'Your Dearly sign-in link';
   const text = [
-    'Use this link to sign in to Kindly:',
+    'Use this link to sign in to Dearly:',
     '',
     verifyUrl,
     '',
@@ -78,8 +78,8 @@ export function magicLinkEmail(input: { verifyUrl: string }): { subject: string;
     "If you didn't request this, you can ignore this email — your account is safe.",
   ].join('\n');
   const html = `
-    <p>Use this link to sign in to Kindly:</p>
-    <p><a href="${verifyUrl}">Sign in to Kindly</a></p>
+    <p>Use this link to sign in to Dearly:</p>
+    <p><a href="${verifyUrl}">Sign in to Dearly</a></p>
     <p style="color:#666;font-size:14px">This link expires in 15 minutes and can only be used once.</p>
     <p style="color:#666;font-size:14px">If you didn't request this, you can ignore this email — your account is safe.</p>
   `.trim();

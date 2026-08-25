@@ -121,7 +121,7 @@ describe('POST /api/talk/message', () => {
     const { conversation_id: conversationId } = await opened.json();
 
     const res = await messagePOST(
-      bearerReq('http://localhost/api/talk/message', token, { conversation_id: conversationId, content: 'Hello Kindly' }),
+      bearerReq('http://localhost/api/talk/message', token, { conversation_id: conversationId, content: 'Hello Dearly' }),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -169,8 +169,8 @@ describe('POST /api/talk/message', () => {
       [conversationId],
     );
     const kindlyTurns = turns.rows.filter((t) => t.role === 'kindly');
-    const latestKindlyTurn = kindlyTurns[kindlyTurns.length - 1]; // [0] is the session-open greeting
-    expect(latestKindlyTurn.content).toBe(SAFE_FALLBACK_REPLY); // the persisted turn is the redacted text, never the raw violation
+    const latestDearlyTurn = kindlyTurns[kindlyTurns.length - 1]; // [0] is the session-open greeting
+    expect(latestDearlyTurn.content).toBe(SAFE_FALLBACK_REPLY); // the persisted turn is the redacted text, never the raw violation
   });
 
   it('flags an elderspeak-only reply for review without redacting it', async () => {

@@ -53,7 +53,7 @@ export default function FamilySummaryPage() {
             <div>
               <p className="eyebrow">Weekly summary</p>
               <h1 className="mt-2 font-display text-3xl font-semibold text-ink">
-                {isSelf ? 'Your week with Kindly' : 'The week in your family'}
+                {isSelf ? 'Your week with Dearly' : 'The week in your family'}
               </h1>
               <p className="mt-2 text-base text-muted">
                 {isSelf

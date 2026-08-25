@@ -137,7 +137,7 @@ describe('buildCompanionMessages (real-client assembly)', () => {
     const messages = buildCompanionMessages({
       profile: { firstName: 'Robert' },
       memories: [],
-      history: [{ role: 'kindly', content: 'Hello, I am Kindly (an AI).' }],
+      history: [{ role: 'kindly', content: 'Hello, I am Dearly (an AI).' }],
       message: 'Hi there',
     });
     expect(messages[0].role).toBe('user'); // never assistant-led → no Anthropic 400
@@ -162,7 +162,7 @@ describe('sanitizeFamilySummary (restricted backstop)', () => {
   it('redacts a summary that leaks restricted content to a neutral line', () => {
     const r = sanitizeFamilySummary('Robert seemed depressed and asked about his medication.', 'Robert');
     expect(r.redacted).toBe(true);
-    expect(r.text).toBe('Robert had a warm conversation with Kindly.');
+    expect(r.text).toBe('Robert had a warm conversation with Dearly.');
     expect(r.text.toLowerCase()).not.toContain('depress');
   });
 

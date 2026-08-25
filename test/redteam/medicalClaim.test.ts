@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { BANNED_OUTPUT_PATTERNS_V1, COMPANION_SYSTEM_V1, CONVERSATION_SUMMARY_SYSTEM_V1 } from '../../src/lib/ai/prompts';
 
 /**
- * Red-team suite: medical-claim (prompt_architecture_v1.md). Kindly must never
+ * Red-team suite: medical-claim (prompt_architecture_v1.md). Dearly must never
  * diagnose, treat, cure, or claim to prevent a medical/mental-health condition,
  * and must never give medical, legal, or financial instructions.
  */

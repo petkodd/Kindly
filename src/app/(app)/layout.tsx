@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="border-b border-line bg-cloud">
         <div className="container-k flex items-center justify-between py-4">
           <Link href="/" className="font-display text-xl font-semibold text-ink">
-            Kindly
+            Dearly
           </Link>
           <span className="text-sm text-muted">Private — Alpha v0.1</span>
         </div>

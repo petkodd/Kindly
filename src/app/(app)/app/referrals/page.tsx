@@ -27,8 +27,8 @@ export default function ReferralsPage() {
               </h1>
               <p className="mt-2 text-base text-muted">
                 {isSelf
-                  ? 'Invite people you’d like to keep in the loop on your weekly summary, and share Kindly with a referral code.'
-                  : 'Invite family members to receive the weekly summary, and share Kindly with a referral code.'}
+                  ? 'Invite people you’d like to keep in the loop on your weekly summary, and share Dearly with a referral code.'
+                  : 'Invite family members to receive the weekly summary, and share Dearly with a referral code.'}
               </p>
             </div>
 
@@ -244,7 +244,7 @@ function ReferralCodeSection() {
     <section className="rounded-xl border border-line bg-cloud p-6">
       <h2 className="text-lg font-semibold text-ink">Your referral code</h2>
       <p className="mt-1 text-base text-muted">
-        Share Kindly with another family. They enter this code when they sign up.
+        Share Dearly with another family. They enter this code when they sign up.
       </p>
       {!loaded ? (
         <p className="mt-4 text-base text-muted">Loading…</p>

@@ -14,7 +14,7 @@ import {
 } from '@/lib/content';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Kindly — Warm AI Companion for Aging Parents',
+  title: 'Dearly — Warm AI Companion for Aging Parents',
   description:
     'For the moments you can’t be there. Give your aging parent a warm AI companion to talk to, with a gentle weekly summary for family.',
   path: '/',
@@ -90,7 +90,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-sage text-cloud shadow-md"
-                  aria-label="Talk to Kindly (illustration only)"
+                  aria-label="Talk to Dearly (illustration only)"
                   tabIndex={-1}
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5">
@@ -100,7 +100,7 @@ export default function HomePage() {
                     />
                   </svg>
                 </button>
-                <span className="text-xs font-semibold text-ink">Talk to Kindly</span>
+                <span className="text-xs font-semibold text-ink">Talk to Dearly</span>
               </div>
             </div>
           </div>

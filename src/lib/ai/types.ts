@@ -1,5 +1,5 @@
 /**
- * AI provider abstraction — the seam between Kindly and the companion model.
+ * AI provider abstraction — the seam between Dearly and the companion model.
  *
  * Per docs/prompt_architecture_v1.md there are exactly four model operations
  * behind this layer. Everything that talks to the model (talk turns, session-end
