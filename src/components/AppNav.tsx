@@ -27,33 +27,41 @@ function linkCls(active: boolean, variant: 'primary' | 'account'): string {
  * Persistent nav for the six private buyer pages. Account sits outside the
  * scrollable link row so it never scrolls off — settings stays in the same
  * spot on every screen size (per NN/g placement guidance).
+ *
+ * Hidden on /app/onboarding: that wizard isn't one of the six pages this
+ * nav is for, and its final gift-flow step shows a one-time talk link with
+ * no other page able to regenerate it — leaving the nav live there let a
+ * buyer navigate away before saving it, losing it for good.
  */
 export function AppNav() {
   const pathname = usePathname();
+  if (pathname?.startsWith('/app/onboarding')) return null;
   return (
-    <nav aria-label="Dearly app" className="flex items-center gap-2">
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-        {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={linkCls(active, 'primary')}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-      </div>
-      <Link
-        href={ACCOUNT_ITEM.href}
-        aria-current={pathname === ACCOUNT_ITEM.href ? 'page' : undefined}
-        className={linkCls(pathname === ACCOUNT_ITEM.href, 'account')}
-      >
-        {ACCOUNT_ITEM.label}
-      </Link>
-    </nav>
+    <div className="container-k py-3">
+      <nav aria-label="Dearly app" className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className={linkCls(active, 'primary')}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+        <Link
+          href={ACCOUNT_ITEM.href}
+          aria-current={pathname === ACCOUNT_ITEM.href ? 'page' : undefined}
+          className={linkCls(pathname === ACCOUNT_ITEM.href, 'account')}
+        >
+          {ACCOUNT_ITEM.label}
+        </Link>
+      </nav>
+    </div>
   );
 }

@@ -17,9 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <span className="text-sm text-muted">Private — Alpha v0.1</span>
         </div>
-        <div className="container-k py-3">
-          <AppNav />
-        </div>
+        <AppNav />
       </header>
       <main className="container-k py-12">{children}</main>
     </div>

@@ -43,4 +43,11 @@ describe('AppNav', () => {
     render(<AppNav />);
     expect(screen.getByRole('link', { name: 'Account' }).getAttribute('aria-current')).toBe('page');
   });
+
+  it('renders nothing on /app/onboarding, so a buyer cannot navigate away from the wizard', () => {
+    pathname = '/app/onboarding';
+    const { container } = render(<AppNav />);
+    expect(container.innerHTML).toBe('');
+    expect(screen.queryByRole('navigation')).toBeNull();
+  });
 });
