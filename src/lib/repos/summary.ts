@@ -36,6 +36,19 @@ interface ConversationRow {
 
 const ISO_DAY = 24 * 60 * 60 * 1000;
 
+/**
+ * node-postgres parses DATE columns into JS Date objects (not the 'YYYY-MM-DD'
+ * string the WeeklySummary type promises), which then serialize to a full
+ * ISO timestamp over JSON — breaking clients that expect a plain date string
+ * (see the family-summary page's "Invalid Date" bug). Normalize every row
+ * straight out of the query before it leaves this module.
+ */
+function normalizeSummaryRow(row: WeeklySummary): WeeklySummary {
+  const toDateStr = (v: string | Date): string =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : v;
+  return { ...row, period_start: toDateStr(row.period_start), period_end: toDateStr(row.period_end) };
+}
+
 /** Monday-anchored ISO week containing `ref`, computed in UTC for determinism. */
 export function weekBounds(ref: Date = new Date()): WeekBounds {
   const start = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()));
@@ -126,7 +139,7 @@ export const summaryRepo = {
           RETURNING *`,
         [existing.id, b.periodEnd, bodyLong, bodyShort, hasConcern],
       );
-      return rows[0];
+      return normalizeSummaryRow(rows[0]);
     };
 
     const load = async (): Promise<WeeklySummary | undefined> => {
@@ -151,7 +164,7 @@ export const summaryRepo = {
          RETURNING *`,
         [parentId, b.periodStart, b.periodEnd, bodyLong, bodyShort, hasConcern],
       );
-      return rows[0];
+      return normalizeSummaryRow(rows[0]);
     } catch (err) {
       if ((err as { code?: string }).code !== '23505') throw err; // unique_violation
       const raced = await load();
@@ -166,7 +179,7 @@ export const summaryRepo = {
       `SELECT * FROM weekly_summaries WHERE parent_id = $1 ORDER BY period_start DESC`,
       [parentId],
     );
-    return rows;
+    return rows.map(normalizeSummaryRow);
   },
 
   /**
@@ -280,6 +293,6 @@ export const summaryRepo = {
       [summary.id, anySent ? 'sent' : 'preview'],
     );
 
-    return { summary: rows[0], deliveries };
+    return { summary: normalizeSummaryRow(rows[0]), deliveries };
   },
 };
