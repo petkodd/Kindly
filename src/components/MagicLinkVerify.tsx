@@ -28,10 +28,14 @@ function VerifyEntry() {
     api
       .post('/api/auth/magic/verify', { token })
       .then(async () => {
-        if (active) {
-          router.push(await resolvePostLoginPath());
-          router.refresh();
-        }
+        if (!active) return;
+        // resolvePostLoginPath() does its own network round-trip — re-check
+        // `active` after it resolves, not just before, or a component
+        // unmounted mid-lookup still fires a stale navigation.
+        const path = await resolvePostLoginPath();
+        if (!active) return;
+        router.push(path);
+        router.refresh();
       })
       .catch(() => {
         if (active) setState('invalid');
