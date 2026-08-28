@@ -31,6 +31,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   replace.mockReset();
+  sessionStorage.clear();
 });
 
 describe('OnboardingPage — resuming instead of duplicating', () => {
@@ -71,5 +72,28 @@ describe('OnboardingPage — resuming instead of duplicating', () => {
     });
     render(<OnboardingPage />);
     expect(await screen.findByText(/who is this for/i)).toBeTruthy();
+  });
+
+  it('reuses resolvePostLoginPath\'s cached parents list instead of re-fetching /api/parents', async () => {
+    sessionStorage.setItem(
+      'dearly:post-login-parents-cache',
+      JSON.stringify({
+        parents: [{ id: 'p1', first_name: 'Robert', activated_at: null }],
+        cachedAt: Date.now(),
+      }),
+    );
+    // No 'GET /api/parents' route registered — if the page fetches instead
+    // of reading the cache, that call throws inside the mock (silently
+    // swallowed by the page's own catch), and the assertion below on the
+    // fetch spy is what actually catches the regression.
+    const fetchMock = stubFetch({});
+    render(<OnboardingPage />);
+
+    expect(await screen.findByText(/one important step/i)).toBeTruthy();
+    const calledParents = fetchMock.mock.calls.some(([input, init]) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      return url === '/api/parents' && (init?.method ?? 'GET').toUpperCase() === 'GET';
+    });
+    expect(calledParents).toBe(false);
   });
 });

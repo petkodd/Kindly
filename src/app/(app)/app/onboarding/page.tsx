@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
+import { api, ApiError, grantSelfTalkAccess, takeCachedParentsForOnboarding } from '@/lib/apiClient';
 import { inputOnPageCls } from '@/lib/formStyles';
 import { getFamilyPlan } from '@/lib/content';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
@@ -128,7 +128,13 @@ function OnboardingWizard() {
       // for a frame before the redirect takes effect.
       let redirecting = false;
       try {
-        const { parents } = await api.get<{ parents: Parent[] }>('/api/parents');
+        // resolvePostLoginPath (apiClient.ts) fetches this exact list right
+        // before redirecting here on a fresh login/signup — reuse it via a
+        // one-shot sessionStorage handoff instead of re-fetching identical
+        // data a moment later. Falls back to a normal fetch for any other
+        // way of reaching this page (direct nav, refresh, stale bookmark).
+        const cached = takeCachedParentsForOnboarding<Parent>();
+        const { parents } = cached ? { parents: cached } : await api.get<{ parents: Parent[] }>('/api/parents');
         const incomplete = parents.find((p) => !p.activated_at);
         if (active && !incomplete && parents.some((p) => p.activated_at)) {
           // Already fully onboarded (e.g. resolvePostLoginPath's error
