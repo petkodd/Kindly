@@ -37,11 +37,16 @@ interface ConversationRow {
 const ISO_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * node-postgres parses DATE columns into JS Date objects (not the 'YYYY-MM-DD'
- * string the WeeklySummary type promises), which then serialize to a full
- * ISO timestamp over JSON — breaking clients that expect a plain date string
- * (see the family-summary page's "Invalid Date" bug). Normalize every row
- * straight out of the query before it leaves this module.
+ * Production pg no longer returns DATE columns as Date objects (see the
+ * global type-parser registered in src/lib/db.ts), so this only ever runs
+ * against pg-mem, used in tests, which doesn't honor that override — a
+ * defense-in-depth normalization for that path alone. Verified directly
+ * (across TZ=UTC/America/New_York/Europe/Sofia/Pacific/Auckland): unlike
+ * real pg (which parses a DATE value as LOCAL midnight via postgres-date),
+ * pg-mem always constructs it at UTC midnight regardless of process
+ * timezone — so UTC extraction is the correct, TZ-independent choice here,
+ * even though it would be wrong for a real-pg Date (which no longer
+ * reaches this function).
  */
 function normalizeSummaryRow(row: WeeklySummary): WeeklySummary {
   const toDateStr = (v: string | Date): string =>
@@ -147,7 +152,10 @@ export const summaryRepo = {
         `SELECT * FROM weekly_summaries WHERE parent_id = $1 AND period_start = $2`,
         [parentId, b.periodStart],
       );
-      return rows[0];
+      // Normalized here (not just at refresh()/insert()'s own return points)
+      // so refresh()'s "already sent, return untouched" early return below
+      // doesn't leak a raw Date-typed row.
+      return rows[0] ? normalizeSummaryRow(rows[0]) : undefined;
     };
 
     const existing = await load();

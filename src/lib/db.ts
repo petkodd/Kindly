@@ -1,4 +1,16 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types } from 'pg';
+
+/**
+ * node-postgres parses DATE columns (oid 1082) into JS Date objects by
+ * default, silently dropping the plain 'YYYY-MM-DD' the column actually
+ * stores — and reconstructing a string back from that Date is
+ * timezone-dependent (it's parsed as local midnight, so reading it back via
+ * UTC methods is off by a day in any timezone ahead of UTC). Keep DATE
+ * columns as the raw string every time, for every table, so no repo has to
+ * hand-roll its own normalization. Registered once at module load, before
+ * any pool is created.
+ */
+types.setTypeParser(types.builtins.DATE, (value) => value);
 
 /**
  * Single shared pg Pool. On Vercel, set DATABASE_URL to a Postgres

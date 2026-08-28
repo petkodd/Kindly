@@ -227,6 +227,10 @@ describe('weekly summary send (consent-gated)', () => {
 
     const rePreviewed = await summaryRepo.preview(q, id, firstName, REF);
     expect(rePreviewed.status).toBe('sent');
+    // preview()'s "already sent" fast path (refresh()'s early return) must
+    // still return normalized date strings, not a raw Date from load().
+    expect(rePreviewed.period_start).toBe('2026-06-29');
+    expect(rePreviewed.period_end).toBe('2026-07-05');
     expect(rePreviewed.id).toBe(summary.id);
   });
 
