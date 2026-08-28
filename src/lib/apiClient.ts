@@ -63,3 +63,21 @@ export async function grantSelfTalkAccess(parentId: string): Promise<void> {
   const { token } = await api.post<{ token: string }>(`/api/parents/${parentId}/access-link`, { keep_existing: true });
   await api.post('/api/talk/auth', { token });
 }
+
+/**
+ * Where to land a buyer right after login/signup: straight to the product
+ * (family-summary) if they already have an activated parent, or back into
+ * the onboarding wizard — which has its own resume logic for an
+ * incomplete-but-unactivated parent — otherwise. Never /app/account; that's
+ * a settings page, not a landing page. Defaults to onboarding on any lookup
+ * failure so a flaky /api/parents call never strands the buyer.
+ */
+export async function resolvePostLoginPath(): Promise<string> {
+  try {
+    const { parents } = await api.get<{ parents: { activated_at?: string | null }[] }>('/api/parents');
+    const hasActivatedParent = parents.some((p) => !!p.activated_at);
+    return hasActivatedParent ? '/app/family-summary' : '/app/onboarding';
+  } catch {
+    return '/app/onboarding';
+  }
+}

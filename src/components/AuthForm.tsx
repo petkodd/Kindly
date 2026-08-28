@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, ApiError } from '@/lib/apiClient';
+import { api, ApiError, resolvePostLoginPath } from '@/lib/apiClient';
 
 type Mode = 'login' | 'signup';
 
@@ -24,7 +24,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     setBusy(true);
     try {
       await api.post(isSignup ? '/api/auth/signup' : '/api/auth/login', { email, password });
-      router.push('/app/account');
+      router.push(await resolvePostLoginPath());
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
