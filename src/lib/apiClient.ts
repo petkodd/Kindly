@@ -21,13 +21,14 @@ export class ApiError extends Error {
  */
 type Extra = Record<string, string> | undefined;
 
-async function request<T>(path: string, method: string, body?: unknown, headers?: Extra): Promise<T> {
+async function request<T>(path: string, method: string, body?: unknown, headers?: Extra, signal?: AbortSignal): Promise<T> {
   const merged: Record<string, string> = { ...(headers ?? {}) };
   if (body !== undefined) merged['Content-Type'] = 'application/json';
   const res = await fetch(path, {
     method,
     headers: Object.keys(merged).length > 0 ? merged : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   if (res.status === 204) return undefined as T;
   let payload: unknown = null;
@@ -44,7 +45,7 @@ async function request<T>(path: string, method: string, body?: unknown, headers?
 }
 
 export const api = {
-  get: <T>(path: string, headers?: Extra) => request<T>(path, 'GET', undefined, headers),
+  get: <T>(path: string, headers?: Extra, signal?: AbortSignal) => request<T>(path, 'GET', undefined, headers, signal),
   post: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'POST', body, headers),
   patch: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PATCH', body, headers),
   del: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'DELETE', body, headers),
@@ -70,11 +71,20 @@ export async function grantSelfTalkAccess(parentId: string): Promise<void> {
  * the onboarding wizard — which has its own resume logic for an
  * incomplete-but-unactivated parent — otherwise. Never /app/account; that's
  * a settings page, not a landing page. Defaults to onboarding on any lookup
- * failure so a flaky /api/parents call never strands the buyer.
+ * failure (including a timeout — the lookup is bounded so this can never
+ * hang the caller indefinitely) so a flaky /api/parents call never strands
+ * the buyer. onboarding's own resume effect double-checks for an already-
+ * activated parent and bounces back out to /app/family-summary, so this
+ * fallback can't leave an already-onboarded buyer stuck creating a
+ * duplicate profile.
  */
 export async function resolvePostLoginPath(): Promise<string> {
   try {
-    const { parents } = await api.get<{ parents: { activated_at?: string | null }[] }>('/api/parents');
+    const { parents } = await api.get<{ parents: { activated_at?: string | null }[] }>(
+      '/api/parents',
+      undefined,
+      AbortSignal.timeout(8000),
+    );
     const hasActivatedParent = parents.some((p) => !!p.activated_at);
     return hasActivatedParent ? '/app/family-summary' : '/app/onboarding';
   } catch {
