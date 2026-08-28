@@ -1,3 +1,13 @@
+// @vitest-environment jsdom
+//
+// This file otherwise runs in vitest's default 'node' environment (see
+// vitest.config.ts — only .tsx files get jsdom by default), which has no
+// sessionStorage global on the Node versions this repo targets (CI runs
+// Node 20; sessionStorage/localStorage only became Node built-ins in 22+,
+// which is why this passed locally on a newer Node before failing in CI).
+// jsdom's own sessionStorage implementation is used here instead, so the
+// resolvePostLoginPath/takeCachedParentsForOnboarding tests below are
+// correct regardless of the host Node version.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { api, ApiError, resolvePostLoginPath, takeCachedParentsForOnboarding } from '../src/lib/apiClient';
 
