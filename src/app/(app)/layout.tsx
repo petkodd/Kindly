@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { AppNav } from '@/components/AppNav';
 
 // Every private app page is noindex — reinforced here and via X-Robots-Tag header.
 export const metadata: Metadata = {
@@ -15,6 +16,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             Dearly
           </Link>
           <span className="text-sm text-muted">Private — Alpha v0.1</span>
+        </div>
+        <div className="container-k py-3">
+          <AppNav />
         </div>
       </header>
       <main className="container-k py-12">{children}</main>
