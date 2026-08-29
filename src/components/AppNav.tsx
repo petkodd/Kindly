@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 
 const NAV_ITEMS = [
   { href: '/app/talk', label: 'Talk' },
@@ -35,6 +36,17 @@ function linkCls(active: boolean, variant: 'primary' | 'account'): string {
  */
 export function AppNav() {
   const pathname = usePathname();
+  const activeRef = useRef<HTMLAnchorElement>(null);
+
+  // On mobile the primary link row scrolls horizontally and starts at its
+  // leftmost position — landing directly on a page whose nav item sits
+  // further along (e.g. /app/family-summary) clipped its label mid-word
+  // with no indication there was more to scroll to. Bring the active link
+  // fully into view whenever the page changes.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [pathname]);
+
   if (pathname?.startsWith('/app/onboarding')) return null;
   return (
     <div className="container-k py-3">
@@ -46,6 +58,7 @@ export function AppNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                ref={active ? activeRef : undefined}
                 aria-current={active ? 'page' : undefined}
                 className={linkCls(active, 'primary')}
               >
