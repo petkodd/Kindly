@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
+import { api, ApiError, grantSelfTalkAccess, takeCachedParentsForOnboarding } from '@/lib/apiClient';
 import { inputOnPageCls } from '@/lib/formStyles';
 import { getFamilyPlan } from '@/lib/content';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
@@ -123,10 +123,28 @@ function OnboardingWizard() {
     if (returningParentId) return; // the other effect handles this visit
     let active = true;
     (async () => {
+      // Set once we hand off navigation elsewhere, so the `finally` below
+      // doesn't flip `checkingResume` back to false and flash WhoForStep
+      // for a frame before the redirect takes effect.
+      let redirecting = false;
       try {
-        const { parents } = await api.get<{ parents: Parent[] }>('/api/parents');
+        // resolvePostLoginPath (apiClient.ts) fetches this exact list right
+        // before redirecting here on a fresh login/signup — reuse it via a
+        // one-shot sessionStorage handoff instead of re-fetching identical
+        // data a moment later. Falls back to a normal fetch for any other
+        // way of reaching this page (direct nav, refresh, stale bookmark).
+        const cached = takeCachedParentsForOnboarding<Parent>();
+        const { parents } = cached ? { parents: cached } : await api.get<{ parents: Parent[] }>('/api/parents');
         const incomplete = parents.find((p) => !p.activated_at);
-        if (active && incomplete) {
+        if (active && !incomplete && parents.some((p) => p.activated_at)) {
+          // Already fully onboarded (e.g. resolvePostLoginPath's error
+          // fallback landed here, or a stale bookmark/back-button) — bounce
+          // to the real product instead of silently falling through to
+          // WhoForStep, which would let the buyer create a second, duplicate
+          // parent and re-enter Stripe checkout.
+          redirecting = true;
+          router.replace('/app/family-summary');
+        } else if (active && incomplete) {
           setParent(incomplete);
           if (incomplete.relationship === 'self') {
             // A self profile never shows ConsentStep, so — unlike the gift
@@ -152,7 +170,7 @@ function OnboardingWizard() {
       } catch {
         /* non-fatal — worst case the buyer starts a fresh parent */
       } finally {
-        if (active) setCheckingResume(false);
+        if (active && !redirecting) setCheckingResume(false);
       }
     })();
     return () => {

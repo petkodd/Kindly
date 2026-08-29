@@ -1,8 +1,19 @@
+// @vitest-environment jsdom
+//
+// This file otherwise runs in vitest's default 'node' environment (see
+// vitest.config.ts — only .tsx files get jsdom by default), which has no
+// sessionStorage global on the Node versions this repo targets (CI runs
+// Node 20; sessionStorage/localStorage only became Node built-ins in 22+,
+// which is why this passed locally on a newer Node before failing in CI).
+// jsdom's own sessionStorage implementation is used here instead, so the
+// resolvePostLoginPath/takeCachedParentsForOnboarding tests below are
+// correct regardless of the host Node version.
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { api, ApiError } from '../src/lib/apiClient';
+import { api, ApiError, resolvePostLoginPath, takeCachedParentsForOnboarding } from '../src/lib/apiClient';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  sessionStorage.clear();
 });
 
 function mockFetch(status: number, body?: unknown) {
@@ -57,5 +68,44 @@ describe('apiClient', () => {
     vi.stubGlobal('fetch', fetchSpy);
     await api.get('/api/me');
     expect((fetchSpy.mock.calls[0][1] as RequestInit).headers).toBeUndefined();
+  });
+});
+
+describe('resolvePostLoginPath', () => {
+  it('caches the fetched parents list when routing to onboarding, so a follow-up read doesn\'t need a fetch', async () => {
+    mockFetch(200, { parents: [{ id: 'p1', first_name: 'Robert', activated_at: null }] });
+    const path = await resolvePostLoginPath();
+    expect(path).toBe('/app/onboarding');
+
+    const cached = takeCachedParentsForOnboarding<{ id: string; first_name: string }>();
+    expect(cached).toEqual([{ id: 'p1', first_name: 'Robert', activated_at: null }]);
+  });
+
+  it('does not cache when routing to family-summary (nothing for onboarding to reuse)', async () => {
+    mockFetch(200, { parents: [{ id: 'p1', activated_at: '2026-01-01T00:00:00Z' }] });
+    const path = await resolvePostLoginPath();
+    expect(path).toBe('/app/family-summary');
+    expect(takeCachedParentsForOnboarding()).toBeNull();
+  });
+});
+
+describe('takeCachedParentsForOnboarding', () => {
+  it('returns null and clears storage when nothing is cached', () => {
+    expect(takeCachedParentsForOnboarding()).toBeNull();
+  });
+
+  it('is single-use — a second read after the first returns null', async () => {
+    mockFetch(200, { parents: [{ id: 'p1', activated_at: null }] });
+    await resolvePostLoginPath();
+    expect(takeCachedParentsForOnboarding()).not.toBeNull();
+    expect(takeCachedParentsForOnboarding()).toBeNull();
+  });
+
+  it('ignores a stale entry past the TTL', () => {
+    sessionStorage.setItem(
+      'dearly:post-login-parents-cache',
+      JSON.stringify({ parents: [{ id: 'p1' }], cachedAt: Date.now() - 60_000 }),
+    );
+    expect(takeCachedParentsForOnboarding()).toBeNull();
   });
 });

@@ -36,6 +36,24 @@ interface ConversationRow {
 
 const ISO_DAY = 24 * 60 * 60 * 1000;
 
+/**
+ * Production pg no longer returns DATE columns as Date objects (see the
+ * global type-parser registered in src/lib/db.ts), so this only ever runs
+ * against pg-mem, used in tests, which doesn't honor that override — a
+ * defense-in-depth normalization for that path alone. Verified directly
+ * (across TZ=UTC/America/New_York/Europe/Sofia/Pacific/Auckland): unlike
+ * real pg (which parses a DATE value as LOCAL midnight via postgres-date),
+ * pg-mem always constructs it at UTC midnight regardless of process
+ * timezone — so UTC extraction is the correct, TZ-independent choice here,
+ * even though it would be wrong for a real-pg Date (which no longer
+ * reaches this function).
+ */
+function normalizeSummaryRow(row: WeeklySummary): WeeklySummary {
+  const toDateStr = (v: string | Date): string =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : v;
+  return { ...row, period_start: toDateStr(row.period_start), period_end: toDateStr(row.period_end) };
+}
+
 /** Monday-anchored ISO week containing `ref`, computed in UTC for determinism. */
 export function weekBounds(ref: Date = new Date()): WeekBounds {
   const start = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()));
@@ -126,7 +144,7 @@ export const summaryRepo = {
           RETURNING *`,
         [existing.id, b.periodEnd, bodyLong, bodyShort, hasConcern],
       );
-      return rows[0];
+      return normalizeSummaryRow(rows[0]);
     };
 
     const load = async (): Promise<WeeklySummary | undefined> => {
@@ -134,7 +152,10 @@ export const summaryRepo = {
         `SELECT * FROM weekly_summaries WHERE parent_id = $1 AND period_start = $2`,
         [parentId, b.periodStart],
       );
-      return rows[0];
+      // Normalized here (not just at refresh()/insert()'s own return points)
+      // so refresh()'s "already sent, return untouched" early return below
+      // doesn't leak a raw Date-typed row.
+      return rows[0] ? normalizeSummaryRow(rows[0]) : undefined;
     };
 
     const existing = await load();
@@ -151,7 +172,7 @@ export const summaryRepo = {
          RETURNING *`,
         [parentId, b.periodStart, b.periodEnd, bodyLong, bodyShort, hasConcern],
       );
-      return rows[0];
+      return normalizeSummaryRow(rows[0]);
     } catch (err) {
       if ((err as { code?: string }).code !== '23505') throw err; // unique_violation
       const raced = await load();
@@ -166,7 +187,7 @@ export const summaryRepo = {
       `SELECT * FROM weekly_summaries WHERE parent_id = $1 ORDER BY period_start DESC`,
       [parentId],
     );
-    return rows;
+    return rows.map(normalizeSummaryRow);
   },
 
   /**
@@ -280,6 +301,6 @@ export const summaryRepo = {
       [summary.id, anySent ? 'sent' : 'preview'],
     );
 
-    return { summary: rows[0], deliveries };
+    return { summary: normalizeSummaryRow(rows[0]), deliveries };
   },
 };

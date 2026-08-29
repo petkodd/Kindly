@@ -73,8 +73,12 @@ describe('weekly summary preview', () => {
     expect(s.status).toBe('preview');
     expect(s.has_concern).toBe(false);
     expect(s.body_short).toContain("didn't hear from Robert");
-    // DATE comes back as a string in prod (pg) and a Date in pg-mem — normalize.
-    expect(new Date(s.period_start).toISOString().slice(0, 10)).toBe('2026-06-29');
+    // pg (and pg-mem) parse DATE columns into JS Date objects; the repo must
+    // normalize back to a plain 'YYYY-MM-DD' string, or JSON-serializing a
+    // Date over the API produces a full ISO timestamp that breaks the
+    // client's date-range formatting (fmtDay in family-summary/page.tsx).
+    expect(s.period_start).toBe('2026-06-29');
+    expect(s.period_end).toBe('2026-07-05');
   });
 
   it('summarizes the week and flags a respectful concern on a low mood', async () => {
@@ -105,6 +109,8 @@ describe('weekly summary preview', () => {
     expect(second.body_short).toContain('2 conversations');
     const all = await summaryRepo.list(q, id);
     expect(all).toHaveLength(1);
+    expect(all[0].period_start).toBe('2026-06-29');
+    expect(all[0].period_end).toBe('2026-07-05');
   });
 });
 
@@ -127,6 +133,8 @@ describe('weekly summary send (consent-gated)', () => {
 
     const { summary, deliveries } = await summaryRepo.send(q, id, firstName, REF);
     expect(summary.status).toBe('sent');
+    expect(summary.period_start).toBe('2026-06-29');
+    expect(summary.period_end).toBe('2026-07-05');
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0].channel).toBe('email');
     expect(deliveries[0].status).toBe('sent');
@@ -219,6 +227,10 @@ describe('weekly summary send (consent-gated)', () => {
 
     const rePreviewed = await summaryRepo.preview(q, id, firstName, REF);
     expect(rePreviewed.status).toBe('sent');
+    // preview()'s "already sent" fast path (refresh()'s early return) must
+    // still return normalized date strings, not a raw Date from load().
+    expect(rePreviewed.period_start).toBe('2026-06-29');
+    expect(rePreviewed.period_end).toBe('2026-07-05');
     expect(rePreviewed.id).toBe(summary.id);
   });
 

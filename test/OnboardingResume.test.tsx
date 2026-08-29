@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import OnboardingPage from '../src/app/(app)/app/onboarding/page';
 
 // A fresh visit to /app/onboarding — no ?billing=/parent_id= from a Stripe redirect.
 const searchParams = new URLSearchParams();
+const replace = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace }),
   useSearchParams: () => searchParams,
 }));
 
@@ -29,6 +30,8 @@ function stubFetch(routes: Record<string, () => Response>) {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  replace.mockReset();
+  sessionStorage.clear();
 });
 
 describe('OnboardingPage — resuming instead of duplicating', () => {
@@ -45,13 +48,16 @@ describe('OnboardingPage — resuming instead of duplicating', () => {
     expect(screen.queryByText(/who is this for/i)).toBeNull();
   });
 
-  it('starts fresh at ProfileStep when every existing parent is already activated', async () => {
+  it('bounces to family-summary instead of a fresh wizard when every existing parent is already activated', async () => {
     stubFetch({
       'GET /api/parents': () =>
         json({ parents: [{ id: 'p1', first_name: 'Robert', activated_at: '2026-07-01T00:00:00Z' }] }),
     });
     render(<OnboardingPage />);
-    expect(await screen.findByText(/who is this for/i)).toBeTruthy();
+    // Never falls through to "Who is this for?" — that would let an
+    // already-onboarded buyer create a second, duplicate parent.
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/app/family-summary'));
+    expect(screen.queryByText(/who is this for/i)).toBeNull();
   });
 
   it('starts fresh at ProfileStep when the buyer has no parents at all', async () => {
@@ -66,5 +72,28 @@ describe('OnboardingPage — resuming instead of duplicating', () => {
     });
     render(<OnboardingPage />);
     expect(await screen.findByText(/who is this for/i)).toBeTruthy();
+  });
+
+  it('reuses resolvePostLoginPath\'s cached parents list instead of re-fetching /api/parents', async () => {
+    sessionStorage.setItem(
+      'dearly:post-login-parents-cache',
+      JSON.stringify({
+        parents: [{ id: 'p1', first_name: 'Robert', activated_at: null }],
+        cachedAt: Date.now(),
+      }),
+    );
+    // No 'GET /api/parents' route registered — if the page fetches instead
+    // of reading the cache, that call throws inside the mock (silently
+    // swallowed by the page's own catch), and the assertion below on the
+    // fetch spy is what actually catches the regression.
+    const fetchMock = stubFetch({});
+    render(<OnboardingPage />);
+
+    expect(await screen.findByText(/one important step/i)).toBeTruthy();
+    const calledParents = fetchMock.mock.calls.some(([input, init]) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      return url === '/api/parents' && (init?.method ?? 'GET').toUpperCase() === 'GET';
+    });
+    expect(calledParents).toBe(false);
   });
 });

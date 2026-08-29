@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { api } from '@/lib/apiClient';
+import { api, resolvePostLoginPath } from '@/lib/apiClient';
 
 // useSearchParams() opts this out of static prerendering unless it sits under a
 // Suspense boundary — same pattern as InviteAccept and /app/talk's token exchange.
@@ -27,11 +27,15 @@ function VerifyEntry() {
     let active = true;
     api
       .post('/api/auth/magic/verify', { token })
-      .then(() => {
-        if (active) {
-          router.push('/app/account');
-          router.refresh();
-        }
+      .then(async () => {
+        if (!active) return;
+        // resolvePostLoginPath() does its own network round-trip — re-check
+        // `active` after it resolves, not just before, or a component
+        // unmounted mid-lookup still fires a stale navigation.
+        const path = await resolvePostLoginPath();
+        if (!active) return;
+        router.push(path);
+        router.refresh();
       })
       .catch(() => {
         if (active) setState('invalid');
