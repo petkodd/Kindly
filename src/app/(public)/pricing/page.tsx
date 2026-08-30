@@ -7,19 +7,18 @@ import { PricingCards } from '@/components/PricingCards';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Dearly Pricing — AI Companion Plans for Families',
-  description: 'Simple monthly plans for your parent’s AI companion, with a founding-family offer. Voice, memory, and weekly summaries.',
+  description: 'One simple monthly plan for your parent’s AI companion — voice, memory, and weekly summaries.',
   path: '/pricing',
 });
 
 export default function Page() {
   const { hero, plans, faq, cta } = PRICING;
   const familyPlan = getFamilyPlan();
-  const foundingPlan = plans.find((p) => p.id === 'founding')!;
 
   // pricingJsonLd maps 1:1 over whatever list it's given — pass an extra
   // synthetic entry for the Family plan's annual price so the structured
   // data documents both intervals, without changing the visual layout (the
-  // toggle switches within the one Family card, it doesn't add a third card).
+  // toggle switches within the one Family card, it doesn't add a second card).
   const jsonLdPlans = [
     ...plans.map((p) => ({ name: p.name, price: p.price, period: p.period, tagline: p.tagline })),
     {
@@ -45,7 +44,7 @@ export default function Page() {
 
       <section className="bg-cloud py-20">
         <div className="container-k">
-          <PricingCards foundingPlan={foundingPlan} familyPlan={familyPlan} />
+          <PricingCards familyPlan={familyPlan} />
         </div>
       </section>
 

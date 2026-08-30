@@ -14,9 +14,9 @@ interface FamilyPlan {
 }
 
 /**
- * The Family plan card. Billing interval is controlled by the shared
- * view-level toggle in PricingCards (not owned here) — the interval is only
- * ever applied to this card's price/CTA, never to the Founding Family card.
+ * The Family plan card — the only plan card on the pricing page (see the
+ * warning above PRICING in src/lib/content.ts). Billing interval is
+ * controlled by the shared view-level toggle in PricingCards, not owned here.
  */
 export function FamilyPlanCard({ plan, billingInterval }: { plan: FamilyPlan; billingInterval: BillingInterval }) {
   const savingsPercent = computeAnnualSavingsPercent(plan.priceMonthlyCents, plan.priceAnnualCents);

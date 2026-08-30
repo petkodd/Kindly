@@ -40,6 +40,6 @@ describe('OnboardingPage — carries the pricing page\'s interval choice through
     render(<OnboardingPage />);
     await screen.findByText(/Start your free trial/i);
     expect(screen.getByRole('button', { name: 'Monthly' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText(/\$59\.00\/month/)).toBeTruthy();
+    expect(screen.getByText(/\$29\.00\/month/)).toBeTruthy();
   });
 });

@@ -9,17 +9,17 @@ afterEach(() => {
 describe('PricingPage', () => {
   it('defaults to Annual pricing on first render (SSR-equivalent default — no interaction needed)', () => {
     render(<PricingPage />);
-    expect(screen.getByText('$566.40')).toBeTruthy();
+    expect(screen.getByText('$278.40')).toBeTruthy();
     expect(screen.getByText(/\/year/)).toBeTruthy();
     expect(screen.getByText(/Save 20%/)).toBeTruthy();
-    expect(screen.getByText(/\$47\.20\/mo equivalent/)).toBeTruthy();
+    expect(screen.getByText(/\$23\.20\/mo equivalent/)).toBeTruthy();
   });
 
   it('switching to Monthly updates the displayed price without navigation', () => {
     render(<PricingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
-    expect(screen.getByText('$59.00')).toBeTruthy();
-    expect(screen.queryByText('$566.40')).toBeNull();
+    expect(screen.getByText('$29.00')).toBeTruthy();
+    expect(screen.queryByText('$278.40')).toBeNull();
     expect(screen.queryByText(/Save 20%/)).toBeNull();
   });
 
@@ -27,7 +27,7 @@ describe('PricingPage', () => {
     render(<PricingPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
     fireEvent.click(screen.getByRole('button', { name: 'Annual' }));
-    expect(screen.getByText('$566.40')).toBeTruthy();
+    expect(screen.getByText('$278.40')).toBeTruthy();
     expect(screen.getByText(/Save 20%/)).toBeTruthy();
   });
 
@@ -52,26 +52,13 @@ describe('PricingPage', () => {
     expect(offerNames).toContain('Family (Annual)');
   });
 
-  it('renders the highlighted Founding Family card with its badge, price, and CTA', () => {
+  it('renders exactly one plan card — no second "Founding Family" card advertising a discount checkout never applies', () => {
     render(<PricingPage />);
-    expect(screen.getByText('Founding Family')).toBeTruthy();
-    expect(screen.getByText('Best for new families')).toBeTruthy();
-    expect(screen.getByText('$29')).toBeTruthy();
-    // "Set up the gift" also appears as the page's hero CTA, so there are
-    // multiple matches — every one of them must point at onboarding.
-    const ctas = screen.getAllByRole('link', { name: 'Set up the gift' }) as HTMLAnchorElement[];
-    expect(ctas.length).toBeGreaterThan(0);
-    for (const cta of ctas) expect(cta.getAttribute('href')).toBe('/app/onboarding');
-  });
-
-  it('never shows a Monthly/Annual toggle on the Founding Family card — only the Family plan has an annual price', () => {
-    render(<PricingPage />);
-    // Exactly one toggle on the page (the shared, view-level one), not one per card.
+    expect(screen.getByText('Family')).toBeTruthy();
+    expect(screen.queryByText('Founding Family')).toBeNull();
+    expect(screen.queryByText('Best for new families')).toBeNull();
+    // Exactly one toggle on the page — one card, one toggle.
     expect(screen.getAllByRole('button', { name: 'Monthly' })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: 'Annual' })).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
-    // Switching the shared toggle must not touch the Founding Family price.
-    expect(screen.getByText('$29')).toBeTruthy();
   });
 });
