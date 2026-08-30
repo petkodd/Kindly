@@ -76,7 +76,7 @@ export const TRUST = {
 export const PRICING_TEASER = {
   h2: 'Simple plans for staying close',
   body:
-    'Start with our Founding Family offer — your first month for $29. Plans include voice conversation, memory, and your weekly family summary. Cancel anytime.',
+    'Dearly is $29/month — voice conversation, memory, and your weekly family summary. Cancel anytime.',
   cta: { label: 'See pricing', href: '/pricing' },
 };
 
@@ -148,44 +148,38 @@ export const HOW_IT_WORKS = {
  * the same 7-day-trial-then-Family-price checkout. Do not add another plan
  * here without also adding a real second Stripe Price + plan-selection logic
  * in the checkout route; otherwise this page will again advertise a price or
- * feature set customers aren't actually charged/given (the exact bug this
- * comment is here to prevent a repeat of — this content previously listed
- * Premium ($89/mo) and a 3-Month Gift ($149) tier with no backing billing).
+ * feature set customers aren't actually charged/given — this exact bug class
+ * has shipped and been caught twice already: once with a Premium ($89/mo)
+ * and a 3-Month Gift ($149) tier with no backing billing, and again with a
+ * "Founding Family — $29 first month" card that was never wired to a real
+ * discount (removed 2026-08-29, see git history) while the ACTUAL Stripe
+ * Price silently drifted from the $59/mo this content still claimed down to
+ * a real $29/mo — nobody noticed because nobody checked the Price object
+ * directly against this file. If a number changes here, verify it against
+ * the real Stripe Price with `stripe.prices.retrieve`, not just this file.
  */
 export const PRICING = {
   hero: {
     h1: 'Simple plans for staying close',
     sub:
-      'One plan includes daily voice conversation, memory, and a respectful weekly family summary. Start with our Founding Family offer, and cancel anytime.',
+      'One simple plan includes daily voice conversation, memory, and a respectful weekly family summary. Cancel anytime.',
   },
   plans: [
     {
-      id: 'founding',
-      name: 'Founding Family',
-      price: '$29',
-      period: 'first month',
-      tagline: 'The easiest way to start — the full Family plan at an introductory price',
-      bullets: [
-        'Everything in the Family plan, from day one',
-        'Locks in early-supporter pricing for as long as you stay subscribed',
-        'Renews at the regular Family price after the first month',
-        'Cancel anytime — no long-term contract',
-      ],
-      cta: { label: 'Set up the gift', href: '/app/onboarding' },
-      highlighted: true,
-    },
-    {
       id: 'family',
       name: 'Family',
-      price: '$59',
+      price: '$29',
       period: '/month',
       // Monthly must match STRIPE_PRICE_FAMILY_MONTHLY; annual must match
-      // STRIPE_PRICE_FAMILY_ANNUAL ($566.40/yr = 20% off monthly). Drives the
+      // STRIPE_PRICE_FAMILY_ANNUAL ($278.40/yr = 20% off monthly). Drives the
       // Monthly/Annual toggle (src/components/BillingIntervalToggle.tsx) —
       // keep in sync with the live Stripe Prices or this page drifts from
-      // what's actually charged (see the warning above PRICING).
-      priceMonthlyCents: 5900,
-      priceAnnualCents: 56640,
+      // what's actually charged (see the warning above PRICING). Verified
+      // directly against the real Stripe Price objects (not just this file)
+      // on 2026-08-29 after discovering this content had drifted from the
+      // actual $29/mo Stripe price to a stale $59/mo figure.
+      priceMonthlyCents: 2900,
+      priceAnnualCents: 27840,
       tagline: 'Our standard plan for one parent and their family',
       bullets: [
         'Daily voice conversation with Dearly',
@@ -204,8 +198,8 @@ export const PRICING = {
         a: 'Yes. Monthly plans can be canceled anytime from your account, and you won’t be charged for the next cycle. Prepaid gifts don’t renew automatically.',
       },
       {
-        q: 'What happens after the Founding Family month?',
-        a: 'Your plan continues at the regular Family price unless you cancel. We’ll always email you before a price change takes effect.',
+        q: 'What happens after the free trial?',
+        a: 'Your plan continues at the price shown above unless you cancel. We’ll always email you before a price change takes effect.',
       },
       {
         q: 'Does my parent need a credit card?',
@@ -226,10 +220,7 @@ export const PRICING = {
 };
 
 /**
- * The Family plan, narrowed to guarantee priceMonthlyCents/priceAnnualCents
- * are present — only that entry in PRICING.plans carries them (founding is a
- * one-time intro offer, not a recurring interval choice), so TS otherwise
- * infers those fields as optional across the shared plans[] shape. Single
+ * The Family plan (the only plan — see the warning above PRICING). Single
  * source of truth for both the pricing page and onboarding checkout, which
  * both need this exact plan.
  */

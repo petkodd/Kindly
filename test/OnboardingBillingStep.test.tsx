@@ -51,7 +51,7 @@ describe('OnboardingPage — BillingStep interval toggle', () => {
     render(<OnboardingPage />);
     expect(await screen.findByText(/Start your free trial/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Annual' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText(/\$566\.40\/year/)).toBeTruthy();
+    expect(screen.getByText(/\$278\.40\/year/)).toBeTruthy();
     expect(screen.getByText(/save 20%/i)).toBeTruthy();
   });
 
@@ -84,7 +84,7 @@ describe('OnboardingPage — BillingStep interval toggle', () => {
     await screen.findByText(/Start your free trial/i);
 
     fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
-    expect(screen.getByText(/\$59\.00\/month/)).toBeTruthy();
+    expect(screen.getByText(/\$29\.00\/month/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /start 7-day free trial/i }));
     await waitFor(() => expect(checkoutBody).toEqual({ parent_id: 'p1', interval: 'month' }));
