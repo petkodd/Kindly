@@ -12,7 +12,7 @@ import {
   resolveBuyer,
   resolveAdmin,
 } from '../src/lib/auth';
-import { signSession, verifySession, SESSION_COOKIE } from '../src/lib/session';
+import { signSession, verifySession, attachSession, clearSession, SESSION_COOKIE } from '../src/lib/session';
 import {
   PARENT_TOKEN_COOKIE,
   attachParentToken,
@@ -71,6 +71,64 @@ describe('parent talk cookie (parentSession)', () => {
     const setCookie =
       clearParentToken(NextResponse.json({ ok: true })).headers.get('set-cookie') ?? '';
     expect(setCookie).toMatch(/kindly_talk=;|Max-Age=0/i);
+  });
+});
+
+// `secure` must track "is this connection actually HTTPS" (VERCEL_ENV — set
+// only by Vercel's own infra, and only for production/preview, both always
+// HTTPS), never NODE_ENV. `next start` sets NODE_ENV=production for a local
+// run too, over plain http:// — a `secure` cookie there gets silently
+// dropped by the browser on any origin outside the loopback exception,
+// so a buyer logs in successfully but the very next request looks logged
+// out. Regression coverage for exactly that bug.
+describe('cookie `secure` flag tracks VERCEL_ENV, not NODE_ENV', () => {
+  const savedVercelEnv = process.env.VERCEL_ENV;
+  const savedNodeEnv = process.env.NODE_ENV;
+
+  afterAll(() => {
+    if (savedVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = savedVercelEnv;
+    // @ts-expect-error -- NODE_ENV is typed readonly, but tests need to restore it
+    process.env.NODE_ENV = savedNodeEnv;
+  });
+
+  it('is absent locally (no VERCEL_ENV) even though `next start` sets NODE_ENV=production', () => {
+    delete process.env.VERCEL_ENV;
+    // @ts-expect-error -- see above
+    process.env.NODE_ENV = 'production';
+    const sessionCookie = attachSession(NextResponse.json({ ok: true }), 'tok').headers.get('set-cookie') ?? '';
+    const talkCookie = attachParentToken(NextResponse.json({ ok: true }), 'tok').headers.get('set-cookie') ?? '';
+    expect(sessionCookie.toLowerCase()).not.toContain('secure');
+    expect(talkCookie.toLowerCase()).not.toContain('secure');
+  });
+
+  it('is present for a real Vercel production deployment', () => {
+    process.env.VERCEL_ENV = 'production';
+    const sessionCookie = attachSession(NextResponse.json({ ok: true }), 'tok').headers.get('set-cookie') ?? '';
+    const talkCookie = attachParentToken(NextResponse.json({ ok: true }), 'tok').headers.get('set-cookie') ?? '';
+    expect(sessionCookie.toLowerCase()).toContain('secure');
+    expect(talkCookie.toLowerCase()).toContain('secure');
+  });
+
+  it('is present for a Vercel preview deployment too — also always HTTPS', () => {
+    process.env.VERCEL_ENV = 'preview';
+    const setCookie = attachSession(NextResponse.json({ ok: true }), 'tok').headers.get('set-cookie') ?? '';
+    expect(setCookie.toLowerCase()).toContain('secure');
+  });
+});
+
+describe('session cookie (attachSession / clearSession)', () => {
+  it('attach sets an httpOnly, SameSite=Lax, site-wide cookie', () => {
+    const setCookie = attachSession(NextResponse.json({ ok: true }), 'tok').headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('kindly_session=tok');
+    expect(setCookie.toLowerCase()).toContain('httponly');
+    expect(setCookie.toLowerCase()).toContain('samesite=lax');
+    expect(setCookie).toContain('Path=/');
+  });
+
+  it('clear expires the cookie', () => {
+    const setCookie = clearSession(NextResponse.json({ ok: true })).headers.get('set-cookie') ?? '';
+    expect(setCookie).toMatch(/kindly_session=;|Max-Age=0/i);
   });
 });
 
