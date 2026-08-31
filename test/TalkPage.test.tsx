@@ -195,7 +195,11 @@ describe('TalkPage', () => {
           }),
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /talk out loud/i }));
+      // voiceSupported flips true via an effect on mount (see talk/page.tsx) —
+      // findByRole (not getByRole) tolerates that effect not having flushed
+      // yet by the time startConversation()'s own awaits resolve, which is
+      // what made this test intermittently fail in CI (never locally).
+      fireEvent.click(await screen.findByRole('button', { name: /talk out loud/i }));
       expect(await screen.findByRole('button', { name: /tap to stop/i })).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: /tap to stop/i }));
@@ -215,7 +219,7 @@ describe('TalkPage', () => {
         new Error('denied'),
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /talk out loud/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /talk out loud/i }));
       expect(await screen.findByText(/allow microphone access/i)).toBeTruthy();
     });
 
@@ -225,7 +229,7 @@ describe('TalkPage', () => {
           json({ error: { code: 'no_transcript', message: 'Could not transcribe audio.' } }, 422),
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /talk out loud/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /talk out loud/i }));
       fireEvent.click(await screen.findByRole('button', { name: /tap to stop/i }));
 
       expect(await screen.findByText('Could not transcribe audio.')).toBeTruthy();
