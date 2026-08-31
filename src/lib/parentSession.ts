@@ -18,10 +18,15 @@ export const PARENT_TOKEN_COOKIE = 'kindly_talk';
 // expiry/revocation is the real gate, checked per request.
 const MAX_AGE_SECONDS = 2 * 60 * 60;
 
+// See src/lib/session.ts's isSecureContext for why this isn't NODE_ENV.
+function isSecureContext(): boolean {
+  return process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
+}
+
 function cookieBase() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureContext(),
     // Strict costs nothing here: the cookie is only ever needed by same-site
     // XHR from /app/talk (path-scoped to /api/talk), never on an inbound
     // top-level navigation — and it hardens CSRF beyond Lax.

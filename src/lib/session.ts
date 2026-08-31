@@ -74,10 +74,22 @@ export function verifySession(token: string | undefined | null): SessionClaims |
   }
 }
 
+function isSecureContext(): boolean {
+  // NODE_ENV alone is the wrong signal here: `next start` sets it to
+  // 'production' for a local run too, over plain http:// — a `secure`
+  // cookie set there gets silently dropped by the browser on any origin
+  // outside the loopback exception (localhost/127.0.0.1), so a buyer logs
+  // in successfully but the next request looks logged out. VERCEL_ENV is
+  // set only by Vercel's own infrastructure, and only 'production'/'preview'
+  // deployments are actually served over HTTPS (same signal already used
+  // in appUrl.ts, which checks 'production' for its own, different reason).
+  return process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
+}
+
 function cookieBase() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureContext(),
     sameSite: 'lax' as const,
     path: '/',
   };
