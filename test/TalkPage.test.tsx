@@ -213,6 +213,40 @@ describe('TalkPage', () => {
       expect(body.get('audio')).toBeInstanceOf(Blob);
     });
 
+    it('reuses one Audio element across turns instead of constructing a fresh one per reply — a `new Audio(url).play()` called this far from the original tap is silently autoplay-blocked on most real devices, so playback must reuse the element the tap itself unlocked', async () => {
+      const playMock = vi.fn().mockResolvedValue(undefined);
+      const audioCtor = vi.fn().mockImplementation(() => ({ play: playMock, src: '' }));
+      vi.stubGlobal('Audio', audioCtor);
+
+      await startConversation({
+        'POST /api/talk/voice': () =>
+          json({
+            conversation_id: 'c1',
+            transcript: 'turn one',
+            reply: 'reply one',
+            tts_url: 'https://example.com/one.mp3',
+          }),
+      });
+
+      // Tapping to start recording (not just stopping) must already unlock
+      // playback — before any reply exists to play.
+      fireEvent.click(await screen.findByRole('button', { name: /talk out loud/i }));
+      expect(audioCtor).toHaveBeenCalledTimes(1);
+      const unlockedInstance = audioCtor.mock.results[0].value;
+
+      fireEvent.click(await screen.findByRole('button', { name: /tap to stop/i }));
+      expect(await screen.findByText('reply one')).toBeTruthy();
+
+      // Still exactly one Audio ever constructed — the reply reused the
+      // already-unlocked instance rather than `new Audio(ttsUrl)`.
+      expect(audioCtor).toHaveBeenCalledTimes(1);
+      expect(unlockedInstance.src).toBe('https://example.com/one.mp3');
+      // primeAudioPlayback() unlocks on every tap (start AND stop — whichever
+      // is the real gesture "counts"), so 2 unlock plays here, plus 1 for the
+      // real reply.
+      expect(playMock).toHaveBeenCalledTimes(3);
+    });
+
     it('surfaces a server error from the voice endpoint', async () => {
       await startConversation({
         'POST /api/talk/voice': () =>

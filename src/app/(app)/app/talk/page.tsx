@@ -178,6 +178,27 @@ function Conversation({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Mobile Safari/Chrome only allow audio.play() without a fresh user
+  // gesture on an element that a real click has already "unlocked" once —
+  // by the time sendVoice() gets a tts_url back, the STT+AI+TTS round trip
+  // has burned several seconds and any gesture from the original tap has
+  // long expired, so a bare `new Audio(url).play()` there is silently
+  // blocked on essentially every real device. Playing a silent clip
+  // synchronously inside the tap handler (below) unlocks THIS SAME element
+  // for the rest of the session; sendVoice then only ever changes its `src`
+  // and replays it, never constructing a fresh Audio object.
+  function primeAudioPlayback() {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(
+        'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=',
+      );
+    }
+    audioRef.current.play().catch(() => {
+      /* expected once a previous tap already unlocked it */
+    });
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -216,10 +237,15 @@ function Conversation({
       };
       add('parent', transcript);
       add('kindly', reply);
-      // Best-effort playback — browsers may block autoplay this far removed
-      // from the originating click, but the reply is still shown as text either way.
+      // Reuse the same element primeAudioPlayback() unlocked on tap (see its
+      // comment) — a fresh `new Audio(ttsUrl)` here would hit the autoplay
+      // block on most real devices. Best-effort even so: the reply is still
+      // shown as text either way if playback fails for some other reason.
       try {
-        await new Audio(ttsUrl).play();
+        if (!audioRef.current) primeAudioPlayback();
+        const audio = audioRef.current!;
+        audio.src = ttsUrl;
+        await audio.play();
       } catch {
         // ignore — text reply already rendered
       }
@@ -231,6 +257,11 @@ function Conversation({
   }
 
   async function toggleRecording() {
+    // Unlock playback synchronously, on the tap itself — before any `await`
+    // — on both the start and stop taps (whichever fires first "counts" as
+    // the real user gesture; priming again on the second is a harmless
+    // no-op). See primeAudioPlayback's comment.
+    primeAudioPlayback();
     if (recording) {
       mediaRecorderRef.current?.stop();
       setRecording(false);
