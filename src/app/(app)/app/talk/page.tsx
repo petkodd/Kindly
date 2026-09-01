@@ -168,6 +168,12 @@ function Conversation({
   const [recording, setRecording] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  // Typing is a fallback, not the primary way to talk to Dearly — shown only
+  // when voice genuinely isn't available (unsupported browser, or the parent
+  // declined/lost mic access), never alongside a working mic button. Without
+  // this, a text box sitting next to "Talk out loud" turns a voice-first
+  // conversation into a read-and-type chat by default.
+  const [showTextFallback, setShowTextFallback] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -179,12 +185,15 @@ function Conversation({
 
   // Progressive enhancement: only show the mic button where recording is
   // actually supported (no getUserMedia/MediaRecorder on e.g. older Safari).
+  // When it isn't, fall back to typing — better than stranding the parent
+  // with no way to talk at all.
   useEffect(() => {
-    setVoiceSupported(
+    const supported =
       typeof navigator !== 'undefined' &&
-        !!navigator.mediaDevices?.getUserMedia &&
-        typeof window.MediaRecorder !== 'undefined',
-    );
+      !!navigator.mediaDevices?.getUserMedia &&
+      typeof window.MediaRecorder !== 'undefined';
+    setVoiceSupported(supported);
+    if (!supported) setShowTextFallback(true);
   }, []);
 
   async function sendVoice(blob: Blob) {
@@ -246,7 +255,8 @@ function Conversation({
       recorder.start();
       setRecording(true);
     } catch {
-      setError('Please allow microphone access to talk out loud, or type your message below.');
+      setError('Please allow microphone access to talk out loud. You can type below in the meantime.');
+      setShowTextFallback(true);
     }
   }
 
@@ -313,14 +323,14 @@ function Conversation({
       {error && <p className="mt-4 text-base text-clay">{error}</p>}
 
       {voiceSupported && (
-        <div className="mt-6 flex justify-center">
+        <div className="mt-8 flex justify-center">
           <button
             type="button"
             onClick={toggleRecording}
             disabled={sending || ending || voiceBusy}
             aria-pressed={recording}
-            className={`inline-flex min-h-[3.5rem] items-center justify-center gap-2 rounded-xl px-8 text-lg font-semibold transition-colors disabled:opacity-60 ${
-              recording ? 'bg-clay text-cloud' : 'btn-secondary'
+            className={`inline-flex min-h-[5rem] items-center justify-center gap-3 rounded-2xl px-12 text-2xl font-semibold transition-colors disabled:opacity-60 ${
+              recording ? 'bg-clay text-cloud' : 'btn-primary'
             }`}
           >
             {recording ? '⏹ Tap to stop' : '🎤 Talk out loud'}
@@ -328,42 +338,52 @@ function Conversation({
         </div>
       )}
 
-      <div className="mt-6 flex flex-col gap-3">
-        <label htmlFor="talk-input" className="sr-only">
-          Your message
-        </label>
-        <textarea
-          id="talk-input"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          rows={2}
-          placeholder="Type your message…"
-          className="w-full resize-none rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
-        />
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={end}
-            disabled={ending || sending}
-            className="text-base text-muted underline disabled:opacity-60"
-          >
-            {ending ? 'Ending…' : 'I’m done for now'}
-          </button>
-          <button
-            type="button"
-            onClick={send}
-            disabled={sending || ending || recording || voiceBusy || !draft.trim()}
-            className="btn-primary px-8 py-3 text-lg disabled:opacity-60"
-          >
-            Send
-          </button>
+      {showTextFallback && (
+        <div className="mt-6 flex flex-col gap-3">
+          {!voiceSupported && (
+            <p className="text-center text-sm text-muted">
+              Voice isn’t available on this browser, so you can type instead.
+            </p>
+          )}
+          <label htmlFor="talk-input" className="sr-only">
+            Your message
+          </label>
+          <textarea
+            id="talk-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            rows={2}
+            placeholder="Type your message…"
+            className="w-full resize-none rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={send}
+              disabled={sending || ending || recording || voiceBusy || !draft.trim()}
+              className="btn-primary px-8 py-3 text-lg disabled:opacity-60"
+            >
+              Send
+            </button>
+          </div>
         </div>
+      )}
+
+      <div className="mt-8 flex justify-center">
+        <button
+          type="button"
+          onClick={end}
+          disabled={ending || sending}
+          className="text-base text-muted underline disabled:opacity-60"
+        >
+          {ending ? 'Ending…' : 'I’m done for now'}
+        </button>
       </div>
     </div>
   );
