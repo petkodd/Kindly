@@ -1,0 +1,35 @@
+# Local Postgres for development and demos. Never used in production.
+#
+#   docker compose up -d --wait     # start, and wait until healthy
+#   docker compose down             # stop (data is kept in the named volume)
+#   docker compose down -v          # stop and DELETE all local data
+#
+# Matches DATABASE_URL in .env.example:
+#   postgres://kindly:kindly@localhost:5432/kindly   (with PGSSL=disable)
+# If port 5432 is taken on your machine, run with KINDLY_DB_PORT=5433 and
+# change the port in DATABASE_URL to match.
+services:
+  db:
+    # Postgres 16 with pgvector preinstalled. citext and pgcrypto ship with
+    # Postgres itself; db/docker-init enables all three on first start.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kindly
+      POSTGRES_PASSWORD: kindly # local-only throwaway credential
+      POSTGRES_DB: kindly
+    ports:
+      # Bound to localhost only, so the dev database is never exposed on your network.
+      - "127.0.0.1:${KINDLY_DB_PORT:-5432}:5432"
+    volumes:
+      - kindly-pgdata:/var/lib/postgresql/data
+      - ./db/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kindly -d kindly && psql -U kindly -d kindly -tAc \"SELECT 1 FROM pg_extension WHERE extname = 'vector'\" | grep -q 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  kindly-pgdata:
