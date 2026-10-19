@@ -220,14 +220,17 @@ describe('end-to-end golden path', () => {
     expect(accepted.status).toBe(200);
 
     // 10. Sending the weekly summary now delivers to the accepted recipient.
+    // No email key in tests → the fake client → the delivery is recorded as
+    // 'simulated' and the summary is not claimed as sent.
     const sent = await summarySendPOST(
       req(`http://localhost/api/parents/${parentId}/summary/send`, { method: 'POST', cookies: { [SESSION_COOKIE]: buyerSession } }),
       { params: { id: parentId } },
     );
     expect(sent.status).toBe(200);
     const sentBody = await sent.json();
-    expect(sentBody.summary.status).toBe('sent');
+    expect(sentBody.summary.status).toBe('preview');
     expect(sentBody.deliveries).toHaveLength(1);
+    expect(sentBody.deliveries[0].status).toBe('simulated');
 
     const summaries = await summariesGET(
       req(`http://localhost/api/parents/${parentId}/summaries`, { cookies: { [SESSION_COOKIE]: buyerSession } }),
