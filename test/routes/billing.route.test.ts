@@ -397,7 +397,7 @@ describe('POST /api/billing/webhook', () => {
 
 describe('GET /api/parents/:id/subscription', () => {
   it('401s without a buyer session', async () => {
-    const res = await subscriptionGET(buyerReq('http://localhost/api/parents/x/subscription', null), { params: { id: 'x' } });
+    const res = await subscriptionGET(buyerReq('http://localhost/api/parents/x/subscription', null), { params: Promise.resolve({ id: 'x' }) });
     expect(res.status).toBe(401);
   });
 
@@ -408,7 +408,7 @@ describe('GET /api/parents/:id/subscription', () => {
 
     const res = await subscriptionGET(
       buyerReq(`http://localhost/api/parents/${parent.id}/subscription`, attacker),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(404);
   });
@@ -419,7 +419,7 @@ describe('GET /api/parents/:id/subscription', () => {
 
     const res = await subscriptionGET(
       buyerReq(`http://localhost/api/parents/${parent.id}/subscription`, buyer),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -438,7 +438,7 @@ describe('GET /api/parents/:id/subscription', () => {
 
     const res = await subscriptionGET(
       buyerReq(`http://localhost/api/parents/${parent.id}/subscription`, buyer),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -457,7 +457,7 @@ describe('GET /api/parents/:id/subscription', () => {
 
     const res = await subscriptionGET(
       buyerReq(`http://localhost/api/parents/${parent.id}/subscription`, buyer),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect((await res.json()).is_current).toBe(false);
   });

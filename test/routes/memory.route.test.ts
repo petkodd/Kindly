@@ -20,7 +20,7 @@ describe('PATCH /api/memories/:mid', () => {
   it('401s without a buyer session', async () => {
     const res = await memoryPATCH(
       buyerReq('http://localhost/api/memories/x', null, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) }),
-      { params: { mid: 'x' } },
+      { params: Promise.resolve({ mid: 'x' }) },
     );
     expect(res.status).toBe(401);
   });
@@ -33,7 +33,7 @@ describe('PATCH /api/memories/:mid', () => {
 
     const res = await memoryPATCH(
       buyerReq(`http://localhost/api/memories/${memory.id}`, attacker, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) }),
-      { params: { mid: memory.id } },
+      { params: Promise.resolve({ mid: memory.id }) },
     );
     expect(res.status).toBe(404);
   });
@@ -45,7 +45,7 @@ describe('PATCH /api/memories/:mid', () => {
 
     const res = await memoryPATCH(
       buyerReq(`http://localhost/api/memories/${memory.id}`, buyer, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) }),
-      { params: { mid: memory.id } },
+      { params: Promise.resolve({ mid: memory.id }) },
     );
     expect(res.status).toBe(200);
     expect((await res.json()).memory.status).toBe('confirmed');
@@ -58,7 +58,7 @@ describe('PATCH /api/memories/:mid', () => {
 
     const res = await memoryPATCH(
       buyerReq(`http://localhost/api/memories/${memory.id}`, buyer, { method: 'PATCH', body: JSON.stringify({ action: 'retire' }) }),
-      { params: { mid: memory.id } },
+      { params: Promise.resolve({ mid: memory.id }) },
     );
     expect(res.status).toBe(204);
     const [still] = await memoryRepo.list(q, parent.id, { status: 'retired' });
@@ -72,7 +72,7 @@ describe('PATCH /api/memories/:mid', () => {
 
     const res = await memoryPATCH(
       buyerReq(`http://localhost/api/memories/${memory.id}`, buyer, { method: 'PATCH', body: JSON.stringify({ action: 'nonsense' }) }),
-      { params: { mid: memory.id } },
+      { params: Promise.resolve({ mid: memory.id }) },
     );
     expect(res.status).toBe(400);
   });
@@ -80,7 +80,7 @@ describe('PATCH /api/memories/:mid', () => {
 
 describe('DELETE /api/memories/:mid', () => {
   it('401s without a buyer session', async () => {
-    const res = await memoryDELETE(buyerReq('http://localhost/api/memories/x', null, { method: 'DELETE' }), { params: { mid: 'x' } });
+    const res = await memoryDELETE(buyerReq('http://localhost/api/memories/x', null, { method: 'DELETE' }), { params: Promise.resolve({ mid: 'x' }) });
     expect(res.status).toBe(401);
   });
 
@@ -90,7 +90,7 @@ describe('DELETE /api/memories/:mid', () => {
     const memory = await memoryRepo.add(q, { parentId: parent.id, layer: 'core', key: 'pet', value: 'Buddy', source: 'onboarding' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await memoryDELETE(buyerReq(`http://localhost/api/memories/${memory.id}`, attacker, { method: 'DELETE' }), { params: { mid: memory.id } });
+    const res = await memoryDELETE(buyerReq(`http://localhost/api/memories/${memory.id}`, attacker, { method: 'DELETE' }), { params: Promise.resolve({ mid: memory.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -99,7 +99,7 @@ describe('DELETE /api/memories/:mid', () => {
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     const memory = await memoryRepo.add(q, { parentId: parent.id, layer: 'core', key: 'pet', value: 'Buddy', source: 'onboarding' });
 
-    const res = await memoryDELETE(buyerReq(`http://localhost/api/memories/${memory.id}`, buyer, { method: 'DELETE' }), { params: { mid: memory.id } });
+    const res = await memoryDELETE(buyerReq(`http://localhost/api/memories/${memory.id}`, buyer, { method: 'DELETE' }), { params: Promise.resolve({ mid: memory.id }) });
     expect(res.status).toBe(204);
     expect((await memoryRepo.list(q, parent.id)).find((m) => m.id === memory.id)).toBeUndefined();
   });

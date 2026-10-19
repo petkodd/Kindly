@@ -98,13 +98,13 @@ describe('end-to-end golden path', () => {
         cookies: { [SESSION_COOKIE]: buyerSession },
         body: { kind: 'buyer_attestation' },
       }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(consent.status).toBe(201);
 
     const activate = await activatePOST(
       req(`http://localhost/api/parents/${parentId}/activate`, { method: 'POST', cookies: { [SESSION_COOKIE]: buyerSession } }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(activate.status).toBe(200);
     expect((await activate.json()).parent.activated_at).toBeTruthy();
@@ -121,7 +121,7 @@ describe('end-to-end golden path', () => {
     // 5. Issue the parent's talk access link and exchange it for a talk cookie.
     const accessLink = await accessLinkPOST(
       req(`http://localhost/api/parents/${parentId}/access-link`, { method: 'POST', cookies: { [SESSION_COOKIE]: buyerSession } }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(accessLink.status).toBe(201);
     const rawToken = (await accessLink.json()).token as string;
@@ -178,7 +178,7 @@ describe('end-to-end golden path', () => {
     // 7. Buyer reviews memories extracted from the session (proposed) and confirms one, if any.
     const memories = await memoriesGET(
       req(`http://localhost/api/parents/${parentId}/memories`, { cookies: { [SESSION_COOKIE]: buyerSession } }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(memories.status).toBe(200);
     const proposed = (await memories.json()).memories as Array<{ id: string; status: string }>;
@@ -189,7 +189,7 @@ describe('end-to-end golden path', () => {
           cookies: { [SESSION_COOKIE]: buyerSession },
           body: { action: 'confirm' },
         }),
-        { params: { mid: m.id } },
+        { params: Promise.resolve({ mid: m.id }) },
       );
       expect(confirmed.status).toBe(200);
     }
@@ -197,7 +197,7 @@ describe('end-to-end golden path', () => {
     // 8. Weekly summary preview reflects the conversation that just happened.
     const preview = await previewGET(
       req(`http://localhost/api/parents/${parentId}/summary/preview`, { cookies: { [SESSION_COOKIE]: buyerSession } }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(preview.status).toBe(200);
     expect((await preview.json()).summary.body_short).toContain('Robert');
@@ -210,7 +210,7 @@ describe('end-to-end golden path', () => {
         cookies: { [SESSION_COOKIE]: buyerSession },
         body: { email: 'mike@example.com' },
       }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(invite.status).toBe(201);
     const inviteHtml = sendSpy.mock.calls[0][0].html;
@@ -224,7 +224,7 @@ describe('end-to-end golden path', () => {
     // 'simulated' and the summary is not claimed as sent.
     const sent = await summarySendPOST(
       req(`http://localhost/api/parents/${parentId}/summary/send`, { method: 'POST', cookies: { [SESSION_COOKIE]: buyerSession } }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(sent.status).toBe(200);
     const sentBody = await sent.json();
@@ -234,7 +234,7 @@ describe('end-to-end golden path', () => {
 
     const summaries = await summariesGET(
       req(`http://localhost/api/parents/${parentId}/summaries`, { cookies: { [SESSION_COOKIE]: buyerSession } }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect((await summaries.json()).summaries).toHaveLength(1);
 

@@ -1,4 +1,6 @@
-import { withSentryConfig } from '@sentry/nextjs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 /** @type {import('next').NextConfig} */
 
@@ -40,9 +42,11 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // Required on Next 14.2 for src/instrumentation.ts (Sentry server/edge init)
-  // to run; stable without this flag from Next 15 onward.
-  experimental: { instrumentationHook: true },
+  // src/instrumentation.ts (Sentry server/edge init) is stable in Next 15, so
+  // the Next 14 `experimental.instrumentationHook` flag is gone.
+  // Pin the tracing root to this project so a nested git worktree (or a stray
+  // lockfile in a parent folder) can't make Next pick the wrong workspace root.
+  outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
   async headers() {
     return [
       {

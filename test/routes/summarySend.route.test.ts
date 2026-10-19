@@ -50,7 +50,7 @@ describe('POST /api/parents/:id/invite-sibling', () => {
       method: 'POST',
       body: JSON.stringify({ email: 'sib@example.com' }),
     });
-    const res = await inviteSiblingPOST(req, { params: { id: 'x' } });
+    const res = await inviteSiblingPOST(req, { params: Promise.resolve({ id: 'x' }) });
     expect(res.status).toBe(401);
   });
 
@@ -61,7 +61,7 @@ describe('POST /api/parents/:id/invite-sibling', () => {
 
     const res = await inviteSiblingPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/invite-sibling`, attacker, { email: 'sib@example.com' }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(404);
   });
@@ -73,7 +73,7 @@ describe('POST /api/parents/:id/invite-sibling', () => {
 
     const res = await inviteSiblingPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/invite-sibling`, buyerId, { email: 'sib@example.com' }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -97,7 +97,7 @@ describe('POST /api/parents/:id/invite-sibling', () => {
     for (let i = 0; i < 21; i++) {
       last = await inviteSiblingPOST(
         buyerReq(`http://localhost/api/parents/${parent.id}/invite-sibling`, buyerId, { email: `sib${i}@example.com` }),
-        { params: { id: parent.id } },
+        { params: Promise.resolve({ id: parent.id }) },
       );
     }
     expect(last!.status).toBe(429);
@@ -139,7 +139,7 @@ describe('POST /api/invites/accept', () => {
 describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () => {
   it('401s without a buyer session', async () => {
     const req = new NextRequest('http://localhost/api/parents/x/summary/send', { method: 'POST' });
-    const res = await summarySendPOST(req, { params: { id: 'x' } });
+    const res = await summarySendPOST(req, { params: Promise.resolve({ id: 'x' }) });
     expect(res.status).toBe(401);
   });
 
@@ -150,7 +150,7 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
 
     const res = await summarySendPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, attacker),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(404);
   });
@@ -161,7 +161,7 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
 
     const res = await summarySendPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, buyerId),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(409);
   });
@@ -173,13 +173,13 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
 
     await inviteSiblingPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/invite-sibling`, buyerId, { email: 'sib@example.com' }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
 
     // Not yet accepted — send is still blocked.
     const tooSoon = await summarySendPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, buyerId),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(tooSoon.status).toBe(409);
 
@@ -196,7 +196,7 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
 
     const sent = await summarySendPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, buyerId),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(sent.status).toBe(200);
     const body = await sent.json();

@@ -85,7 +85,7 @@ describe('PATCH /api/admin/flags/:fid', () => {
   it('401s without an admin session', async () => {
     const res = await flagPATCH(
       adminReq('http://localhost/api/admin/flags/x', null, { method: 'PATCH', body: JSON.stringify({ status: 'resolved' }) }),
-      { params: { fid: 'x' } },
+      { params: Promise.resolve({ fid: 'x' }) },
     );
     expect(res.status).toBe(401);
   });
@@ -94,7 +94,7 @@ describe('PATCH /api/admin/flags/:fid', () => {
     const admin = await makeAdmin();
     const res = await flagPATCH(
       adminReq('http://localhost/api/admin/flags/x', admin, { method: 'PATCH', body: JSON.stringify({}) }),
-      { params: { fid: 'x' } },
+      { params: Promise.resolve({ fid: 'x' }) },
     );
     expect(res.status).toBe(400);
   });
@@ -106,7 +106,7 @@ describe('PATCH /api/admin/flags/:fid', () => {
         method: 'PATCH',
         body: JSON.stringify({ status: 'resolved' }),
       }),
-      { params: { fid: '00000000-0000-0000-0000-000000000000' } },
+      { params: Promise.resolve({ fid: '00000000-0000-0000-0000-000000000000' }) },
     );
     expect(res.status).toBe(404);
   });
@@ -122,7 +122,7 @@ describe('PATCH /api/admin/flags/:fid', () => {
         method: 'PATCH',
         body: JSON.stringify({ status: 'resolved' }),
       }),
-      { params: { fid: flag.id } },
+      { params: Promise.resolve({ fid: flag.id }) },
     );
     expect(res.status).toBe(200);
     const body = await res.json();

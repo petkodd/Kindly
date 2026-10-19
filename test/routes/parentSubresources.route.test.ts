@@ -26,7 +26,7 @@ describe('GET /api/parents/:id/memories', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await memoriesGET(buyerReq(`http://localhost/api/parents/${parent.id}/memories`, attacker), { params: { id: parent.id } });
+    const res = await memoriesGET(buyerReq(`http://localhost/api/parents/${parent.id}/memories`, attacker), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -36,12 +36,12 @@ describe('GET /api/parents/:id/memories', () => {
     await memoryRepo.add(q, { parentId: parent.id, layer: 'core', key: 'hometown', value: 'Detroit', source: 'onboarding' });
     await memoryRepo.add(q, { parentId: parent.id, layer: 'interest', key: 'music', value: 'jazz', source: 'conversation' });
 
-    const all = await memoriesGET(buyerReq(`http://localhost/api/parents/${parent.id}/memories`, buyer), { params: { id: parent.id } });
+    const all = await memoriesGET(buyerReq(`http://localhost/api/parents/${parent.id}/memories`, buyer), { params: Promise.resolve({ id: parent.id }) });
     expect((await all.json()).memories).toHaveLength(2);
 
     const filtered = await memoriesGET(
       buyerReq(`http://localhost/api/parents/${parent.id}/memories?layer=core`, buyer),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect((await filtered.json()).memories).toHaveLength(1);
   });
@@ -58,7 +58,7 @@ describe('POST /api/parents/:id/memories', () => {
         method: 'POST',
         body: JSON.stringify({ layer: 'core', key: 'hometown', value: 'Detroit' }),
       }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(404);
   });
@@ -72,7 +72,7 @@ describe('POST /api/parents/:id/memories', () => {
         method: 'POST',
         body: JSON.stringify({ layer: 'core', key: 'hometown', value: 'Detroit' }),
       }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -86,7 +86,7 @@ describe('GET /api/parents/:id/recipients', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await recipientsGET(buyerReq(`http://localhost/api/parents/${parent.id}/recipients`, attacker), { params: { id: parent.id } });
+    const res = await recipientsGET(buyerReq(`http://localhost/api/parents/${parent.id}/recipients`, attacker), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -95,7 +95,7 @@ describe('GET /api/parents/:id/recipients', () => {
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await consentRepo.recordRecipientInvite(q, { parentId: parent.id, grantedBy: buyer, recipientEmail: 'sib@example.com' });
 
-    const res = await recipientsGET(buyerReq(`http://localhost/api/parents/${parent.id}/recipients`, buyer), { params: { id: parent.id } });
+    const res = await recipientsGET(buyerReq(`http://localhost/api/parents/${parent.id}/recipients`, buyer), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.recipients).toEqual([{ id: expect.any(String), email: 'sib@example.com', status: 'pending' }]);
@@ -108,7 +108,7 @@ describe('GET /api/parents/:id/summaries', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await summariesGET(buyerReq(`http://localhost/api/parents/${parent.id}/summaries`, attacker), { params: { id: parent.id } });
+    const res = await summariesGET(buyerReq(`http://localhost/api/parents/${parent.id}/summaries`, attacker), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -116,7 +116,7 @@ describe('GET /api/parents/:id/summaries', () => {
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
-    const res = await summariesGET(buyerReq(`http://localhost/api/parents/${parent.id}/summaries`, buyer), { params: { id: parent.id } });
+    const res = await summariesGET(buyerReq(`http://localhost/api/parents/${parent.id}/summaries`, buyer), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(200);
     expect((await res.json()).summaries).toEqual([]);
   });
@@ -128,7 +128,7 @@ describe('GET /api/parents/:id/summary/preview', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await previewGET(buyerReq(`http://localhost/api/parents/${parent.id}/summary/preview`, attacker), { params: { id: parent.id } });
+    const res = await previewGET(buyerReq(`http://localhost/api/parents/${parent.id}/summary/preview`, attacker), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -136,7 +136,7 @@ describe('GET /api/parents/:id/summary/preview', () => {
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
-    const res = await previewGET(buyerReq(`http://localhost/api/parents/${parent.id}/summary/preview`, buyer), { params: { id: parent.id } });
+    const res = await previewGET(buyerReq(`http://localhost/api/parents/${parent.id}/summary/preview`, buyer), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.summary.status).toBe('preview');
