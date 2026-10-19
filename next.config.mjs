@@ -2,8 +2,6 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs/config';
 
-/** @type {import('next').NextConfig} */
-
 // Content-Security-Policy. Google Fonts are allow-listed (see layout.tsx).
 // NOTE: script-src keeps 'unsafe-inline' because Next's hydration scripts are
 // inline; a nonce-based script-src via middleware is the follow-up to fully
@@ -39,6 +37,7 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=(), browsing-topics=()' },
 ];
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -57,6 +56,12 @@ const nextConfig = {
         // Private app + admin: never indexed.
         source: '/(app|admin)/:path*',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
+        // API responses carry personal data (profiles, memories, summaries,
+        // transcripts). Never let a browser, proxy or CDN keep a copy.
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }],
       },
     ];
   },

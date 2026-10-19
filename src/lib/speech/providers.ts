@@ -32,7 +32,8 @@ export function createSpeechClient(opts: {
         },
       );
       if (!res.ok) {
-        throw new SpeechError(`Deepgram STT failed: ${res.status} ${await res.text()}`);
+        // Status only: provider bodies can echo request content and end up in logs/Sentry.
+        throw new SpeechError(`Deepgram STT failed: ${res.status}`);
       }
       const data = (await res.json()) as {
         results?: {
@@ -69,7 +70,8 @@ export function createSpeechClient(opts: {
         },
       );
       if (!res.ok) {
-        throw new SpeechError(`ElevenLabs TTS failed: ${res.status} ${await res.text()}`);
+        // Status only: provider bodies can echo the spoken text and end up in logs/Sentry.
+        throw new SpeechError(`ElevenLabs TTS failed: ${res.status}`);
       }
       const audioBuffer = Buffer.from(await res.arrayBuffer());
       const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
