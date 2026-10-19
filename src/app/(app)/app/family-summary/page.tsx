@@ -159,10 +159,14 @@ function PreviewCard({
       const r = await api.post<{ summary: WeeklySummary; deliveries: Delivery[] }>(
         `/api/parents/${parentId}/summary/send`,
       );
-      const count = r.deliveries.filter((d) => d.status !== 'failed').length;
-      setStatus(
-        count === 1 ? 'Sent to 1 recipient.' : `Sent to ${count} recipients.`,
-      );
+      const count = r.deliveries.filter((d) => d.status === 'sent').length;
+      const simulated = r.deliveries.filter((d) => d.status === 'simulated').length;
+      const recipients = (n: number) => (n === 1 ? '1 recipient' : `${n} recipients`);
+      const parts: string[] = [];
+      if (count > 0) parts.push(`Sent to ${recipients(count)}.`);
+      // Demo mode / no email key: say plainly that nothing actually went out.
+      if (simulated > 0) parts.push(`Simulated for ${recipients(simulated)} — demo mode, no email was sent.`);
+      setStatus(parts.join(' ') || 'Sent to 0 recipients.');
       onSent(r.summary);
     } catch (err) {
       // 409: no consented recipient yet — the send is gated on consent.

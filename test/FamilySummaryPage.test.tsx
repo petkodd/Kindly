@@ -78,6 +78,21 @@ describe('FamilySummaryPage', () => {
     expect(await screen.findByText(/sent to 1 recipient\./i)).toBeTruthy();
   });
 
+  it('says plainly when a send was only simulated (demo mode, no email key)', async () => {
+    stubFetch({
+      'GET /api/parents': () => json({ parents: [PARENT] }),
+      'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
+      'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
+      'POST /api/parents/p1/summary/send': () =>
+        json({ summary: PREVIEW, deliveries: [{ id: 'd1', status: 'simulated' }] }),
+    });
+    render(<FamilySummaryPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /send this week’s summary/i }));
+    expect(await screen.findByText(/simulated for 1 recipient — demo mode, no email was sent\./i)).toBeTruthy();
+    expect(screen.queryByText(/^sent to/i)).toBeNull();
+  });
+
   it('guides the buyer to invite a recipient when send is gated on consent (409)', async () => {
     stubFetch({
       'GET /api/parents': () => json({ parents: [PARENT] }),
