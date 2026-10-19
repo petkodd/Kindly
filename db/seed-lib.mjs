@@ -112,16 +112,21 @@ function weekStartUtc(ref) {
 }
 const ymd = (d) => d.toISOString().slice(0, 10);
 
+// Ordered oldest → newest (created_at follows this order). The companion
+// retrieves newest-first, so the light favourite-music memory comes up first
+// and the sensitive one is oldest. Values are short noun phrases so they read
+// naturally both in the family Memories view and in the simulated AI's
+// "I remember you mentioned …" line.
 const MEMORIES = [
   // [layer, key, value, source, status, sensitivity]
-  ['profile', 'preferred_name', 'Likes to be called Mary by friends; the grandkids call her Gran.', 'onboarding', 'confirmed', 'normal'],
-  ['profile', 'hometown', 'Grew up in Dayton, Ohio, and lives there again now.', 'onboarding', 'confirmed', 'normal'],
-  ['core', 'grandchildren', 'Three grandchildren: Emma (9), Leo (6) and Ava (3).', 'family', 'confirmed', 'normal'],
-  ['core', 'career', 'Taught third grade for 31 years at Lincoln Elementary.', 'onboarding', 'confirmed', 'normal'],
-  ['interest', 'favorite_music', 'Loves Ella Fitzgerald and big-band records on Sunday mornings.', 'family', 'confirmed', 'normal'],
-  ['interest', 'gardening', 'Grows tomatoes and roses on the back porch.', 'conversation', 'proposed', 'normal'],
-  ['episodic', 'school_play', "Went to Leo's school play last week; he played a very brave tree.", 'conversation', 'proposed', 'normal'],
-  ['sensitive', 'late_spouse', 'Her husband Frank passed away in 2019. She likes remembering their garden together; let her lead.', 'family', 'confirmed', 'sensitive'],
+  ['sensitive', 'late_spouse', 'her late husband Frank, who passed away in 2019 (she likes remembering their garden; let her lead)', 'family', 'confirmed', 'sensitive'],
+  ['profile', 'preferred_name', 'Mary to her friends, and Gran to the grandkids', 'onboarding', 'confirmed', 'normal'],
+  ['profile', 'hometown', 'Dayton, Ohio, where she grew up and lives again now', 'onboarding', 'confirmed', 'normal'],
+  ['core', 'career', '31 years teaching third grade at Lincoln Elementary', 'onboarding', 'confirmed', 'normal'],
+  ['core', 'grandchildren', 'her three grandchildren, Emma (9), Leo (6) and Ava (3)', 'family', 'confirmed', 'normal'],
+  ['interest', 'gardening', 'the tomatoes and roses on her back porch', 'conversation', 'proposed', 'normal'],
+  ['episodic', 'school_play', "Leo's school play last week, where he played a very brave tree", 'conversation', 'proposed', 'normal'],
+  ['interest', 'favorite_music', 'Ella Fitzgerald and big-band records on Sunday mornings', 'family', 'confirmed', 'normal'],
 ];
 
 const CONVERSATIONS = [

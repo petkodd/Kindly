@@ -187,3 +187,14 @@ describe('seedDemo', () => {
     expect(deliveries.map((d) => d.status)).toEqual(['simulated']);
   });
 });
+
+describe('seedDemo memory order (what the simulated AI brings up first)', () => {
+  it('surfaces a light memory first and the sensitive one last', async () => {
+    const q = makeTestDb();
+    await seedDemo(q, { password: 'demo-pass-123', now: new Date('2026-10-21T15:00:00Z') });
+    const { memoryRepo } = await import('../src/lib/repos/memory');
+    const mems = await memoryRepo.retrieveForCompanion(q, SEED_IDS.parent);
+    expect(mems[0].mem_key).toBe('favorite_music');
+    expect(mems[mems.length - 1].mem_key).toBe('late_spouse');
+  });
+});
