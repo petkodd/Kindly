@@ -156,7 +156,9 @@ const CONVERSATIONS = [
   },
   {
     mood: 'flat',
-    summary: 'A quieter chat. She said she skipped lunch because she did not feel like cooking, and talked about calling her sister.',
+    // Family-facing: the skipped meal stays OUT of the summary. It only exists
+    // as the internal P2 welfare flag reviewed by staff (see D3 / privacy rules).
+    summary: 'A quieter afternoon chat about soup for dinner and calling her sister tonight.',
     turns: [
       ['kindly', 'Hi Mary, it is nice to hear from you this afternoon. How has your day been?'],
       ['parent', "Quiet. I didn't feel like cooking so I skipped lunch."],

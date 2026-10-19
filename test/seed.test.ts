@@ -198,3 +198,15 @@ describe('seedDemo memory order (what the simulated AI brings up first)', () => 
     expect(mems[mems.length - 1].mem_key).toBe('late_spouse');
   });
 });
+
+describe('seedDemo family-facing text', () => {
+  it('keeps the welfare detail out of every family-facing summary', async () => {
+    const q = makeTestDb();
+    await seedDemo(q, { password: 'demo-pass-123', now: new Date('2026-10-21T15:00:00Z') });
+    const { rows: convs } = await q.query<{ summary_text: string }>(`SELECT summary_text FROM conversations`);
+    const { rows: weekly } = await q.query<{ body_long: string }>(`SELECT body_long FROM weekly_summaries`);
+    for (const text of [...convs.map((c) => c.summary_text), ...weekly.map((w) => w.body_long)]) {
+      expect(text).not.toMatch(/skip|meal|lunch|not eating/i);
+    }
+  });
+});
