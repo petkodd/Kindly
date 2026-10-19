@@ -1,5 +1,6 @@
 import type { EmailClient } from './types';
 import { fakeEmailClient } from './fake';
+import { EMAIL_KEYS, shouldUseFake } from '../runtimeMode';
 
 export * from './types';
 export { fakeEmailClient } from './fake';
@@ -11,18 +12,20 @@ let cached: EmailClient | undefined;
 
 /**
  * Resolve the email client. Uses the real Resend-backed client when
- * EMAIL_API_KEY is set; otherwise falls back to the deterministic fake so
- * local dev and tests run without a key (matches the "mocked in Alpha if
- * unset" behavior documented in .env.example).
+ * EMAIL_API_KEY and EMAIL_FROM are set. Uses the deterministic fake when
+ * DEMO_MODE=true, or when either is missing outside production (local dev,
+ * tests). On the production deploy a missing value throws
+ * MissingProviderKeyError — see src/lib/runtimeMode.ts. The fake reports
+ * `simulated: true`, so deliveries through it are recorded as 'simulated'.
  */
 export function getEmailClient(): EmailClient {
   if (cached) return cached;
-  const apiKey = process.env.EMAIL_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) {
+  if (shouldUseFake(EMAIL_KEYS)) {
     cached = fakeEmailClient;
     return cached;
   }
+  const apiKey = process.env.EMAIL_API_KEY as string;
+  const from = process.env.EMAIL_FROM as string;
   const { createEmailClient } = require('./providers') as typeof import('./providers');
   cached = createEmailClient({ apiKey, from });
   return cached;
