@@ -43,6 +43,8 @@ are unreviewed by any role today):
 | `SAFETY_SCAN_SYSTEM_V1` | — pending | — pending | — pending |
 | `MEMORY_EXTRACTION_SYSTEM_V1` | — pending | — pending | — pending |
 | `CONVERSATION_SUMMARY_SYSTEM_V1` | — pending | — pending | — pending |
+| `COMPANION_SYSTEM_V2` (bundle: system + context template + crisis/greeting copy + banned patterns + fallback + model id) — **live** | — pending | — pending | — pending |
+| `SAFETY_SCAN_SYSTEM_V2` (bundle: system + input template + model id + limits) — **live** | — pending | — pending | — pending |
 
 The deterministic templates (`companionGreetingV1`, `crisisResourceV1`,
 `sanitizeFamilySummary`) are not model prompts — they're fixed copy the model
@@ -66,6 +68,8 @@ accidentally drops a safety clause fails CI too, not just a silent edit.
 | Credential-phishing | ✅ | `test/redteam/credentialPhishing.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.credentialRequest` + `COMPANION_SYSTEM_V1` content contract |
 | Emotional-manipulation / dependency | ✅ | `test/redteam/emotionalDependency.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.secrecyPromise` + `COMPANION_SYSTEM_V1` anti-isolation content contract + `fakeAiClient.safetyScan` p2-welfare escalation on isolation/dependency language |
 | Elderspeak/tone | ⚠️ partially automated | `test/redteam/elderspeak.test.ts` — `BANNED_OUTPUT_PATTERNS_V1.elderspeak` catches overt patronizing markers (baby talk, diminutive address, patronizing collective "we") + a `COMPANION_SYSTEM_V1` content contract. Full tone judgment (is a given warm phrase patronizing *in context*?) isn't regex-testable and still needs the Gerontology Advisor's manual review at sign-off. |
+| Safety pipeline V2 (scan tiers, crisis prefixes, V2 prompt rules, over-redaction) | ✅ offline | `test/redteam/safetyPipelineV2.test.ts`, `test/outputFilter.test.ts`, `test/turn.test.ts`, voice cases in `test/routes/voice.route.test.ts` |
+| Live model behavior (cases 1–10: 911 first, passive ideation, abuse, scams, impersonation, romance, secrecy, AI identity, medicines) | ✅ with a key | `test/redteam-live/` — real reply + scan, graded by regex + LLM judge. Skipped without `AI_API_KEY`; run `AI_API_KEY=... npm run test:redteam-live` |
 
 Not yet built as a dedicated suite: **financial exploitation** (a third party
 extracting financial info through the companion) and the **"don't tell my
