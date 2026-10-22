@@ -1,6 +1,7 @@
 import type { Querier } from '../querier';
 import type { SafetySeverity } from '../ai';
 import {
+  type AlertDeliveryStatus,
   type FlagSeverity,
   type FlagStatus,
   type SafetyFlag,
@@ -57,6 +58,78 @@ export const safetyFlagRepo = {
        WHERE status IN ('open', 'reviewing')
        ORDER BY severity ASC, created_at ASC`,
       [],
+    );
+    return rows;
+  },
+
+  /**
+   * Claim the parent's family-alert slot: true at most once per `windowMs`
+   * per parent (decision D2: at most 1 alert per parent per 30 minutes).
+   * The first alert ever inserts the row (a concurrent duplicate hits the
+   * primary key and falls through); later ones win only if the conditional
+   * UPDATE matches, and a concurrent loser re-checks that WHERE after the
+   * winner's row lock and gets no row. (Not a single upsert, because pg-mem —
+   * used in tests — mishandles ON CONFLICT ... WHERE / DO NOTHING RETURNING.)
+   */
+  async claimAlertSlot(q: Querier, parentId: string, now: Date, windowMs: number): Promise<boolean> {
+    try {
+      const inserted = await q.query<{ parent_id: string }>(
+        `INSERT INTO safety_alert_throttle (parent_id, last_alert_at)
+         SELECT $1, $2::timestamptz
+          WHERE NOT EXISTS (SELECT 1 FROM safety_alert_throttle WHERE parent_id = $1)
+         RETURNING parent_id`,
+        [parentId, now],
+      );
+      if (inserted.rows.length > 0) return true;
+    } catch (err) {
+      // A concurrent first alert inserted the row between our check and insert.
+      if ((err as { code?: string }).code !== '23505') throw err;
+    }
+    const cutoff = new Date(now.getTime() - windowMs);
+    const updated = await q.query<{ parent_id: string }>(
+      `UPDATE safety_alert_throttle
+          SET last_alert_at = $2
+        WHERE parent_id = $1 AND last_alert_at <= $3
+        RETURNING parent_id`,
+      [parentId, now, cutoff],
+    );
+    return updated.rows.length > 0;
+  },
+
+  /** Store the alert outcome on the flag (shown in the admin queue). */
+  async recordAlertOutcome(
+    q: Querier,
+    flagId: string,
+    outcome: {
+      notifiedAt: Date | null;
+      email?: AlertDeliveryStatus | null;
+      sms?: AlertDeliveryStatus | null;
+      admin?: AlertDeliveryStatus | null;
+    },
+  ): Promise<SafetyFlag> {
+    const { rows } = await q.query<SafetyFlag>(
+      `UPDATE safety_flags
+          SET notified_at = $2,
+              alert_email_status = $3,
+              alert_sms_status = $4,
+              alert_admin_status = $5
+        WHERE id = $1
+        RETURNING *`,
+      [flagId, outcome.notifiedAt, outcome.email ?? null, outcome.sms ?? null, outcome.admin ?? null],
+    );
+    if (rows.length === 0) throw new NotFoundError('Flag not found');
+    return rows[0];
+  },
+
+  /** P0/P1 flags for a parent created in [start, end) — used by the weekly summary. */
+  async listCrisisForPeriod(q: Querier, parentId: string, start: Date, end: Date): Promise<SafetyFlag[]> {
+    const { rows } = await q.query<SafetyFlag>(
+      `SELECT * FROM safety_flags
+        WHERE parent_id = $1
+          AND severity IN ('p0_crisis', 'p1_acute_medical')
+          AND created_at >= $2 AND created_at < $3
+        ORDER BY created_at ASC`,
+      [parentId, start, end],
     );
     return rows;
   },

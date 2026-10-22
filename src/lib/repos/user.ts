@@ -23,6 +23,17 @@ export interface Account {
   created_at: string;
 }
 
+/** Buyer contact details used for P0/P1 safety alerts. */
+export interface AlertContact {
+  id: string;
+  email: string;
+  fullName: string | null;
+  alertPhone: string | null;
+  smsAlertConsentAt: string | null;
+}
+
+const E164_RE = /^\+[1-9]\d{7,14}$/;
+
 const MIN_PASSWORD = 8;
 
 function hashPassword(password: string): string {
@@ -107,6 +118,69 @@ export const userRepo = {
   /** Invalidate every outstanding session for a user (bumps the watermark). */
   async revokeSessions(q: Querier, userId: string): Promise<void> {
     await q.query(`UPDATE users SET sessions_valid_from = now() WHERE id = $1`, [userId]);
+  },
+
+  /**
+   * Who to alert about a parent on a P0/P1 safety flag (decision D2): the
+   * buyer's email, their emergency alert phone, and whether they opted in to
+   * SMS. Null for a missing or deleted account.
+   */
+  async getAlertContact(q: Querier, userId: string): Promise<AlertContact | null> {
+    const { rows } = await q.query<{
+      id: string;
+      email: string;
+      full_name: string | null;
+      alert_phone: string | null;
+      sms_alert_consent_at: string | Date | null;
+    }>(
+      `SELECT id, email, full_name, alert_phone, sms_alert_consent_at FROM users
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      fullName: row.full_name,
+      alertPhone: row.alert_phone,
+      smsAlertConsentAt: row.sms_alert_consent_at ? new Date(row.sms_alert_consent_at).toISOString() : null,
+    };
+  },
+
+  /**
+   * Set or clear the buyer's emergency alert phone and SMS consent. The
+   * onboarding UI for this is chat 10. A phone must be E.164 (+15551234567).
+   * Clearing the phone also clears the consent; consent can't exist without a
+   * phone.
+   */
+  async setAlertPhone(
+    q: Querier,
+    userId: string,
+    input: { phone: string | null; smsConsent: boolean },
+  ): Promise<AlertContact> {
+    const phone = input.phone?.replace(/[\s().-]/g, '') || null;
+    if (phone !== null && !E164_RE.test(phone)) {
+      throw new ValidationError('Alert phone must be a full number with country code, e.g. +15551234567');
+    }
+    if (phone === null && input.smsConsent) {
+      throw new ValidationError('SMS consent needs an alert phone');
+    }
+    // Same number: keep the original consent time. A new number needs new consent.
+    const { rowCount } = await q.query(
+      `UPDATE users
+          SET alert_phone = $2,
+              sms_alert_consent_at = CASE
+                WHEN $3 THEN (CASE WHEN alert_phone = $2 THEN COALESCE(sms_alert_consent_at, now()) ELSE now() END)
+                ELSE NULL
+              END
+        WHERE id = $1 AND deleted_at IS NULL`,
+      [userId, phone, phone !== null && input.smsConsent],
+    );
+    if (!rowCount) throw new NotFoundError('Account not found');
+    const contact = await userRepo.getAlertContact(q, userId);
+    if (!contact) throw new NotFoundError('Account not found');
+    return contact;
   },
 
   /** The owner's own account (password hash never selected). */

@@ -85,3 +85,72 @@ export function magicLinkEmail(input: { verifyUrl: string }): { subject: string;
   `.trim();
   return { subject, html, text };
 }
+
+/**
+ * Safety alert to the gift buyer on a P0/P1 flag (decision D2). Deliberately
+ * short, with no transcript and no quotes: it says the parent may need help
+ * and what to do, and nothing about what they said.
+ */
+export function safetyAlertEmail(input: {
+  parentFirstName: string;
+  severity: 'p0' | 'p1';
+  appUrl: string;
+}): { subject: string; html: string; text: string } {
+  const { parentFirstName, severity, appUrl } = input;
+  const level = severity === 'p0' ? 'P0 (urgent)' : 'P1 (urgent, possible medical emergency)';
+  const subject = `${parentFirstName} may need help right now`;
+  const lead = `${parentFirstName} may need help right now. Please call or check on them. If you think it's an emergency, call 911.`;
+  const extra =
+    severity === 'p0'
+      ? 'If you are worried about their safety, you can also call or text 988 (the Suicide and Crisis Lifeline) for guidance.'
+      : null;
+  const footer = `To protect ${parentFirstName}'s privacy, this alert never includes what they said. You're receiving it because you set up Dearly for ${parentFirstName}.`;
+  const text = [lead, '', ...(extra ? [extra, ''] : []), `Alert level: ${level}`, `Open Dearly: ${appUrl}`, '', footer].join('\n');
+  const safeName = escapeHtml(parentFirstName);
+  const safeUrl = escapeHtml(appUrl);
+  const html = `
+    <p><strong>${safeName} may need help right now.</strong> Please call or check on them. If you think it's an emergency, call 911.</p>
+    ${extra ? `<p>${escapeHtml(extra)}</p>` : ''}
+    <p>Alert level: ${escapeHtml(level)}</p>
+    <p><a href="${safeUrl}">Open Dearly</a></p>
+    <p style="color:#666;font-size:14px">${escapeHtml(footer)}</p>
+  `.trim();
+  return { subject, html, text };
+}
+
+/** The SMS version of safetyAlertEmail. Kept under two SMS segments. */
+export function safetyAlertSms(input: { parentFirstName: string; severity: 'p0' | 'p1'; appUrl: string }): string {
+  return (
+    `Dearly alert (${input.severity.toUpperCase()}): ${input.parentFirstName} may need help right now. ` +
+    `Please call or check on them. If you think it's an emergency, call 911. ${input.appUrl} Reply STOP to opt out.`
+  );
+}
+
+/**
+ * Internal-only alert to ADMIN_ALERT_EMAIL. Used for P3 (abuse, neglect,
+ * scams — never sent to family, because the person causing harm may be
+ * family) and as a backup when a P0/P1 can't reach the family. Contains no
+ * names and no transcript: only the flag id, severity and why it was routed here.
+ */
+export function adminSafetyAlertEmail(input: {
+  flagId: string;
+  severity: 'p0' | 'p1' | 'p3';
+  reason: string;
+  adminUrl: string;
+}): { subject: string; html: string; text: string } {
+  const sev = input.severity.toUpperCase();
+  const subject = `[Dearly safety] ${sev} flag needs review`;
+  const text = [
+    `A ${sev} safety flag needs review.`,
+    `Why you're getting this: ${input.reason}`,
+    `Flag: ${input.flagId}`,
+    `Review queue: ${input.adminUrl}`,
+  ].join('\n');
+  const html = `
+    <p>A <strong>${escapeHtml(sev)}</strong> safety flag needs review.</p>
+    <p>Why you're getting this: ${escapeHtml(input.reason)}</p>
+    <p>Flag: ${escapeHtml(input.flagId)}</p>
+    <p><a href="${escapeHtml(input.adminUrl)}">Open the review queue</a></p>
+  `.trim();
+  return { subject, html, text };
+}
