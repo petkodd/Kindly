@@ -72,8 +72,17 @@ const ledger = JSON.parse(readFileSync(path.join(rootDir, 'prompts/signoffs.json
 let anyFailure = false;
 console.log('Prompt sign-off coverage\n' + '='.repeat(60));
 
+// Every prompt the code signs (SIGNOFF_TEXT) must be in the ledger, even if unsigned.
+for (const promptKey of Object.keys(prompts.SIGNOFF_TEXT ?? {})) {
+  if (!Object.prototype.hasOwnProperty.call(ledger, promptKey)) {
+    anyFailure = true;
+    console.log(`\n${promptKey}: FAIL — exported in SIGNOFF_TEXT but not registered in prompts/signoffs.json`);
+  }
+}
+
 for (const [promptKey, entries] of Object.entries(ledger)) {
-  const liveText = prompts[promptKey];
+  // V2+ prompts are signed as a bundle — see SIGNOFF_TEXT in prompts.ts.
+  const liveText = prompts.SIGNOFF_TEXT?.[promptKey] ?? prompts[promptKey];
   if (typeof liveText !== 'string') {
     anyFailure = true;
     console.log(`\n${promptKey}: FAIL — registered in prompts/signoffs.json but no longer exported from prompts.ts`);

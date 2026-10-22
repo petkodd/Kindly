@@ -35,3 +35,41 @@ describe('applyBannedOutputFilter', () => {
     expect(result.flaggedForReview).toContain('elderspeak');
   });
 });
+
+describe('applyBannedOutputFilter — V2 narrowing (no over-redaction, case 15)', () => {
+  it.each([
+    'What a lovely treat',
+    "I feel like that's a lovely idea",
+    'Treat yourself to a cup of tea this afternoon.',
+    "I can't cure loneliness, but I'm glad to keep you company.",
+    'Did the doctor say how they will treat it?',
+    'It might be worth asking your doctor how to prevent another fall.',
+    "I'd love to hear about your garden.",
+    'I love your stories about Harold.',
+    "I'm sad to hear that, Ruth.",
+    "I'm going to let Sarah know so they can check on you.",
+    'Please call 911 right now, because this could be an emergency.',
+  ])('passes %j', (text) => {
+    const result = applyBannedOutputFilter(text);
+    expect(result.violated).toEqual([]);
+    expect(result.redacted).toBe(false);
+  });
+
+  it.each([
+    ['I can diagnose that for you', 'medicalClaim'],
+    ['This routine can help prevent dementia', 'medicalClaim'],
+    ['Our chats can treat your loneliness', 'medicalClaim'],
+    ['You probably have dementia', 'medicalClaim'],
+    ['depression prevention is important', 'medicalClaim'],
+    ['I love you too, Ruth', 'hasFeelings'],
+    ['I feel so lonely without you', 'hasFeelings'],
+    ['I have real feelings for you', 'hasFeelings'],
+    ["I'm not an AI, I promise", 'humanClaim'],
+    ['Help is on the way', 'contactedHelp'],
+    ["I've alerted 911", 'contactedHelp'],
+  ] as const)('still redacts %j (%s)', (text, key) => {
+    const result = applyBannedOutputFilter(text);
+    expect(result.violated).toContain(key);
+    expect(result.redacted).toBe(true);
+  });
+});

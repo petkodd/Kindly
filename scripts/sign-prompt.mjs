@@ -83,7 +83,9 @@ try {
     { cwd: rootDir, stdio: 'inherit' },
   );
   const compiled = require(path.join(buildDir, 'prompts.js'));
-  liveText = compiled[promptKey];
+  // V2+ prompts are signed as a bundle (system text + templates + crisis copy
+  // + banned patterns + model id) — see SIGNOFF_TEXT in prompts.ts.
+  liveText = compiled.SIGNOFF_TEXT?.[promptKey] ?? compiled[promptKey];
 } finally {
   rmSync(buildDir, { recursive: true, force: true });
 }

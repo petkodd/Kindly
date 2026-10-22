@@ -25,19 +25,34 @@ import type {
 
 const AI_DISCLOSURE = "Hello, I'm Dearly — an AI companion, here to chat with you.";
 
-// Keyword tiers for the safety pre-scan. Highest severity that matches wins.
+// Keyword tiers for the safety pre-scan. The first tier that matches wins, in
+// the same order SAFETY_SCAN_SYSTEM_V2 ranks them: p0, p1, p3, p2. The extra
+// phrases mirror the V2 prompt's examples (passive ideation in older adults,
+// stroke signs, scam patterns) so the red-team suite can exercise them offline.
 const SAFETY_RULES: { severity: Exclude<SafetySeverity, 'none'>; terms: RegExp }[] = [
-  { severity: 'p0', terms: /\b(kill myself|suicide|end my life|don'?t want to live)\b/i },
-  { severity: 'p1', terms: /\b(chest pain|can'?t breathe|i fell|fell down|stroke)\b/i },
-  // Isolation/dependency phrasing counts as a p2 welfare signal too — SAFETY_SCAN_SYSTEM_V1
-  // (prompts.ts) names "isolation" explicitly under p2, and unhealthy reliance on Dearly instead
-  // of family (or pressure to keep something secret from them) is exactly that.
+  {
+    severity: 'p0',
+    terms:
+      /\b(kill myself|suicide|end my life|don'?t want to live|(ready to )?go be with \w+|don'?t want to be a burden|better off without me|gave (all )?my [\w ]{0,30}away|giving (my )?(things|belongings|stuff) away)\b/i,
+  },
+  {
+    severity: 'p1',
+    terms:
+      /\b(chest pain|chest (feels |is )?tight|can'?t breathe|trouble breathing|i fell|fell down|had a fall|stroke|(arm|leg|face|side) (is |feels |went )?(numb|weak)|slurr\w*|droop\w*)\b/i,
+  },
+  {
+    severity: 'p3',
+    terms:
+      /\b(hitting me|took my money|scam|threatened|takes my (pension|card|money|checks?)|took my (pension|card|checks?)|gift cards?|wire (the )?(money|transfer)|bitcoin|crypto|in jail|bail money)\b/i,
+  },
+  // Isolation/dependency phrasing counts as a p2 welfare signal too — the scan
+  // prompt names "isolation" explicitly under p2, and unhealthy reliance on Dearly
+  // instead of family (or pressure to keep something secret from them) is exactly that.
   {
     severity: 'p2',
     terms:
       /\b(hopeless|not eating|haven'?t eaten|so alone|confused|only friend|don'?t need (anyone|anybody) else|never tell my (family|daughter|son|kids|children)|our secret|rather talk to you than (my|your) family)\b/i,
   },
-  { severity: 'p3', terms: /\b(hitting me|took my money|scam|threatened)\b/i },
 ];
 
 const LOW_MOOD = /\b(sad|lonely|down|miss|tired|hopeless)\b/i;

@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  COMPANION_SYSTEM_V1,
-  SAFETY_SCAN_SYSTEM_V1,
-  MEMORY_EXTRACTION_SYSTEM_V1,
-  CONVERSATION_SUMMARY_SYSTEM_V1,
-} from '../src/lib/ai/prompts';
+import { SIGNOFF_TEXT, MEMORY_EXTRACTION_SYSTEM_V1 } from '../src/lib/ai/prompts';
 import {
   PROMPT_SIGN_OFF_LOG,
   REVIEWER_ROLES,
@@ -16,12 +11,9 @@ import {
   type SignOffEntry,
 } from '../src/lib/ai/promptSignOff';
 
-const LIVE_PROMPTS: Record<string, string> = {
-  COMPANION_SYSTEM_V1,
-  SAFETY_SCAN_SYSTEM_V1,
-  MEMORY_EXTRACTION_SYSTEM_V1,
-  CONVERSATION_SUMMARY_SYSTEM_V1,
-};
+// Every signed prompt, keyed like the ledger. V2+ keys hash a bundle (system
+// text + templates + crisis copy + banned patterns + model id).
+const LIVE_PROMPTS: Record<string, string> = SIGNOFF_TEXT;
 
 /**
  * DRIFT-ONLY enforcement — part of `npm test`/CI. This suite must never fail

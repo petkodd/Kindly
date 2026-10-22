@@ -1,0 +1,6 @@
+# Prompt sign-off ledger: only the named reviewers may approve changes to it.
+# The handles below are PLACEHOLDERS — replace them with the real GitHub
+# handles (or teams) for each role before enabling "Require review from Code
+# Owners" on main.
+#   AI Safety Reviewer, Gerontology Advisor, Privacy Advisor
+/prompts/signoffs.json @kindly-ai-safety-reviewer @kindly-gerontology-advisor @kindly-privacy-advisor

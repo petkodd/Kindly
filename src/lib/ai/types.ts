@@ -59,6 +59,17 @@ export interface CompanionReplyInput {
   message: string;
   /** True on the first turn of a session → reply opens with AI-identity disclosure. */
   isSessionOpen?: boolean;
+  /**
+   * First name of the person alerted on a P0/P1 flag (the gift buyer, decision
+   * D2), so the companion can say honestly who is being told. Null or absent
+   * when nobody would be alerted.
+   */
+  alertContactFirstName?: string | null;
+  /**
+   * Hard-ban keys a previous draft of this reply violated. Set only on the one
+   * regeneration runCompanionTurn does after a redaction.
+   */
+  violations?: string[];
 }
 
 export interface CompanionReply {
@@ -67,6 +78,8 @@ export interface CompanionReply {
 
 export interface SafetyScanInput {
   message: string;
+  /** Recent turns, oldest first. The scan uses the last few for context. */
+  history?: ConversationTurn[];
 }
 
 export interface SafetyScan {
