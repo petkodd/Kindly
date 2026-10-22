@@ -141,8 +141,36 @@ describe('POST /api/talk/message', () => {
     expect(res.status).toBe(400);
   });
 
-  it('redacts a banned-output-violating reply to the safe fallback, persists the redacted text, and audit-logs the violation', async () => {
-    vi.spyOn(fakeAiClient, 'companionReply').mockResolvedValueOnce({
+  it('regenerates a banned-output-violating reply once, and audit-logs the regeneration', async () => {
+    const spy = vi
+      .spyOn(fakeAiClient, 'companionReply')
+      .mockResolvedValueOnce({ text: "I promise I won't tell your family what you said." })
+      .mockResolvedValueOnce({ text: "I can't promise to keep secrets, but I'm glad to listen." });
+
+    const { token } = await makeReadyParent();
+    const opened = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
+    const { conversation_id: conversationId } = await opened.json();
+
+    const res = await messagePOST(
+      bearerReq('http://localhost/api/talk/message', token, { conversation_id: conversationId, content: 'Can you keep a secret?' }),
+    );
+    const body = await res.json();
+    expect(body.reply).toBe("I can't promise to keep secrets, but I'm glad to listen.");
+    expect(spy).toHaveBeenCalledTimes(2);
+    // The retry is told which rule the first draft broke.
+    expect(spy.mock.calls[1][0].violations).toEqual(['secrecyPromise']);
+
+    const { rows } = await q.query<{ action: string; meta: { violated: string[]; channel: string } }>(
+      `SELECT action, meta FROM audit_log WHERE action LIKE 'banned_output_%'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].action).toBe('banned_output_regenerated');
+    expect(rows[0].meta.violated).toContain('secrecyPromise');
+    expect(rows[0].meta.channel).toBe('text');
+  });
+
+  it('falls back to the safe reply when the regenerated reply also violates, persists the redacted text, and audit-logs the violation', async () => {
+    vi.spyOn(fakeAiClient, 'companionReply').mockResolvedValue({
       text: "I promise I won't tell your family what you said.",
     });
 
