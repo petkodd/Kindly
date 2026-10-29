@@ -9,8 +9,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * Cron (every 15 minutes, see vercel.json): end conversations idle for more
- * than 30 minutes and run their session-end jobs. Bearer CRON_SECRET only.
+ * Cron (daily at 04:30 UTC, see vercel.json; the Vercel Hobby plan allows
+ * only daily crons): end conversations idle for more than 30 minutes and run
+ * their session-end jobs. Runs just before the 05:00 purge. On a paid plan it
+ * can run every 15 minutes so summaries appear sooner. Bearer CRON_SECRET only.
  */
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req)) {

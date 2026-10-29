@@ -65,6 +65,17 @@ describe('cron scripts', () => {
     expect(jobUrl('idle', {})).toBe('http://localhost:3000/api/jobs/end-idle-sessions');
   });
 
+  it('every Vercel cron runs at most once a day (the Hobby plan rejects anything more frequent)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: { path: string; schedule: string }[] };
+    for (const { path, schedule } of vercel.crons) {
+      const [minute, hour] = schedule.trim().split(/\s+/);
+      // A fixed minute and a fixed hour = once per day (or less, via day/weekday fields).
+      expect(minute, `${path}: ${schedule}`).toMatch(/^\d{1,2}$/);
+      expect(hour, `${path}: ${schedule}`).toMatch(/^\d{1,2}$/);
+    }
+  });
+
   it('match the routes scheduled in vercel.json', async () => {
     const { readFileSync } = await import('node:fs');
     const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: { path: string }[] };

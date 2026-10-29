@@ -3,12 +3,16 @@ import { conversationRepo } from '../repos/conversation';
 import { runSessionEndJobs } from './sessionEnd';
 
 /**
- * `end_idle_sessions` (cron, every 15 minutes): a parent who closes the tab
+ * `end_idle_sessions` (cron, daily on the Vercel Hobby plan; every 15 minutes
+ * on a paid plan): a parent who closes the tab
  * or puts the tablet down never taps "I'm done for now", so their
  * conversation stayed open forever — never summarized, never stamped for
  * transcript retention. This ends every conversation with no activity for
  * IDLE_MS and runs the normal session-end jobs (summary, memory extraction,
  * retention stamping), exactly as if the parent had ended it.
+ *
+ * Transcript retention never depends on this job: every turn already gets a
+ * 30-day retention_purge_at when it is written.
  *
  * Batched (maxPerRun) so one run stays inside the function time limit; the
  * next run picks up the rest. One conversation's failure never stops others.

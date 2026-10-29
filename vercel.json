@@ -24,7 +24,7 @@
     },
     {
       "path": "/api/jobs/end-idle-sessions",
-      "schedule": "*/15 * * * *"
+      "schedule": "30 4 * * *"
     }
   ]
 }
