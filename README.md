@@ -59,9 +59,11 @@ Docker with Compose v2), **git** and **openssl** (preinstalled on macOS/Linux).
    ```
    Open http://localhost:3000/login and log in as **demo@kindly.test** with your
    `DEMO_PASSWORD`. You land in the app as the gift buyer for “Mom (demo)”.
-7. **Talk as the parent.** Open the talk link from step 5 in a private window,
-   press **Start talking**, type a message and press **Send**. Replies come from
-   the simulated AI.
+7. **Talk as the parent.** Open the talk link from step 5 in a private window
+   and press **Start talking**. Tap **Talk to Dearly**, say something, and tap it
+   again to send. Without a microphone, or after **Type instead**, type a
+   message and press **Send**. Replies come from the simulated AI (the
+   simulated voice is silent: it returns no real audio).
 8. **See the admin view.** Log out, log in as **admin@kindly.test** (same
    password) and open http://localhost:3000/admin: metrics, the open P2 safety
    flag and cost per voice minute.
