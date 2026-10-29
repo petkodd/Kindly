@@ -31,13 +31,39 @@ export function elevenLabsCostMicros(characterCount: number): number {
   return Math.round(characterCount * ELEVENLABS_TTS_MICROS_PER_CHARACTER);
 }
 
-// LLM/Claude inference cost is deliberately out of scope for the admin cost
-// metrics feature (feature/admin-analytics): src/lib/ai/anthropic.ts
-// currently discards the Anthropic SDK's `usage` (input/output token) field
-// entirely, and the AiClient interface (src/lib/ai/types.ts) has nowhere to
-// carry it. Wiring that through — and its fake client used in tests — is a
-// separate, larger change than this feature's STT+TTS cost pipeline.
-// Deliberately not built as code yet, same posture as the referral-reward
-// deferral above: implement alongside adding a 'claude_completion' entry to
-// usage_provider_t (db/migrations/0012_usage_costs.sql) and a per-token rate
-// pair here, once token accounting is actually wired into src/lib/ai/index.ts.
+/**
+ * Anthropic model prices in micros ($-millionths) per token. A price of
+ * $3 per million tokens is exactly 3 micros per token. Source: Claude API
+ * pricing, https://platform.claude.com/docs/en/about-claude/pricing (checked
+ * 2026-10-29). Like the speech rates, these must be re-checked against
+ * invoices; they drift when Anthropic changes prices or we change models.
+ */
+export const LLM_MICROS_PER_TOKEN: Record<string, { input: number; output: number }> = {
+  'claude-sonnet-4-6': { input: 3, output: 15 },
+  'claude-haiku-4-5': { input: 1, output: 5 },
+  'claude-opus-4-8': { input: 5, output: 25 },
+  'claude-sonnet-5': { input: 2, output: 10 },
+  'claude-sonnet-5-5': { input: 2, output: 10 },
+  'claude-opus-5': { input: 5, output: 25 },
+  'claude-opus-5-5': { input: 4, output: 20 },
+  // Haiku 5.5's price for prompts up to 100k tokens; talk prompts are far smaller.
+  'claude-haiku-5-5': { input: 0.1, output: 0.5 },
+};
+
+/**
+ * A model missing from the table (e.g. a new AI_MODEL override) is priced at
+ * the current Opus rate, so its cost is never under-reported; the row keeps
+ * the model id so the gap is visible in admin.
+ */
+export const LLM_FALLBACK_MICROS_PER_TOKEN = { input: 5, output: 25 };
+
+export function llmRates(model: string): { input: number; output: number; known: boolean } {
+  // Dated snapshot ids ('claude-haiku-4-5-20251001') price like their alias.
+  const alias = Object.keys(LLM_MICROS_PER_TOKEN).find((k) => model === k || model.startsWith(`${k}-2`));
+  return alias ? { ...LLM_MICROS_PER_TOKEN[alias], known: true } : { ...LLM_FALLBACK_MICROS_PER_TOKEN, known: false };
+}
+
+export function llmCostMicros(model: string, inputTokens: number, outputTokens: number): number {
+  const r = llmRates(model);
+  return Math.round(inputTokens * r.input + outputTokens * r.output);
+}

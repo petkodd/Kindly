@@ -22,6 +22,8 @@ export type TalkProblemKind =
   | 'link_expired'
   | 'not_available'
   | 'too_many'
+  | 'voice_limit'
+  | 'session_full'
   | 'too_long'
   | 'mic_blocked'
   | 'offline'
@@ -92,6 +94,22 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
     return {
       kind: 'not_available',
       message: `I can’t chat just now. ${who}`,
+      canType: false,
+      canRetry: false,
+    };
+  }
+  if (code === 'voice_limit') {
+    return {
+      kind: 'voice_limit',
+      message: 'We’ve talked out loud a lot today. You can type to me instead, or we can talk again tomorrow.',
+      canType: true,
+      canRetry: false,
+    };
+  }
+  if (code === 'conversation_full') {
+    return {
+      kind: 'session_full',
+      message: 'We’ve had a long chat. Tap “I’m done for now”, then “Talk again” to start fresh.',
       canType: false,
       canRetry: false,
     };

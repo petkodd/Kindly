@@ -1,7 +1,8 @@
 import type { Querier } from '../querier';
 import type { Parent, SafetyFlag } from '../types';
 import { getAiClient } from './index';
-import type { AiClient, ConversationTurn, RetrievedMemory, SafetyScan } from './types';
+import type { AiClient, AiUsage, ConversationTurn, RetrievedMemory, SafetyScan } from './types';
+import type { LlmOperation } from '../repos/usageCost';
 import { crisisResourceV2, SAFE_FALLBACK_REPLY } from './prompts';
 import { applyBannedOutputFilter, type HardBanKey } from './outputFilter';
 import { safetyFlagRepo } from '../repos/safetyFlag';
@@ -61,6 +62,8 @@ export interface CompanionTurnResult {
   /** Hard bans the first draft broke (empty if none). */
   violated: HardBanKey[];
   alert: AlertOutcome | null;
+  /** Token usage of every model call this turn made, for the cost ledger (empty with the fake client). */
+  usages: { usage?: AiUsage; operation: LlmOperation }[];
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -123,9 +126,11 @@ export async function runCompanionTurn(q: Querier, input: CompanionTurnInput): P
   }
 
   // --- 2. reply ---
-  let reply: { text: string };
+  const usages: CompanionTurnResult['usages'] = [{ usage: scan.usage, operation: 'scan' }];
+  let reply: { text: string; usage?: AiUsage };
   try {
     reply = await replyPromise;
+    usages.push({ usage: reply.usage, operation: 'reply' });
   } catch (err) {
     // The flag (and its alert) must still complete before we surface the failure.
     await withTimeout(alertPromise, ALERT_WAIT_MS, null);
@@ -140,6 +145,7 @@ export async function runCompanionTurn(q: Querier, input: CompanionTurnInput): P
     regenerated = true;
     try {
       const retry = await ai.companionReply({ ...replyInput, violations: [...violated] });
+      usages.push({ usage: retry.usage, operation: 'regeneration' });
       filtered = applyBannedOutputFilter(retry.text);
     } catch {
       filtered = { text: SAFE_FALLBACK_REPLY, redacted: true, violated, flaggedForReview: [] };
@@ -176,5 +182,5 @@ export async function runCompanionTurn(q: Querier, input: CompanionTurnInput): P
 
   const alert = await withTimeout(alertPromise, ALERT_WAIT_MS, null);
 
-  return { replyText, scan, flag, redacted: filtered.redacted, regenerated, violated, alert };
+  return { replyText, scan, flag, redacted: filtered.redacted, regenerated, violated, alert, usages };
 }

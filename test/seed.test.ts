@@ -139,8 +139,12 @@ describe('seedDemo', () => {
     expect(new Date(sums[0].period_start).toISOString().slice(0, 10)).toBe('2026-10-19');
     expect((await consentRepo.listAcceptedRecipients(q, P)).map((c) => (c.detail as { recipient_email: string }).recipient_email)).toEqual(['sibling@kindly.test']);
     expect(await count(`SELECT COUNT(*)::int AS n FROM safety_flags WHERE parent_id = $1 AND severity = 'p2_welfare' AND status = 'open'`, [P])).toBe(1);
-    expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE parent_id = $1`, [P])).toBe(17);
-    expect(await count(`SELECT COUNT(DISTINCT provider)::int AS n FROM usage_costs WHERE parent_id = $1`, [P])).toBe(2);
+    // 17 speech rows (one per turn) + 2 model calls (scan + reply) per companion answer.
+    expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE parent_id = $1 AND provider <> 'anthropic_llm'`, [P])).toBe(17);
+    const answers = await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE parent_id = $1 AND operation = 'reply'`, [P]);
+    expect(answers).toBeGreaterThan(0);
+    expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE parent_id = $1 AND provider = 'anthropic_llm'`, [P])).toBe(2 * answers);
+    expect(await count(`SELECT COUNT(DISTINCT provider)::int AS n FROM usage_costs WHERE parent_id = $1`, [P])).toBe(3);
 
     // The printed talk link works: token resolves to the parent, and a session can open.
     expect(await accessTokenRepo.resolveParentId(q, token)).toBe(P);
@@ -158,7 +162,7 @@ describe('seedDemo', () => {
     expect(await count(`SELECT COUNT(*)::int AS n FROM memories`)).toBe(8);
     expect(await count(`SELECT COUNT(*)::int AS n FROM conversations`)).toBe(3);
     expect(await count(`SELECT COUNT(*)::int AS n FROM conversation_turns`)).toBe(17);
-    expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs`)).toBe(17);
+    expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE provider <> 'anthropic_llm'`)).toBe(17);
     expect(await count(`SELECT COUNT(*)::int AS n FROM weekly_summaries`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM safety_flags`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM consents`)).toBe(3);

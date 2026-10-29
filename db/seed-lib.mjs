@@ -100,6 +100,8 @@ const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 // Rates mirror src/lib/billing/usageRates.ts (Deepgram per second, ElevenLabs per character).
 const STT_MICROS_PER_SECOND = (0.0043 / 60) * 1_000_000;
 const TTS_MICROS_PER_CHAR = (0.1 / 1_000) * 1_000_000;
+// Anthropic $ per million tokens = micros per token (src/lib/billing/usageRates.ts).
+const LLM_RATES = { 'claude-sonnet-4-6': { input: 3, output: 15 }, 'claude-haiku-4-5': { input: 1, output: 5 } };
 
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
@@ -309,6 +311,26 @@ export async function seedDemo(q, { password, now = new Date() } = {}) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [ID(5000 + c * 100 + t), turnId, convId, SEED_IDS.parent, provider, unit, quantity, rate, Math.round(quantity * rate), iso(at)],
       );
+      // A companion reply that answers the parent cost two model calls: the
+      // safety scan (small model) and the reply itself. Token counts are typical
+      // for this app's prompts, so /admin shows a realistic LLM share.
+      if (role === 'kindly' && t > 0 && convo.turns[t - 1][0] === 'parent') {
+        const calls = [
+          ['scan', 'claude-haiku-4-5', 650, 35, 7000],
+          ['reply', 'claude-sonnet-4-6', 1_900, Math.max(20, Math.round(content.length / 4)), 8000],
+        ];
+        for (const [operation, model, inputTokens, outputTokens, base] of calls) {
+          const r = LLM_RATES[model];
+          const cost = Math.round(inputTokens * r.input + outputTokens * r.output);
+          const total = inputTokens + outputTokens;
+          await q.query(
+            `INSERT INTO usage_costs (id, turn_id, conversation_id, parent_id, provider, unit, quantity, unit_rate_micros, cost_micros,
+                                      input_tokens, output_tokens, model, operation, created_at)
+             VALUES ($1, $2, $3, $4, 'anthropic_llm', 'token', $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [ID(base + c * 100 + t), turnId, convId, SEED_IDS.parent, total, cost / total, cost, inputTokens, outputTokens, model, operation, iso(at)],
+          );
+        }
+      }
     }
   }
 

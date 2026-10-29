@@ -5,8 +5,9 @@ import { adminMetricsRepo } from '@/lib/repos/adminMetrics';
 import { auditRepo } from '@/lib/repos/audit';
 
 /**
- * Cost & retention metrics for the admin dashboard (aggregate-only — no
- * parent_id, no conversation content anywhere in the response). Audit-logged.
+ * Cost & retention metrics for the admin dashboard. Aggregates, plus the top
+ * 10 spenders under a pseudonymous 8-character ref (no parent_id, name or
+ * conversation content anywhere in the response). Audit-logged.
  * See docs/admin_metrics_definitions.md for the metric definitions.
  */
 export async function GET(req: NextRequest) {
@@ -15,9 +16,10 @@ export async function GET(req: NextRequest) {
   try {
     const pool = db();
     const granularity = req.nextUrl.searchParams.get('granularity') === 'week' ? 'week' : 'day';
-    const [retention, cost_buckets] = await Promise.all([
+    const [retention, cost_buckets, top_spenders] = await Promise.all([
       adminMetricsRepo.retention(pool),
       adminMetricsRepo.costBuckets(pool, granularity),
+      adminMetricsRepo.topSpenders(pool),
     ]);
     await auditRepo.log(pool, {
       actorId: adminId,
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
       targetType: 'admin',
       meta: { granularity },
     });
-    return NextResponse.json({ retention, cost_buckets, granularity });
+    return NextResponse.json({ retention, cost_buckets, top_spenders, granularity });
   } catch (err) {
     const { status, body } = errorToResponse(err);
     return NextResponse.json(body, { status });

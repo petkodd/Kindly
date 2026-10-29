@@ -61,7 +61,7 @@ describe('restricted memories never reach family (D6)', () => {
     await conversationRepo.end(q, convo.id, parent.id);
 
     // The fake proposes an interest AND a restricted low-mood moment.
-    const proposed = await fakeAiClient.extractMemories({ turns: [{ role: 'parent', content: 'I feel lonely today' }] });
+    const { candidates: proposed } = await fakeAiClient.extractMemories({ turns: [{ role: 'parent', content: 'I feel lonely today' }] });
     expect(proposed.some((c) => c.sensitivity === 'restricted')).toBe(true);
 
     const result = await runSessionEndJobs(q, convo.id, { ai: fakeAiClient });
@@ -230,7 +230,7 @@ describe('memory extraction never proposes secrets or keeps episodic memories fo
     const convo = await conversationRepo.openSession(q, parent.id, 'text');
     await conversationRepo.addTurn(q, convo.id, parent.id, 'parent', 'hello');
     await conversationRepo.end(q, convo.id, parent.id);
-    const ai: AiClient = { ...fakeAiClient, extractMemories: async () => candidates };
+    const ai: AiClient = { ...fakeAiClient, extractMemories: async () => ({ candidates }) };
     const result = await runSessionEndJobs(q, convo.id, { ai });
     const { rows } = await q.query<{ mem_key: string; decay_at: Date | null; layer: string }>(
       `SELECT mem_key, decay_at, layer FROM memories WHERE parent_id = $1 ORDER BY mem_key`,
@@ -240,7 +240,7 @@ describe('memory extraction never proposes secrets or keeps episodic memories fo
   }
 
   it('"My PIN is 4432" yields no candidate from the fake extractor', async () => {
-    expect(await fakeAiClient.extractMemories({ turns: [{ role: 'parent', content: 'My PIN is 4432' }] })).toEqual([]);
+    expect((await fakeAiClient.extractMemories({ turns: [{ role: 'parent', content: 'My PIN is 4432' }] })).candidates).toEqual([]);
   });
 
   it('drops PINs, passwords and SSN/card-shaped numbers even when the model proposes them', async () => {

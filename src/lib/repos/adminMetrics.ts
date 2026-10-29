@@ -85,9 +85,27 @@ export interface CostBucket {
   voice_minutes: number;
   stt_cost_micros: number;
   tts_cost_micros: number;
+  /** Anthropic model calls (replies, safety scans, regenerations, extraction, summaries). */
+  llm_cost_micros: number;
   total_cost_micros: number;
   cost_per_active_user_micros: number | null;
+  /** All cost (speech + LLM) per voice minute. */
   cost_per_voice_minute_micros: number | null;
+}
+
+/** One parent's spend over the window. Pseudonymous: a short id, never a name or content. */
+export interface TopSpender {
+  parent_ref: string;
+  conversations: number;
+  voice_minutes: number;
+  llm_cost_micros: number;
+  speech_cost_micros: number;
+  total_cost_micros: number;
+}
+
+/** Short, stable, non-identifying label for a parent in admin views (first 8 hex of the uuid). */
+export function parentRef(parentId: string): string {
+  return parentId.replace(/-/g, '').slice(0, 8);
 }
 
 /** Day bucket = 'YYYY-MM-DD'; week bucket = Monday-anchored ISO week start (reuses summary.ts's weekBounds). */
@@ -100,7 +118,10 @@ interface BucketAccumulator {
   voice_minutes: number;
   stt_cost_micros: number;
   tts_cost_micros: number;
+  llm_cost_micros: number;
 }
+
+type CostProvider = 'deepgram_stt' | 'elevenlabs_tts' | 'anthropic_llm';
 
 export const adminMetricsRepo = {
   async retention(q: Querier, ref: Date = new Date()): Promise<RetentionMetrics> {
@@ -130,7 +151,7 @@ export const adminMetricsRepo = {
     const since = new Date(ref.getTime() - lookbackBuckets * bucketMs);
 
     const [costRows, convRows] = await Promise.all([
-      q.query<{ created_at: string; provider: 'deepgram_stt' | 'elevenlabs_tts'; cost_micros: string }>(
+      q.query<{ created_at: string; provider: CostProvider; cost_micros: string }>(
         `SELECT created_at, provider, cost_micros FROM usage_costs
          WHERE created_at >= $1 AND created_at <= $2`,
         [since, ref],
@@ -146,7 +167,7 @@ export const adminMetricsRepo = {
     const bucketFor = (key: string): BucketAccumulator => {
       let b = buckets.get(key);
       if (!b) {
-        b = { active_users: new Set(), voice_minutes: 0, stt_cost_micros: 0, tts_cost_micros: 0 };
+        b = { active_users: new Set(), voice_minutes: 0, stt_cost_micros: 0, tts_cost_micros: 0, llm_cost_micros: 0 };
         buckets.set(key, b);
       }
       return b;
@@ -156,7 +177,8 @@ export const adminMetricsRepo = {
       const b = bucketFor(bucketKey(new Date(row.created_at), granularity));
       const micros = Number(row.cost_micros);
       if (row.provider === 'deepgram_stt') b.stt_cost_micros += micros;
-      else b.tts_cost_micros += micros;
+      else if (row.provider === 'elevenlabs_tts') b.tts_cost_micros += micros;
+      else b.llm_cost_micros += micros;
     }
 
     for (const row of convRows.rows) {
@@ -169,18 +191,64 @@ export const adminMetricsRepo = {
       .sort(([a], [bKey]) => a.localeCompare(bKey))
       .map(([bucket_start, b]) => {
         const active_users = b.active_users.size;
-        const total_cost_micros = b.stt_cost_micros + b.tts_cost_micros;
+        const total_cost_micros = b.stt_cost_micros + b.tts_cost_micros + b.llm_cost_micros;
         return {
           bucket_start,
           active_users,
           voice_minutes: b.voice_minutes,
           stt_cost_micros: b.stt_cost_micros,
           tts_cost_micros: b.tts_cost_micros,
+          llm_cost_micros: b.llm_cost_micros,
           total_cost_micros,
           cost_per_active_user_micros: active_users === 0 ? null : Math.round(total_cost_micros / active_users),
           cost_per_voice_minute_micros:
             b.voice_minutes === 0 ? null : Math.round(total_cost_micros / b.voice_minutes),
         };
       });
+  },
+
+  /**
+   * The parents who cost the most over the last `days` days. Meant for
+   * spotting a leaked talk link or runaway use, so it shows spend only, under
+   * a short pseudonymous ref (no name, no content); admins resolve the ref in
+   * the database if they need to act.
+   */
+  async topSpenders(q: Querier, ref: Date = new Date(), days = 30, limit = 10): Promise<TopSpender[]> {
+    const since = new Date(ref.getTime() - days * DAY_MS);
+    const [costRows, convRows] = await Promise.all([
+      q.query<{ parent_id: string; provider: CostProvider; cost_micros: string }>(
+        `SELECT parent_id, provider, cost_micros FROM usage_costs WHERE created_at >= $1 AND created_at <= $2`,
+        [since, ref],
+      ),
+      q.query<{ parent_id: string; voice_minutes: string }>(
+        `SELECT parent_id, voice_minutes FROM conversations WHERE started_at >= $1 AND started_at <= $2`,
+        [since, ref],
+      ),
+    ]);
+    const by = new Map<string, TopSpender>();
+    const get = (id: string): TopSpender => {
+      let t = by.get(id);
+      if (!t) {
+        t = { parent_ref: parentRef(id), conversations: 0, voice_minutes: 0, llm_cost_micros: 0, speech_cost_micros: 0, total_cost_micros: 0 };
+        by.set(id, t);
+      }
+      return t;
+    };
+    for (const r of costRows.rows) {
+      const t = get(r.parent_id);
+      const micros = Number(r.cost_micros);
+      if (r.provider === 'anthropic_llm') t.llm_cost_micros += micros;
+      else t.speech_cost_micros += micros;
+      t.total_cost_micros += micros;
+    }
+    for (const r of convRows.rows) {
+      const t = by.get(r.parent_id);
+      if (!t) continue; // no spend → not a top spender
+      t.conversations += 1;
+      t.voice_minutes += Number(r.voice_minutes);
+    }
+    return Array.from(by.values())
+      .sort((a, b) => b.total_cost_micros - a.total_cost_micros)
+      .slice(0, limit);
   },
 };

@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { resolveParentFromRequest, errorToResponse } from '@/lib/auth';
+import { resolveParentFromRequest, errorToResponse, clientIp } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { memoryRepo } from '@/lib/repos/memory';
 import { usageCostRepo } from '@/lib/repos/usageCost';
 import type { ConversationTurn, RetrievedMemory } from '@/lib/ai';
 import { runCompanionTurn } from '@/lib/ai/turn';
+import { HISTORY_MAX_TURNS, trimHistory } from '@/lib/ai/history';
+import {
+  AUDIO_MAX_BYTES,
+  enforceAudioCap,
+  enforceTalkRate,
+  enforceTurnCap,
+  enforceVoiceMinutes,
+} from '@/lib/talk/limits';
 import { getSpeechClient } from '@/lib/speech';
 import { ValidationError } from '@/lib/types';
+
+// STT + model + TTS normally finish in a few seconds; never let one request run (and bill) for minutes.
+export const maxDuration = 30;
 
 const unauthorized = () =>
   NextResponse.json(
@@ -32,6 +43,10 @@ export async function POST(req: NextRequest) {
     const pool = db();
     const parentId = await resolveParentFromRequest(req, pool);
     if (!parentId) return unauthorized();
+    // Spend guards before any parsing or provider work.
+    await enforceTalkRate(pool, parentId, clientIp(req));
+    const declaredBytes = Number(req.headers.get('content-length') ?? 0);
+    if (declaredBytes > AUDIO_MAX_BYTES + 64 * 1024) enforceAudioCap(declaredBytes);
 
     // --- parse multipart ---
     let formData: FormData;
@@ -48,10 +63,13 @@ export async function POST(req: NextRequest) {
     // Base type only ('audio/webm;codecs=opus' → 'audio/webm'): Safari records
     // MP4, other browsers WebM, and the speech provider sniffs the container.
     const mimeType = audioEntry.type.split(';')[0].trim() || 'audio/webm';
+    enforceAudioCap(audioEntry.size);
     const audioBuffer = Buffer.from(await audioEntry.arrayBuffer());
 
-    // Ownership + open check before doing any provider work.
+    // Ownership + open check, turn cap and daily voice time before any provider work.
     await conversationRepo.requireOpen(pool, conversationId, parentId);
+    await enforceTurnCap(pool, conversationId, parentId);
+    await enforceVoiceMinutes(pool, parentId);
     const parent = await parentRepo.getById(pool, parentId);
 
     // --- STT ---
@@ -66,9 +84,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const history: ConversationTurn[] = (
-      await conversationRepo.listTurns(pool, conversationId)
-    ).map((t) => ({ role: t.role, content: t.content }));
+    const history: ConversationTurn[] = trimHistory(
+      (await conversationRepo.listRecentTurns(pool, conversationId, HISTORY_MAX_TURNS)).map((t) => ({
+        role: t.role,
+        content: t.content,
+      })),
+    );
 
     const memories: RetrievedMemory[] = (
       await memoryRepo.retrieveForCompanion(pool, parentId)
@@ -76,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     // Same pipeline as the text turn: scan → reply → banned-output filter →
     // crisis prefix, plus D2 alerting.
-    const { replyText } = await runCompanionTurn(pool, {
+    const { replyText, usages } = await runCompanionTurn(pool, {
       parent,
       conversationId,
       message: transcript,
@@ -114,6 +135,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error('usage cost write failed', conversationId, err);
     }
+    await usageCostRepo.recordLlmUsages(pool, { turnId: kindlyTurn.id, conversationId, parentId, usages });
 
     return NextResponse.json({
       conversation_id: conversationId,

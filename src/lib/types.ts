@@ -224,10 +224,29 @@ export class ConflictError extends Error {
   }
 }
 
+/** Thrown when an upload or message is over its size cap. API maps to 413. */
+export class PayloadTooLargeError extends Error {
+  constructor(message = 'That was too long.') {
+    super(message);
+    this.name = 'PayloadTooLargeError';
+  }
+}
+
+/** Thrown when a conversation has reached its turn cap and was ended. API maps to 409 conversation_full. */
+export class ConversationFullError extends Error {
+  constructor(message = 'We’ve had a long chat. Let’s start a fresh conversation.') {
+    super(message);
+    this.name = 'ConversationFullError';
+  }
+}
+
 /** Thrown when a caller exceeds a rate limit. API maps to 429. */
 export class RateLimitError extends Error {
-  constructor(message = 'Too many requests. Please try again later.') {
+  /** API error code; 'rate_limited' unless a more specific one helps the client (e.g. 'voice_limit'). */
+  code: string;
+  constructor(message = 'Too many requests. Please try again later.', code = 'rate_limited') {
     super(message);
     this.name = 'RateLimitError';
+    this.code = code;
   }
 }

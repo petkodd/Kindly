@@ -98,13 +98,35 @@ export const conversationRepo = {
     return rows[0];
   },
 
-  /** Turns in order, for assembling the rolling context window. */
+  /** Every turn in order (session-end summary and extraction read the whole conversation). */
   async listTurns(q: Querier, conversationId: string): Promise<ConversationTurnRecord[]> {
     const { rows } = await q.query<ConversationTurnRecord>(
       `SELECT * FROM conversation_turns WHERE conversation_id = $1 ORDER BY created_at ASC`,
       [conversationId],
     );
     return rows;
+  },
+
+  /**
+   * The most recent `limit` turns, oldest first: the companion's rolling
+   * context window. Only these are sent to the model on each turn, so cost
+   * per turn stays flat however long the conversation gets.
+   */
+  async listRecentTurns(q: Querier, conversationId: string, limit: number): Promise<ConversationTurnRecord[]> {
+    const { rows } = await q.query<ConversationTurnRecord>(
+      `SELECT * FROM conversation_turns WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT $2`,
+      [conversationId, limit],
+    );
+    return rows.reverse();
+  },
+
+  /** How many times the parent has spoken in this conversation. */
+  async countParentTurns(q: Querier, conversationId: string): Promise<number> {
+    const { rows } = await q.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM conversation_turns WHERE conversation_id = $1 AND role = 'parent'`,
+      [conversationId],
+    );
+    return Number(rows[0]?.n ?? 0);
   },
 
   /** Write the per-conversation summary + coarse mood (from the summarize job). */
