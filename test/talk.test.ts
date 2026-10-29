@@ -226,20 +226,29 @@ describe('conversation consent gate + lifecycle', () => {
 });
 
 describe('companion memory retrieval', () => {
-  it('returns confirmed non-restricted memories only', async () => {
+  it('returns confirmed memories only, including sensitive ones (rendered separately), and not decayed episodic ones', async () => {
     const parentId = await makeParent(true);
     await memoryRepo.add(q, { parentId, layer: 'core', key: 'hometown', value: 'Detroit', source: 'onboarding' });
     await memoryRepo.add(q, {
-      parentId, layer: 'sensitive', key: 'mood', value: 'felt low',
-      source: 'conversation', sensitivity: 'restricted',
+      parentId, layer: 'sensitive', key: 'late_spouse', value: 'Frank, who passed in 2019',
+      source: 'family', sensitivity: 'sensitive',
     });
     await memoryRepo.add(q, { parentId, layer: 'interest', key: 'food', value: 'pie', source: 'conversation' }); // proposed
+    await memoryRepo.add(q, {
+      parentId, layer: 'episodic', key: 'old_trip', value: 'a trip last spring', source: 'family',
+      decayAt: new Date(Date.now() - 1000).toISOString(),
+    });
+    await memoryRepo.add(q, {
+      parentId, layer: 'episodic', key: 'school_play', value: "Leo's play", source: 'family',
+      decayAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
 
     const memories = await memoryRepo.retrieveForCompanion(q, parentId);
     const keys = memories.map((m) => m.mem_key);
-    expect(keys).toContain('hometown');
-    expect(keys).not.toContain('mood'); // restricted
+    expect(keys).toEqual(expect.arrayContaining(['hometown', 'late_spouse', 'school_play']));
     expect(keys).not.toContain('food'); // unconfirmed
+    expect(keys).not.toContain('old_trip'); // decayed
+    expect(memories.find((m) => m.mem_key === 'late_spouse')?.sensitivity).toBe('sensitive');
   });
 });
 
