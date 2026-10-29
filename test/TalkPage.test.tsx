@@ -80,7 +80,7 @@ describe('TalkPage', () => {
     expect(await screen.findByText('Hello Robert!')).toBeTruthy();
   });
 
-  it('sends a message and renders Dearly’s reply', async () => {
+  it('sends a message and renders Dearly’s reply (typing fallback — this outer describe block never stubs MediaRecorder/mediaDevices, so voiceSupported is false and the text box shows by default, same as a real unsupported browser)', async () => {
     stubFetch({
       ...AUTH_OK,
       'POST /api/talk/consent': () => json({ consent: {} }, 201),
@@ -213,14 +213,38 @@ describe('TalkPage', () => {
       expect(body.get('audio')).toBeInstanceOf(Blob);
     });
 
-    it('shows an error when microphone access is denied, without crashing', async () => {
-      await startConversation();
-      (navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('denied'),
-      );
+    it('reuses one Audio element across turns instead of constructing a fresh one per reply — a `new Audio(url).play()` called this far from the original tap is silently autoplay-blocked on most real devices, so playback must reuse the element the tap itself unlocked', async () => {
+      const playMock = vi.fn().mockResolvedValue(undefined);
+      const audioCtor = vi.fn().mockImplementation(() => ({ play: playMock, src: '' }));
+      vi.stubGlobal('Audio', audioCtor);
 
+      await startConversation({
+        'POST /api/talk/voice': () =>
+          json({
+            conversation_id: 'c1',
+            transcript: 'turn one',
+            reply: 'reply one',
+            tts_url: 'https://example.com/one.mp3',
+          }),
+      });
+
+      // Tapping to start recording (not just stopping) must already unlock
+      // playback — before any reply exists to play.
       fireEvent.click(await screen.findByRole('button', { name: /talk out loud/i }));
-      expect(await screen.findByText(/allow microphone access/i)).toBeTruthy();
+      expect(audioCtor).toHaveBeenCalledTimes(1);
+      const unlockedInstance = audioCtor.mock.results[0].value;
+
+      fireEvent.click(await screen.findByRole('button', { name: /tap to stop/i }));
+      expect(await screen.findByText('reply one')).toBeTruthy();
+
+      // Still exactly one Audio ever constructed — the reply reused the
+      // already-unlocked instance rather than `new Audio(ttsUrl)`.
+      expect(audioCtor).toHaveBeenCalledTimes(1);
+      expect(unlockedInstance.src).toBe('https://example.com/one.mp3');
+      // primeAudioPlayback() unlocks on every tap (start AND stop — whichever
+      // is the real gesture "counts"), so 2 unlock plays here, plus 1 for the
+      // real reply.
+      expect(playMock).toHaveBeenCalledTimes(3);
     });
 
     it('surfaces a server error from the voice endpoint', async () => {
@@ -235,10 +259,32 @@ describe('TalkPage', () => {
       expect(await screen.findByText('Could not transcribe audio.')).toBeTruthy();
     });
 
-    it('does not render the mic button when the browser lacks MediaRecorder support', async () => {
+    it('does not render the mic button when the browser lacks MediaRecorder support, and falls back to typing', async () => {
       vi.stubGlobal('MediaRecorder', undefined);
       await startConversation();
       expect(screen.queryByRole('button', { name: /talk out loud/i })).toBeNull();
+      // Without a mic, typing is the only way to talk to Dearly at all —
+      // must not be hidden alongside the (also absent) mic button.
+      expect(screen.getByLabelText(/your message/i)).toBeTruthy();
+    });
+
+    it('hides the typing box by default when voice works — talking is the only visible way in, not a chat with a mic bolted on', async () => {
+      await startConversation();
+      expect(await screen.findByRole('button', { name: /talk out loud/i })).toBeTruthy();
+      expect(screen.queryByLabelText(/your message/i)).toBeNull();
+      expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull();
+    });
+
+    it('reveals typing only after mic permission is denied, rather than showing it up front', async () => {
+      await startConversation();
+      (navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('denied'),
+      );
+      expect(screen.queryByLabelText(/your message/i)).toBeNull();
+
+      fireEvent.click(await screen.findByRole('button', { name: /talk out loud/i }));
+      expect(await screen.findByText(/allow microphone access/i)).toBeTruthy();
+      expect(screen.getByLabelText(/your message/i)).toBeTruthy();
     });
   });
 });
