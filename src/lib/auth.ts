@@ -164,7 +164,14 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
     case 'ConflictError':
       return { status: 409, body: { error: { code: 'conflict', message: (err as Error).message } } };
     case 'RateLimitError':
-      return { status: 429, body: { error: { code: 'rate_limited', message: (err as Error).message } } };
+      return {
+        status: 429,
+        body: { error: { code: (err as { code?: string }).code ?? 'rate_limited', message: (err as Error).message } },
+      };
+    case 'PayloadTooLargeError':
+      return { status: 413, body: { error: { code: 'too_large', message: (err as Error).message } } };
+    case 'ConversationFullError':
+      return { status: 409, body: { error: { code: 'conversation_full', message: (err as Error).message } } };
     case 'AiError':
       // Upstream model failure (refusal, empty, truncated, network) — not a bug
       // in our server. Surface as 502 so callers can distinguish + retry.

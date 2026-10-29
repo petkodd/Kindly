@@ -102,7 +102,10 @@ paid provider; none of them are needed locally.
 | `NEXT_PUBLIC_SITE_URL` | prod: yes | no | Public URL for canonical, Open Graph and sitemap. |
 | `APP_BASE_URL` | prod: yes | no | Base for absolute links back into the app (invites, emails). Local default `http://localhost:3000`. |
 | `AI_API_KEY` | prod: yes* | **yes** | Anthropic key for the companion and summaries. |
-| `AI_MODEL` | no | no | Model id for the companion. |
+| `AI_MODEL` | no | no | Model id for the companion (default: the signed `claude-sonnet-4-6`). |
+| `TALK_LIMIT_PARENT_PER_10_MIN`, `TALK_LIMIT_PARENT_PER_DAY` | no | no | Talk turns per parent (defaults 30 per 10 minutes, 300 per day). |
+| `TALK_LIMIT_IP_PER_10_MIN`, `TALK_LIMIT_IP_PER_DAY` | no | no | Talk turns per IP address (same defaults; raise for a facility where many residents share one IP). |
+| `TALK_VOICE_MINUTES_PER_DAY` | no | no | Voice minutes per parent per 24 hours (default 60); typing still works after. |
 | `DEEPGRAM_API_KEY` | prod: yes* | **yes** | Speech-to-text for voice turns. |
 | `ELEVENLABS_API_KEY` | prod: yes* | **yes** | Text-to-speech for voice replies. |
 | `ELEVENLABS_VOICE_ID` | no | no | ElevenLabs voice (default: Adam). |

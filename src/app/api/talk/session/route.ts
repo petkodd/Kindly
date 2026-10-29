@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { resolveParentFromRequest, errorToResponse } from '@/lib/auth';
+import { resolveParentFromRequest, errorToResponse, clientIp } from '@/lib/auth';
+import { enforceTalkRate } from '@/lib/talk/limits';
 import { parentRepo } from '@/lib/repos/parent';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { usageCostRepo } from '@/lib/repos/usageCost';
@@ -27,6 +28,8 @@ export async function POST(req: NextRequest) {
     const pool = db();
     const parentId = await resolveParentFromRequest(req, pool);
     if (!parentId) return unauthorized();
+    // A new session costs a spoken greeting, so it counts against the talk limits too.
+    await enforceTalkRate(pool, parentId, clientIp(req));
 
     const parent = await parentRepo.getById(pool, parentId);
     const conversation = await conversationRepo.openSession(pool, parentId, 'text');
