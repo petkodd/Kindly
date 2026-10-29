@@ -1,7 +1,7 @@
 # Kindly — Admin Cost & Retention Metrics v1 (feature/admin-analytics)
 
 **Owner:** Data Analyst · **Reviewers:** Product Manager, Security Engineer
-**Approach:** computed directly from `conversations`, `conversation_turns`, `parents`, `users`, and `usage_costs` — not from `analytics_events`. See "Supersedes" below for why. No individual parent, no conversation content, and no drill-down appears anywhere in the admin API response or UI — every number here is an aggregate. Access is gated by the same `resolveAdmin` check as every other admin route (`src/lib/auth.ts`).
+**Approach:** computed directly from `conversations`, `conversation_turns`, `parents`, `users`, and `usage_costs` — not from `analytics_events`. See "Supersedes" below for why. No conversation content, no parent name and no parent id appears anywhere in the admin API response or UI. Every number is an aggregate, with one exception: the **top 10 spenders** list (below), which shows each parent's spend under a pseudonymous 8-character ref. Access is gated by the same `resolveAdmin` check as every other admin route (`src/lib/auth.ts`).
 
 ## Definitions
 
@@ -16,13 +16,17 @@
 
 A parent silent in week 1 but active in week 2 still counts for W2. The denominator (`eligible`) for each window excludes parents whose window hasn't fully elapsed yet as of the reference time (`activated_at` too recent) — it is not "all activated parents," which would understate retention for a young cohort. `pct` is `null`, not `0` or `NaN`, when `eligible` is 0. Implemented in `src/lib/repos/adminMetrics.ts` (`retention`).
 
-**Cost per active user** (this cycle) = (Deepgram STT cost + ElevenLabs TTS cost) ÷ active users in the period. **LLM/Claude token cost is out of scope this cycle.** `src/lib/ai/anthropic.ts` currently discards the Anthropic SDK's `usage` (input/output token) field entirely, and `AiClient` (`src/lib/ai/types.ts`) has nowhere to carry it — wiring that through, and its fake client used in tests, is a separate, larger change than this feature's STT+TTS pipeline. Deliberately not built as code yet, same posture as the deferred referral-reward mechanism documented in `src/lib/billing/index.ts:46-57`: implement alongside adding a `claude_completion` entry to `usage_provider_t` (`db/migrations/0012_usage_costs.sql`) and a per-token rate pair in `src/lib/billing/usageRates.ts`, once token accounting is wired into `src/lib/ai/index.ts`.
+**Cost per active user** = (Anthropic LLM cost + Deepgram STT cost + ElevenLabs TTS cost) ÷ active users in the period. In weekly view this is the **cost per active parent per week**. Text-only conversations now carry their LLM cost, so they no longer show $0.
 
-**Cost per voice minute** = (Deepgram STT cost + ElevenLabs TTS cost) ÷ total voice minutes in the period.
+**Cost per voice minute** = all cost (LLM + STT + TTS) ÷ total voice minutes in the period. Shown with 4 decimals under one cent.
+
+**LLM cost** (since chat 5) — every Anthropic call writes a `usage_costs` row with `provider = 'anthropic_llm'`, `unit = 'token'`, `input_tokens`, `output_tokens`, `model` and `operation`: `reply`, `regeneration` and `scan` per turn (tied to the companion's turn), and `summary` and `extraction` at session end (no turn). Prices per model are in `src/lib/billing/usageRates.ts` (`LLM_MICROS_PER_TOKEN`, from the Claude API pricing page); an unknown model is priced at the Opus rate so it is never under-counted. The simulated (fake) AI writes no rows.
+
+**Top 10 spenders** — the parents with the highest total cost over the last 30 days, with conversation count, voice minutes and the LLM/speech split, under `parent_ref` (first 8 hex characters of the parent id). Its purpose is spotting a leaked talk link or runaway use; admins resolve the ref in the database to act.
 
 ## Cost pipeline
 
-Neither Deepgram nor ElevenLabs returns a per-request dollar cost in their API responses (confirmed by reading `src/lib/speech/providers.ts`), so cost is computed in real time, at the point of each call, from an internal rate table — not read from either provider and not reconciled post-hoc. Each Deepgram STT call and each ElevenLabs TTS call writes one row to `usage_costs` (`db/migrations/0012_usage_costs.sql`), FK'd to the `conversation_turns` row it produced, from `src/app/api/talk/voice/route.ts`. A `usage_costs` write failure is caught and logged, never fails the parent-facing request — cost accounting is auxiliary to the product experience, not part of its correctness contract.
+Neither Deepgram nor ElevenLabs returns a per-request dollar cost in their API responses (confirmed by reading `src/lib/speech/providers.ts`), so cost is computed in real time, at the point of each call, from an internal rate table — not read from either provider and not reconciled post-hoc. Each Deepgram STT call and each ElevenLabs TTS call writes one row to `usage_costs` (`db/migrations/0012_usage_costs.sql`), FK'd to the `conversation_turns` row it produced, from `src/app/api/talk/voice/route.ts`. Since migration 0016 that foreign key is `ON DELETE SET NULL`, so cost history survives the 30-day transcript purge (it used to cascade away with the purged turns). A `usage_costs` write failure is caught and logged, never fails the parent-facing request — cost accounting is auxiliary to the product experience, not part of its correctness contract.
 
 Rate constants (`src/lib/billing/usageRates.ts`) — list pricing captured 2026-07, must be reverified periodically against actual provider invoices (they will drift if either provider changes pricing):
 

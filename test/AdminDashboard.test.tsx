@@ -104,7 +104,8 @@ describe('AdminDashboard', () => {
     render(<AdminDashboard />);
 
     expect(await screen.findByText('50%')).toBeTruthy(); // W1 pct
-    expect(screen.getByText('—', { selector: 'p.text-3xl' })).toBeTruthy(); // W2 pct is null
+    // W2 pct is null (and the latest day has no voice minutes) → "—", never NaN.
+    expect(screen.getAllByText('—', { selector: 'p.text-3xl' }).length).toBeGreaterThan(0);
     expect(screen.getByText('$0.30')).toBeTruthy(); // 2026-07-18 total cost (300,000 micros)
     // 2026-07-19 bucket: zero voice minutes -> cost/voice-minute renders "—", not a crash.
     const rows = screen.getAllByRole('row');

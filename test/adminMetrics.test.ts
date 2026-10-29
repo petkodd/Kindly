@@ -133,6 +133,7 @@ describe('adminMetricsRepo.costBuckets', () => {
       voice_minutes: 2.5,
       stt_cost_micros: 100_000,
       tts_cost_micros: 50_000,
+      llm_cost_micros: 0,
       total_cost_micros: 150_000,
       cost_per_active_user_micros: 150_000,
       cost_per_voice_minute_micros: 60_000,
@@ -144,6 +145,7 @@ describe('adminMetricsRepo.costBuckets', () => {
       voice_minutes: 0,
       stt_cost_micros: 0,
       tts_cost_micros: 0,
+      llm_cost_micros: 0,
       total_cost_micros: 0,
       cost_per_active_user_micros: 0,
       cost_per_voice_minute_micros: null, // zero voice minutes -> null, not a crash
@@ -155,6 +157,7 @@ describe('adminMetricsRepo.costBuckets', () => {
       voice_minutes: 0,
       stt_cost_micros: 40_000,
       tts_cost_micros: 0,
+      llm_cost_micros: 0,
       total_cost_micros: 40_000,
       cost_per_active_user_micros: null, // zero active users -> null, not a crash
       cost_per_voice_minute_micros: null,
