@@ -12,7 +12,8 @@ import { ValidationError } from '@/lib/types';
 // route accepting summary_recipient directly would let a buyer self-attest a
 // third party's consent and have it counted as accepted with no recipient
 // action at all.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {

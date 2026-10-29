@@ -48,3 +48,25 @@ describe('createSpeechClient textToSpeech voice ID fallback', () => {
     expect(url).toBe('https://api.elevenlabs.io/v1/text-to-speech/customVoice123?output_format=mp3_44100_128');
   });
 });
+
+describe('createSpeechClient errors carry the status code only (no provider body)', () => {
+  const BODY = '{"detail":"could not synthesise: I miss you, Maria"}';
+  const failing = (status: number) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status, text: async () => BODY, json: async () => JSON.parse(BODY) })),
+    );
+  const client = () => createSpeechClient({ deepgramApiKey: 'dg', elevenlabsApiKey: 'el' });
+
+  it('Deepgram STT failure', async () => {
+    failing(400);
+    const err = await client().speechToText(Buffer.from('x'), 'audio/webm').catch((e: Error) => e);
+    expect((err as Error).message).toBe('Deepgram STT failed: 400');
+  });
+
+  it('ElevenLabs TTS failure', async () => {
+    failing(503);
+    const err = await client().textToSpeech('I miss you, Maria').catch((e: Error) => e);
+    expect((err as Error).message).toBe('ElevenLabs TTS failed: 503');
+  });
+});

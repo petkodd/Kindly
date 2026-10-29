@@ -6,6 +6,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
+import { pgSslConfig, stripUrlSslParams } from './pgSsl.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, 'migrations');
@@ -48,10 +49,12 @@ async function main() {
     console.error('DATABASE_URL is not set. See .env.example.');
     process.exit(1);
   }
-  const client = new pg.Client({
-    connectionString: url,
-    ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
-  });
+  const { connectionString, stripped } = stripUrlSslParams(url);
+  if (stripped.length) {
+    console.warn(`Ignoring ${stripped.join(', ')} in DATABASE_URL; TLS is set by PGSSL / PGSSLROOTCERT (see db/pgSsl.mjs).`);
+  }
+  // Certificates are always verified. See db/pgSsl.mjs for PGSSLROOTCERT / PGSSL=disable.
+  const client = new pg.Client({ connectionString, ssl: pgSslConfig(process.env) });
   await client.connect();
   try {
     await runMigrations(client);

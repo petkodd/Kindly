@@ -1,7 +1,17 @@
 name: CI
+
+# PRs into main (and release/*) run the full check suite. Pushes to main and
+# release/* run it again on the merged code. `dev` is frozen (decision D10)
+# and no longer triggers CI.
 on:
-  push: { branches: [main, dev] }
-  pull_request: { branches: [main, dev] }
+  push:
+    branches: [main, 'release/**']
+  pull_request:
+    branches: [main, 'release/**']
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,21 +26,58 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
-      - name: Prompt sign-off coverage (informational — does not block CI)
-        run: npm run check:prompt-signoffs
-        continue-on-error: true
       - name: Build
         run: npm run build
 
-  migrate:
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  # Release gate: every prompt in prompts/signoffs.json needs a current
+  # approval from AI Safety, Gerontology and Privacy.
+  #  - BLOCKING on pushes to main / release/* and on PRs into release/*.
+  #  - Informational on PRs from feature branches into main (the step may fail,
+  #    the job stays green, and a warning annotation is added).
+  # It is a separate job so the production migration below never waits on it.
+  prompt-signoffs:
     runs-on: ubuntu-latest
+    env:
+      SIGNOFF_BLOCKING: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) || startsWith(github.base_ref, 'release/') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
+      - name: Prompt sign-off coverage
+        id: signoffs
+        run: npm run check:prompt-signoffs
+        continue-on-error: ${{ env.SIGNOFF_BLOCKING != 'true' }}
+      - name: Report non-blocking sign-off gaps
+        if: steps.signoffs.outcome == 'failure'
+        run: echo "::warning title=Prompt sign-offs missing::Not blocking on this branch, but main and release/* will fail until the named reviewers sign (scripts/sign-prompt.mjs)."
+
+  # Production migrations. Runs only on a push to main, after build passes,
+  # and only once a required reviewer approves the `production` environment
+  # (Settings > Environments > production > Required reviewers; see
+  # docs/repo-hygiene.md#production-environment). Keep the DB secrets as
+  # *environment* secrets so no other job can read them.
+  migrate:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-migrate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - name: Write optional database CA certificate
+        env:
+          PRODUCTION_DB_CA_CERT: ${{ secrets.PRODUCTION_DB_CA_CERT }}
+        run: |
+          if [ -n "$PRODUCTION_DB_CA_CERT" ]; then
+            printf '%s\n' "$PRODUCTION_DB_CA_CERT" > "$RUNNER_TEMP/db-ca.pem"
+            echo "PGSSLROOTCERT=$RUNNER_TEMP/db-ca.pem" >> "$GITHUB_ENV"
+          fi
       - name: Run DB migrations against production
         run: npm run db:migrate
         env:

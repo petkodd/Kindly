@@ -45,14 +45,14 @@ describe('POST /api/parents/:id/consent', () => {
 
     const first = await parentConsentPOST(
       buyerReq(`http://localhost/api/parents/${parentId}/consent`, buyerId, { kind: 'buyer_attestation' }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(first.status).toBe(201);
     const firstBody = await first.json();
 
     const second = await parentConsentPOST(
       buyerReq(`http://localhost/api/parents/${parentId}/consent`, buyerId, { kind: 'buyer_attestation' }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     const secondBody = await second.json();
     expect(secondBody.consent.id).toBe(firstBody.consent.id);
@@ -71,7 +71,7 @@ describe('POST /api/parents/:id/consent', () => {
         kind: 'summary_recipient',
         detail: { recipient_email: 'thirdparty@example.com' },
       }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
 
     expect(res.status).toBe(400);
@@ -87,7 +87,7 @@ describe('POST /api/parents/:id/consent', () => {
       method: 'POST',
       body: JSON.stringify({ kind: 'buyer_attestation' }),
     });
-    const res = await parentConsentPOST(req, { params: { id: parentId } });
+    const res = await parentConsentPOST(req, { params: Promise.resolve({ id: parentId }) });
     expect(res.status).toBe(401);
   });
 
@@ -98,7 +98,7 @@ describe('POST /api/parents/:id/consent', () => {
 
     const res = await parentConsentPOST(
       buyerReq(`http://localhost/api/parents/${parentId}/consent`, attacker, { kind: 'buyer_attestation' }),
-      { params: { id: parentId } },
+      { params: Promise.resolve({ id: parentId }) },
     );
     expect(res.status).toBe(404);
   });

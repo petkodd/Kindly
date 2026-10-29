@@ -8,6 +8,7 @@ import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
 import { SESSION_COOKIE, verifySession } from './session';
 import { PARENT_TOKEN_COOKIE } from './parentSession';
+import { describeError } from './sentryScrub';
 
 /**
  * True when the request carries `Authorization: Bearer $CRON_SECRET`. Fails
@@ -176,9 +177,12 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
     case 'ValidationError':
       return { status: 400, body: { error: { code: 'invalid_input', message: (err as Error).message } } };
     default:
-      console.error('Unhandled error', err);
+      // Log a safe summary only: a pg error's `detail` echoes row values
+      // (e.g. emails) and must not reach the logs.
+      console.error('Unhandled error', describeError(err));
       // Only truly unexpected errors (not the domain errors handled above)
       // are worth paging on — those are already-classified 4xx/502 outcomes.
+      // The event is scrubbed (pg `detail`, URLs, bodies) by beforeSend.
       Sentry.captureException(err);
       return { status: 500, body: { error: { code: 'server_error', message: 'Something went wrong.' } } };
   }

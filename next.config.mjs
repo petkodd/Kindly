@@ -1,6 +1,6 @@
-import { withSentryConfig } from '@sentry/nextjs';
-
-/** @type {import('next').NextConfig} */
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 // Content-Security-Policy. Google Fonts are allow-listed (see layout.tsx).
 // NOTE: script-src keeps 'unsafe-inline' because Next's hydration scripts are
@@ -37,12 +37,15 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=(), browsing-topics=()' },
 ];
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // Required on Next 14.2 for src/instrumentation.ts (Sentry server/edge init)
-  // to run; stable without this flag from Next 15 onward.
-  experimental: { instrumentationHook: true },
+  // src/instrumentation.ts (Sentry server/edge init) is stable in Next 15, so
+  // the Next 14 `experimental.instrumentationHook` flag is gone.
+  // Pin the tracing root to this project so a nested git worktree (or a stray
+  // lockfile in a parent folder) can't make Next pick the wrong workspace root.
+  outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
   async headers() {
     return [
       {
@@ -53,6 +56,12 @@ const nextConfig = {
         // Private app + admin: never indexed.
         source: '/(app|admin)/:path*',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
+        // API responses carry personal data (profiles, memories, summaries,
+        // transcripts). Never let a browser, proxy or CDN keep a copy.
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }],
       },
     ];
   },

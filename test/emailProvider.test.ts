@@ -83,4 +83,12 @@ describe('createEmailClient retry/backoff', () => {
     await expect(client.send(INPUT)).rejects.toThrow(/401/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('puts only the status code in the error, never the provider body (it can echo the recipient)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse(422, { message: 'bad to: ann@example.com' })));
+    const client = createEmailClient({ apiKey: 'k', from: 'a@b.com', sleep: vi.fn() });
+
+    const err = await client.send(INPUT).catch((e: Error) => e);
+    expect((err as Error).message).toBe('Email provider request failed: 422');
+  });
 });

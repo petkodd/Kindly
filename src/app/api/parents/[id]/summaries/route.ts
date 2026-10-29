@@ -4,9 +4,11 @@ import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { summaryRepo } from '@/lib/repos/summary';
 
-type Ctx = { params: { id: string } };
+// Next 15: dynamic route params arrive as a Promise.
+type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(req: NextRequest, { params }: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params;
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {

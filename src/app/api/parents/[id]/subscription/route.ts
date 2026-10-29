@@ -4,7 +4,8 @@ import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { subscriptionRepo } from '@/lib/repos/subscription';
 
-type Ctx = { params: { id: string } };
+// Next 15: dynamic route params arrive as a Promise.
+type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * This parent's subscription (billing is scoped per parent, not per buyer —
@@ -13,7 +14,8 @@ type Ctx = { params: { id: string } };
  * returning from Stripe Checkout, and by the parent-profile page to offer a
  * "start trial" recovery path for an activated parent with no current billing.
  */
-export async function GET(req: NextRequest, { params }: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params;
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {

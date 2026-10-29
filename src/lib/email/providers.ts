@@ -61,10 +61,8 @@ export function createEmailClient(opts: {
           return { id: data.id ?? 'unknown' };
         }
 
-        const detail = await res.text().catch(() => '');
-        lastError = new EmailError(
-          `Email provider request failed (${res.status}): ${detail.slice(0, 200)}`,
-        );
+        // Status only: the provider's body can echo the recipient address.
+        lastError = new EmailError(`Email provider request failed: ${res.status}`);
         if (!isTransient(res.status) || attempt === MAX_ATTEMPTS) throw lastError;
         await sleep(retryDelayMs(attempt, res.headers.get('Retry-After')));
       }

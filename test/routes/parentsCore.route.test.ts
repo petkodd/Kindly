@@ -82,7 +82,7 @@ describe('GET /api/parents/:id', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await parentGET(buyerReq(`http://localhost/api/parents/${parent.id}`, attacker), { params: { id: parent.id } });
+    const res = await parentGET(buyerReq(`http://localhost/api/parents/${parent.id}`, attacker), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -90,7 +90,7 @@ describe('GET /api/parents/:id', () => {
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
-    const res = await parentGET(buyerReq(`http://localhost/api/parents/${parent.id}`, buyer), { params: { id: parent.id } });
+    const res = await parentGET(buyerReq(`http://localhost/api/parents/${parent.id}`, buyer), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(200);
     expect((await res.json()).parent.id).toBe(parent.id);
   });
@@ -104,7 +104,7 @@ describe('PATCH /api/parents/:id', () => {
 
     const res = await parentPATCH(
       buyerReq(`http://localhost/api/parents/${parent.id}`, attacker, { method: 'PATCH', body: JSON.stringify({ city: 'Detroit' }) }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(404);
   });
@@ -115,7 +115,7 @@ describe('PATCH /api/parents/:id', () => {
 
     const res = await parentPATCH(
       buyerReq(`http://localhost/api/parents/${parent.id}`, buyer, { method: 'PATCH', body: JSON.stringify({ city: 'Detroit', speech_rate: 'slow' }) }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -129,7 +129,7 @@ describe('DELETE /api/parents/:id', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await parentDELETE(buyerReq(`http://localhost/api/parents/${parent.id}`, attacker, { method: 'DELETE' }), { params: { id: parent.id } });
+    const res = await parentDELETE(buyerReq(`http://localhost/api/parents/${parent.id}`, attacker, { method: 'DELETE' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -137,7 +137,7 @@ describe('DELETE /api/parents/:id', () => {
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
-    const res = await parentDELETE(buyerReq(`http://localhost/api/parents/${parent.id}`, buyer, { method: 'DELETE' }), { params: { id: parent.id } });
+    const res = await parentDELETE(buyerReq(`http://localhost/api/parents/${parent.id}`, buyer, { method: 'DELETE' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(202);
     expect(await parentRepo.listForBuyer(q, buyer)).toHaveLength(0);
   });
@@ -149,7 +149,7 @@ describe('POST /api/parents/:id/activate', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await activatePOST(buyerReq(`http://localhost/api/parents/${parent.id}/activate`, attacker, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await activatePOST(buyerReq(`http://localhost/api/parents/${parent.id}/activate`, attacker, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -157,7 +157,7 @@ describe('POST /api/parents/:id/activate', () => {
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
-    const res = await activatePOST(buyerReq(`http://localhost/api/parents/${parent.id}/activate`, buyer, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await activatePOST(buyerReq(`http://localhost/api/parents/${parent.id}/activate`, buyer, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(409);
   });
 
@@ -166,7 +166,7 @@ describe('POST /api/parents/:id/activate', () => {
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     await consentRepo.record(q, { parentId: parent.id, kind: 'buyer_attestation', grantedBy: buyer });
 
-    const res = await activatePOST(buyerReq(`http://localhost/api/parents/${parent.id}/activate`, buyer, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await activatePOST(buyerReq(`http://localhost/api/parents/${parent.id}/activate`, buyer, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(200);
     expect((await res.json()).parent.activated_at).toBeTruthy();
   });
@@ -178,7 +178,7 @@ describe('POST /api/parents/:id/access-link', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, attacker, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, attacker, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -186,7 +186,7 @@ describe('POST /api/parents/:id/access-link', () => {
     const buyer = await makeBuyer(q, 'sarah@example.com');
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
 
-    const res = await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(await accessTokenRepo.resolveParentId(q, body.token)).toBe(parent.id);
@@ -197,7 +197,7 @@ describe('POST /api/parents/:id/access-link', () => {
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     const first = await accessTokenRepo.issue(q, parent.id);
 
-    await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, { method: 'POST' }), { params: { id: parent.id } });
+    await accessLinkPOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link`, buyer, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
 
     await expect(accessTokenRepo.resolveParentId(q, first.token)).rejects.toThrow();
   });
@@ -212,7 +212,7 @@ describe('POST /api/parents/:id/access-link', () => {
         method: 'POST',
         body: JSON.stringify({ keep_existing: true }),
       }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(201);
 
@@ -229,7 +229,7 @@ describe('POST /api/parents/:id/access-link', () => {
         method: 'POST',
         body: JSON.stringify({ keep_existing: true }),
       }),
-      { params: { id: parent.id } },
+      { params: Promise.resolve({ id: parent.id }) },
     );
     expect(res.status).toBe(201);
 
@@ -243,7 +243,7 @@ describe('POST /api/parents/:id/access-link/revoke', () => {
     const parent = await parentRepo.create(q, { buyerId: owner, firstName: 'Robert', relationship: 'father' });
     const attacker = await makeBuyer(q, 'attacker@example.com');
 
-    const res = await accessLinkRevokePOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link/revoke`, attacker, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await accessLinkRevokePOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link/revoke`, attacker, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(404);
   });
 
@@ -252,7 +252,7 @@ describe('POST /api/parents/:id/access-link/revoke', () => {
     const parent = await parentRepo.create(q, { buyerId: buyer, firstName: 'Robert', relationship: 'father' });
     const { token } = await accessTokenRepo.issue(q, parent.id);
 
-    const res = await accessLinkRevokePOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link/revoke`, buyer, { method: 'POST' }), { params: { id: parent.id } });
+    const res = await accessLinkRevokePOST(buyerReq(`http://localhost/api/parents/${parent.id}/access-link/revoke`, buyer, { method: 'POST' }), { params: Promise.resolve({ id: parent.id }) });
     expect(res.status).toBe(200);
     await expect(accessTokenRepo.resolveParentId(q, token)).rejects.toThrow();
   });

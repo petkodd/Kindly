@@ -4,7 +4,8 @@ import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { accessTokenRepo } from '@/lib/repos/accessToken';
 
-type Ctx = { params: { id: string } };
+// Next 15: dynamic route params arrive as a Promise.
+type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * Issue a passwordless talk link for the parent. Returns the raw token ONCE.
@@ -15,7 +16,8 @@ type Ctx = { params: { id: string } };
  * link handed to a third party), so re-entering /app/talk from a second
  * device shouldn't silently revoke the first device's session.
  */
-export async function POST(req: NextRequest, { params }: Ctx) {
+export async function POST(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params;
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   let keepExisting = false;

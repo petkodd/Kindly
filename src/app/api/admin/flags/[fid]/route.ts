@@ -5,10 +5,12 @@ import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
 import { auditRepo } from '@/lib/repos/audit';
 import { ValidationError, type FlagStatus } from '@/lib/types';
 
-type Ctx = { params: { fid: string } };
+// Next 15: dynamic route params arrive as a Promise.
+type Ctx = { params: Promise<{ fid: string }> };
 
 /** Update a flag's status (reviewing / resolved / dismissed). Audit-logged. */
-export async function PATCH(req: NextRequest, { params }: Ctx) {
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params;
   const adminId = await resolveAdmin(req);
   if (!adminId) return adminForbidden();
   try {

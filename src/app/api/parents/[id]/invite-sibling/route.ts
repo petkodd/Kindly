@@ -9,7 +9,8 @@ import { getEmailClient } from '@/lib/email';
 import { inviteRecipientEmail } from '@/lib/email/templates';
 import { SITE } from '@/lib/seo';
 
-type Ctx = { params: { id: string } };
+// Next 15: dynamic route params arrive as a Promise.
+type Ctx = { params: Promise<{ id: string }> };
 
 // Invites (mock-)email an arbitrary recipient address, so cap per buyer to keep
 // this from becoming an email-spam vector.
@@ -21,7 +22,8 @@ const INVITE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
  * consent and (mock) emails an accept link; the recipient must accept before any
  * summary is delivered to them.
  */
-export async function POST(req: NextRequest, { params }: Ctx) {
+export async function POST(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params;
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
