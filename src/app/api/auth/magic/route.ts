@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readJsonBody, errorToResponse, clientIp } from '@/lib/auth';
+import { readJsonBody, errorToResponse, clientIp, rejectCrossOrigin } from '@/lib/auth';
 import { userRepo } from '@/lib/repos/user';
 import { magicLinkRepo } from '@/lib/repos/magicLink';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
@@ -19,6 +19,8 @@ const MAGIC_WINDOW_MS = 15 * 60 * 1000;
  * logged but doesn't change the response, same rationale as the invite flow.
  */
 export async function POST(req: NextRequest) {
+  const blocked = rejectCrossOrigin(req);
+  if (blocked) return blocked;
   try {
     const pool = db();
     const rl = await rateLimitRepo.hit(pool, `magic:ip:${clientIp(req)}`, {

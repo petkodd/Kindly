@@ -52,3 +52,14 @@ describe('POST /api/referrals', () => {
     expect((await referralRepo.getForBuyer(q, buyer))?.code).toBe(body.code);
   });
 });
+
+describe('POST /api/referrals throttle (chat 7)', () => {
+  it('429s a buyer after 20 code requests in an hour', async () => {
+    const buyer = await makeBuyer(q, 'sarah@example.com');
+    for (let i = 0; i < 20; i++) {
+      expect((await referralsPOST(buyerReq('http://localhost/api/referrals', buyer, { method: 'POST' }))).status).toBeLessThan(400);
+    }
+    const res = await referralsPOST(buyerReq('http://localhost/api/referrals', buyer, { method: 'POST' }));
+    expect(res.status).toBe(429);
+  });
+});

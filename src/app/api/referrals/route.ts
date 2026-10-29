@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { referralRepo } from '@/lib/repos/referral';
 
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
   if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
   try {
     const pool = db();
+    await rateLimitRepo.enforce(pool, `referral:create:${buyerId}`, { limit: 20, windowMs: 60 * 60 * 1000 });
     const referral = await referralRepo.generate(pool, buyerId);
     return NextResponse.json({ code: referral.code }, { status: 201 });
   } catch (err) {

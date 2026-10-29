@@ -285,7 +285,7 @@ describe('user repo', () => {
       [user.id],
     );
     expect(rows[0].password_hash).not.toBe('hunter2horse');
-    expect(rows[0].password_hash).toContain(':'); // salt:key
+    expect(rows[0].password_hash).toMatch(/^scrypt\$\d+\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/); // scrypt$N$r$p$salt$key
   });
 
   it('rejects a duplicate email (409), bad email, and short password', async () => {

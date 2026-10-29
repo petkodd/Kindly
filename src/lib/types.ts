@@ -232,6 +232,16 @@ export class BillingUnavailableError extends Error {
   }
 }
 
+/** The account's email isn't confirmed yet, so this action (inviting family, sending summaries) is held. API: 403 email_unverified. */
+export class EmailNotVerifiedError extends Error {
+  constructor(
+    message = 'Please confirm your email address first. We sent you a link when you signed up — you can resend it from your account page.',
+  ) {
+    super(message);
+    this.name = 'EmailNotVerifiedError';
+  }
+}
+
 /** A one-time link (e.g. a summary invite) is valid but too old. API maps to 410. */
 export class ExpiredError extends Error {
   constructor(message = 'This link has expired.') {

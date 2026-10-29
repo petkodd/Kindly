@@ -12,6 +12,7 @@ vi.mock('@/lib/db', () => ({ db: () => q }));
 // Imported AFTER the mock so every handler picks up the mocked db().
 import { POST as signupPOST } from '../src/app/api/auth/signup/route';
 import { POST as loginPOST } from '../src/app/api/auth/login/route';
+import { POST as magicVerifyPOST } from '../src/app/api/auth/magic/verify/route';
 import { POST as parentsPOST, GET as parentsGET } from '../src/app/api/parents/route';
 import { POST as parentConsentPOST } from '../src/app/api/parents/[id]/consent/route';
 import { POST as activatePOST } from '../src/app/api/parents/[id]/activate/route';
@@ -62,14 +63,29 @@ beforeEach(() => {
 
 describe('end-to-end golden path', () => {
   it('buyer signup -> onboarding -> consent -> activate -> talk (text) -> memories -> weekly summary -> sibling invite/delivery -> referrals', async () => {
-    // 1. Buyer signs up and gets a session cookie.
+    // 1. Buyer signs up (no session yet), then confirms their email by clicking
+    //    the emailed link, which verifies the address and signs them in.
+    const signupMail = vi.spyOn(fakeEmailClient, 'send');
     const signup = await signupPOST(req('http://localhost/api/auth/signup', {
       method: 'POST',
       body: { email: 'sarah@example.com', password: 'correct-horse-battery' },
     }));
-    expect(signup.status).toBe(201);
-    const buyerSession = cookieValue(signup.headers.get('set-cookie'), SESSION_COOKIE);
-    const buyerId = (await signup.json()).user.id as string;
+    expect(signup.status).toBe(202);
+    expect(signup.headers.get('set-cookie')).toBeNull();
+    const verifyMail = signupMail.mock.calls.find((c) => c[0].to === 'sarah@example.com')![0];
+    const verifyToken = new URL(verifyMail.html.match(/href="([^"]+)"/)![1]).searchParams.get('token')!;
+    const verified = await magicVerifyPOST(req('http://localhost/api/auth/magic/verify', {
+      method: 'POST',
+      body: { token: verifyToken },
+    }));
+    expect(verified.status).toBe(200);
+    const buyerSession = cookieValue(verified.headers.get('set-cookie'), SESSION_COOKIE);
+    const { rows: [buyer] } = await q.query<{ id: string; email_verified_at: Date | null }>(
+      `SELECT id, email_verified_at FROM users WHERE email = 'sarah@example.com'`,
+    );
+    expect(buyer.email_verified_at).not.toBeNull();
+    const buyerId = buyer.id;
+    signupMail.mockRestore();
 
     // Logging back in with the same credentials also works (route wiring, not just signup).
     const login = await loginPOST(req('http://localhost/api/auth/login', {
@@ -249,7 +265,16 @@ describe('end-to-end golden path', () => {
       method: 'POST',
       body: { email: 'nadia@example.com', password: 'another-strong-pass' },
     }));
-    const secondSession = cookieValue(secondSignup.headers.get('set-cookie'), SESSION_COOKIE);
+    expect(secondSignup.status).toBe(202);
+    // An unconfirmed buyer can still sign in with their password (only sibling
+    // invites and summary sending wait for the confirmation click).
+    const secondLogin = await loginPOST(req('http://localhost/api/auth/login', {
+      method: 'POST',
+      body: { email: 'nadia@example.com', password: 'another-strong-pass' },
+      ip: '3.3.3.3',
+    }));
+    expect(secondLogin.status).toBe(200);
+    const secondSession = cookieValue(secondLogin.headers.get('set-cookie'), SESSION_COOKIE);
 
     const redeem = await redeemPOST(
       req('http://localhost/api/referrals/redeem', {

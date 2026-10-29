@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readJsonBody, errorToResponse, clientIp } from '@/lib/auth';
+import { readJsonBody, errorToResponse, clientIp, rejectCrossOrigin } from '@/lib/auth';
 import { accessTokenRepo } from '@/lib/repos/accessToken';
 import { attachParentToken } from '@/lib/parentSession';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
@@ -22,6 +22,8 @@ const EXCHANGE_WINDOW_MS = 15 * 60 * 1000;
  * token first — an unknown/expired/revoked token gets a 401 and no cookie.
  */
 export async function POST(req: NextRequest) {
+  const blocked = rejectCrossOrigin(req);
+  if (blocked) return blocked;
   try {
     const pool = db();
     const rl = await rateLimitRepo.hit(pool, `talkauth:ip:${clientIp(req)}`, {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { clientIp } from '@/lib/auth';
+import { clientIp, rejectCrossOrigin } from '@/lib/auth';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { analyticsEventRepo } from '@/lib/repos/analyticsEvent';
 import type { ClientEventName } from '@/lib/analyticsClient';
@@ -34,6 +34,8 @@ function sanitizeProps(props: unknown): Record<string, string | number | boolean
  * that would surface in a visitor's network tab) so it can never break a page.
  */
 export async function POST(req: NextRequest) {
+  const blocked = rejectCrossOrigin(req);
+  if (blocked) return blocked;
   if (req.headers.get('dnt') === '1' || req.headers.get('sec-gpc') === '1') {
     return NextResponse.json({ ok: true, persisted: false }, { status: 202 });
   }

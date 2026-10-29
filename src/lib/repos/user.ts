@@ -1,12 +1,12 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Querier } from '../querier';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../types';
+import { ConflictError, EmailNotVerifiedError, ForbiddenError, NotFoundError, ValidationError } from '../types';
 import { EMAIL_RE } from '../validation';
 import { billingCancellation } from '../billing/cancel';
+import { hashPassword, verifyAgainstDummy, verifyPassword } from '../passwordHash';
 
 /**
- * Buyer accounts. Passwords are stored as scrypt(salt, password) — never
- * plaintext. Email is CITEXT UNIQUE in the schema, so it's case-insensitive.
+ * Buyer accounts. Passwords are stored as scrypt hashes (src/lib/passwordHash.ts,
+ * N = 2^17, async) — never plaintext. Email is CITEXT UNIQUE in the schema, so it's case-insensitive.
  */
 
 export interface AuthUser {
@@ -14,6 +14,9 @@ export interface AuthUser {
   email: string;
   is_admin: boolean;
 }
+
+/** What signup did: a new account was made, or the email already had one (never revealed to the caller's client). */
+export type SignupOutcome = { created: true; user: AuthUser } | { created: false; existing: { id: string; email: string } };
 
 /** Account view returned to the owner — never includes the password hash. */
 export interface Account {
@@ -24,6 +27,8 @@ export interface Account {
   created_at: string;
   /** Decision D5: weekly summaries are sent automatically on Monday when true. */
   auto_send_summaries: boolean;
+  /** Null until the signup confirmation (or any sign-in) link is clicked. */
+  email_verified_at: string | null;
 }
 
 /** Buyer contact details used for P0/P1 safety alerts. */
@@ -39,19 +44,7 @@ const E164_RE = /^\+[1-9]\d{7,14}$/;
 
 const MIN_PASSWORD = 8;
 
-function hashPassword(password: string): string {
-  const salt = randomBytes(16);
-  const dk = scryptSync(password, salt, 64);
-  return `${salt.toString('hex')}:${dk.toString('hex')}`;
-}
-
-function verifyPasswordHash(password: string, stored: string): boolean {
-  const [saltHex, keyHex] = stored.split(':');
-  if (!saltHex || !keyHex) return false;
-  const key = Buffer.from(keyHex, 'hex');
-  const dk = scryptSync(password, Buffer.from(saltHex, 'hex'), 64);
-  return key.length === dk.length && timingSafeEqual(key, dk);
-}
+export const MIN_PASSWORD_LENGTH = MIN_PASSWORD;
 
 function normalizeEmail(email: string): string {
   return (email ?? '').trim();
@@ -60,24 +53,41 @@ function normalizeEmail(email: string): string {
 export const userRepo = {
   /** Create a buyer with an email + password. Duplicate email → ConflictError (409). */
   async create(q: Querier, input: { email: string; password: string }): Promise<AuthUser> {
+    const outcome = await userRepo.signup(q, input);
+    if (!outcome.created) throw new ConflictError('An account with this email already exists.');
+    return outcome.user;
+  },
+
+  /**
+   * Signup that never reveals whether an email is registered: the caller
+   * gets the same outcome shape either way and must answer the client
+   * identically (the signup route emails a verification link to a new
+   * account, and a "you already have an account" note to an existing one).
+   * The password is hashed in both cases, so timing matches too.
+   */
+  async signup(q: Querier, input: { email: string; password: string }): Promise<SignupOutcome> {
     const email = normalizeEmail(input.email);
     if (!EMAIL_RE.test(email)) throw new ValidationError('a valid email is required');
     if ((input.password ?? '').length < MIN_PASSWORD) {
       throw new ValidationError(`password must be at least ${MIN_PASSWORD} characters`);
     }
+    const passwordHash = await hashPassword(input.password);
     try {
       const { rows } = await q.query<AuthUser>(
         `INSERT INTO users (email, password_hash, auth_provider)
          VALUES ($1, $2, 'email')
          RETURNING id, email, is_admin`,
-        [email, hashPassword(input.password)],
+        [email, passwordHash],
       );
-      return rows[0];
+      return { created: true, user: rows[0] };
     } catch (err) {
-      if ((err as { code?: string }).code === '23505') {
-        throw new ConflictError('An account with this email already exists.');
-      }
-      throw err;
+      if ((err as { code?: string }).code !== '23505') throw err;
+      const { rows } = await q.query<{ id: string; email: string }>(
+        `SELECT id, email FROM users WHERE email = $1`,
+        [email],
+      );
+      if (!rows[0]) throw err;
+      return { created: false, existing: rows[0] };
     }
   },
 
@@ -96,10 +106,56 @@ export const userRepo = {
    */
   async verifyCredentials(q: Querier, email: string, password: string): Promise<AuthUser | null> {
     const user = await userRepo.findByEmail(q, email);
-    if (!user || !user.password_hash) return null;
-    if (!verifyPasswordHash(password, user.password_hash)) return null;
+    if (!user || !user.password_hash) {
+      // Same work as a real check, so timing doesn't reveal which emails exist.
+      await verifyAgainstDummy(password ?? '');
+      return null;
+    }
+    const { ok, needsRehash } = await verifyPassword(password ?? '', user.password_hash);
+    if (!ok) return null;
+    // Upgrade an old or weaker hash now that we hold the correct password.
+    if (needsRehash) {
+      await q.query(`UPDATE users SET password_hash = $2 WHERE id = $1`, [user.id, await hashPassword(password)]);
+    }
     await q.query(`UPDATE users SET last_login_at = now() WHERE id = $1`, [user.id]);
     return { id: user.id, email: user.email, is_admin: user.is_admin };
+  },
+
+  /**
+   * Set a new password without the current one (password reset, after the
+   * emailed link was verified), mark the email verified (the link proved it),
+   * and revoke every existing session.
+   */
+  async resetPassword(q: Querier, userId: string, newPassword: string): Promise<void> {
+    if ((newPassword ?? '').length < MIN_PASSWORD) {
+      throw new ValidationError(`password must be at least ${MIN_PASSWORD} characters`);
+    }
+    const hash = await hashPassword(newPassword);
+    const { rowCount } = await q.query(
+      `UPDATE users SET password_hash = $2, sessions_valid_from = now(),
+                        email_verified_at = COALESCE(email_verified_at, now())
+        WHERE id = $1 AND deleted_at IS NULL`,
+      [userId, hash],
+    );
+    if (!rowCount) throw new NotFoundError('Account not found');
+  },
+
+  /** The emailed link was clicked: the address is proven. Idempotent. */
+  async markEmailVerified(q: Querier, userId: string): Promise<void> {
+    await q.query(`UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [userId]);
+  },
+
+  /** Throw EmailNotVerifiedError (403) unless the account's email is confirmed. */
+  async requireVerifiedEmail(q: Querier, userId: string): Promise<void> {
+    if (!(await userRepo.isEmailVerified(q, userId))) throw new EmailNotVerifiedError();
+  },
+
+  async isEmailVerified(q: Querier, userId: string): Promise<boolean> {
+    const { rows } = await q.query<{ email_verified_at: string | null }>(
+      `SELECT email_verified_at FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    return !!rows[0]?.email_verified_at;
   },
 
   /**
@@ -189,7 +245,7 @@ export const userRepo = {
   /** The owner's own account (password hash never selected). */
   async getAccount(q: Querier, userId: string): Promise<Account> {
     const { rows } = await q.query<Account>(
-      `SELECT id, email, full_name, is_admin, created_at, auto_send_summaries FROM users
+      `SELECT id, email, full_name, is_admin, created_at, auto_send_summaries, email_verified_at FROM users
        WHERE id = $1 AND deleted_at IS NULL`,
       [userId],
     );
@@ -215,7 +271,7 @@ export const userRepo = {
       `UPDATE users SET full_name = COALESCE($2, full_name),
                         auto_send_summaries = COALESCE($3, auto_send_summaries)
        WHERE id = $1
-       RETURNING id, email, full_name, is_admin, created_at, auto_send_summaries`,
+       RETURNING id, email, full_name, is_admin, created_at, auto_send_summaries, email_verified_at`,
       [userId, fullName ?? null, patch.autoSendSummaries ?? null],
     );
     return rows[0];
@@ -239,7 +295,7 @@ export const userRepo = {
     if (rows.length === 0) throw new NotFoundError('Account not found');
     const hash = rows[0].password_hash;
     if (!hash) throw new ForbiddenError('This account has no password set.');
-    if (!verifyPasswordHash(currentPassword ?? '', hash)) {
+    if (!(await verifyPassword(currentPassword ?? '', hash)).ok) {
       throw new ForbiddenError('Current password is incorrect.');
     }
     if ((newPassword ?? '').length < MIN_PASSWORD) {
@@ -249,7 +305,7 @@ export const userRepo = {
     // invalidate any token an attacker may hold).
     await q.query(
       `UPDATE users SET password_hash = $2, sessions_valid_from = now() WHERE id = $1`,
-      [userId, hashPassword(newPassword)],
+      [userId, await hashPassword(newPassword)],
     );
   },
 
