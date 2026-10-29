@@ -13,6 +13,9 @@ import { consentRepo } from './consent';
 import { parentRepo } from './parent';
 import { subscriptionRepo } from './subscription';
 
+/** Transcript turns are kept 30 days (src/lib/jobs/sessionEnd.ts DEFAULT_TRANSCRIPT_RETENTION_DAYS). */
+const TURN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Conversation lifecycle for parent talk. Three hard gates live here:
  *  - a session cannot open without an active parent_conversation consent;
@@ -39,9 +42,24 @@ export const conversationRepo = {
     parentId: string,
     channel: 'voice' | 'text' = 'text',
   ): Promise<Conversation> {
+    await conversationRepo.assertCanTalk(q, parentId);
+    const { rows } = await q.query<Conversation>(
+      `INSERT INTO conversations (parent_id, channel) VALUES ($1, $2) RETURNING *`,
+      [parentId, channel],
+    );
+    return rows[0];
+  },
+
+  /**
+   * The talk gates, checked when a session opens AND on every turn
+   * (requireOpen), so access ends as soon as consent is withdrawn, billing
+   * lapses or the profile is deactivated — not only at the next session.
+   * Messages are plain sentences; the parent's screen may show or read them.
+   */
+  async assertCanTalk(q: Querier, parentId: string): Promise<void> {
     const parent = await parentRepo.getById(q, parentId);
     if (!parent.activated_at) {
-      throw new ForbiddenError('Parent is not activated.');
+      throw new ForbiddenError('Dearly isn’t set up yet. Please ask your family to finish setting it up.');
     }
     // Independent checks — run concurrently rather than as two sequential round-trips.
     const [hasConsent, billingOk] = await Promise.all([
@@ -49,16 +67,11 @@ export const conversationRepo = {
       subscriptionRepo.isBillingCurrent(q, parentId),
     ]);
     if (!hasConsent) {
-      throw new ForbiddenError('Parent conversation consent is required.');
+      throw new ForbiddenError('Before we talk, please tap “Start talking” to agree to chat with Dearly.');
     }
     if (!billingOk) {
-      throw new PaymentRequiredError('An active subscription is required to talk with Dearly.');
+      throw new PaymentRequiredError('Dearly’s subscription has ended. Please ask your family to check the account.');
     }
-    const { rows } = await q.query<Conversation>(
-      `INSERT INTO conversations (parent_id, channel) VALUES ($1, $2) RETURNING *`,
-      [parentId, channel],
-    );
-    return rows[0];
   },
 
   /** Fetch a conversation scoped to its parent. Cross-parent access → NotFound. */
@@ -75,6 +88,7 @@ export const conversationRepo = {
   async requireOpen(q: Querier, conversationId: string, parentId: string): Promise<Conversation> {
     const convo = await conversationRepo.getForParent(q, conversationId, parentId);
     if (convo.ended_at) throw new PreconditionError('Conversation has ended.');
+    await conversationRepo.assertCanTalk(q, parentId);
     return convo;
   },
 
@@ -91,9 +105,11 @@ export const conversationRepo = {
     const convo = await conversationRepo.getForParent(q, conversationId, parentId);
     if (convo.ended_at) throw new PreconditionError('Conversation has ended.');
     const { rows } = await q.query<ConversationTurnRecord>(
-      `INSERT INTO conversation_turns (conversation_id, role, content)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [conversationId, role, text],
+      // Backstop retention: every turn expires 30 days after it was said, even
+      // if its session is never ended (session end only stamps NULLs).
+      `INSERT INTO conversation_turns (conversation_id, role, content, retention_purge_at)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [conversationId, role, text, new Date(Date.now() + TURN_RETENTION_MS)],
     );
     return rows[0];
   },

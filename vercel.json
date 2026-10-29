@@ -5,11 +5,26 @@
   "headers": [
     {
       "source": "/(app|admin)/(.*)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "crons": [
-    { "path": "/api/jobs/generate-weekly-summary", "schedule": "0 8 * * 1" },
-    { "path": "/api/jobs/purge-hard-deletes", "schedule": "0 5 * * *" }
+    {
+      "path": "/api/jobs/generate-weekly-summary",
+      "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/jobs/purge-hard-deletes",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/jobs/end-idle-sessions",
+      "schedule": "*/15 * * * *"
+    }
   ]
 }

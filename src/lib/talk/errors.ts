@@ -89,7 +89,7 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
   if (status === 401) {
     return { kind: 'link_expired', message: expiredLinkMessage(ctx), canType: false, canRetry: false };
   }
-  if (status === 403) {
+  if (status === 403 || status === 402) {
     const who = ctx.linkOwner === 'self' ? 'Please check your Dearly account.' : `Please ask ${familyLabel(ctx)} to check the account.`;
     return {
       kind: 'not_available',

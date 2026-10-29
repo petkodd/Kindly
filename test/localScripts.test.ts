@@ -61,7 +61,8 @@ describe('cron scripts', () => {
   it('always target the local dev server', () => {
     expect(jobUrl('weekly', {})).toBe('http://localhost:3000/api/jobs/generate-weekly-summary');
     expect(jobUrl('purge', { PORT: '4000' })).toBe('http://localhost:4000/api/jobs/purge-hard-deletes');
-    expect(Object.keys(JOBS)).toEqual(['weekly', 'purge']);
+    expect(Object.keys(JOBS)).toEqual(['weekly', 'purge', 'idle']);
+    expect(jobUrl('idle', {})).toBe('http://localhost:3000/api/jobs/end-idle-sessions');
   });
 
   it('match the routes scheduled in vercel.json', async () => {
