@@ -185,12 +185,14 @@ export async function seedDemo(q, { password, now = new Date() } = {}) {
   // ---- users (upsert by email; never deleted) ----
   const upsertUser = async (id, email, fullName, isAdmin) => {
     const { rows } = await q.query(
-      `INSERT INTO users (id, email, full_name, password_hash, auth_provider, is_admin)
-       VALUES ($1, $2, $3, $4, 'email', $5)
+      // Demo accounts are pre-confirmed so the demo can invite family and send summaries.
+      `INSERT INTO users (id, email, full_name, password_hash, auth_provider, is_admin, email_verified_at)
+       VALUES ($1, $2, $3, $4, 'email', $5, now())
        ON CONFLICT (email) DO UPDATE
          SET password_hash = EXCLUDED.password_hash,
              full_name = EXCLUDED.full_name,
              is_admin = EXCLUDED.is_admin,
+             email_verified_at = COALESCE(users.email_verified_at, now()),
              deleted_at = NULL
        RETURNING id`,
       [id, email, fullName, hashPassword(password), isAdmin],
