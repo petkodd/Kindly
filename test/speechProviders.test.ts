@@ -70,3 +70,41 @@ describe('createSpeechClient errors carry the status code only (no provider body
     expect((err as Error).message).toBe('ElevenLabs TTS failed: 503');
   });
 });
+
+describe('talk settings reach the speech providers (chat 8)', () => {
+  const client = () => createSpeechClient({ deepgramApiKey: 'dg', elevenlabsApiKey: 'el' });
+
+  it("speech_rate 'slow' sends a real slower pace (voice_settings.speed 0.85); normal is 1.0", async () => {
+    const fetchMock = stubFetchCapturingUrl();
+    await client().textToSpeech('hello', { speechRate: 'slow' });
+    await client().textToSpeech('hello', { speechRate: 'normal' });
+    await client().textToSpeech('hello');
+    const speeds = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)).voice_settings.speed,
+    );
+    expect(speeds).toEqual([0.85, 1.0, 1.0]);
+  });
+
+  it('passes the profile language to Deepgram instead of guessing it', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ results: {}, metadata: { duration: 1 } }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    await client().speechToText(Buffer.from('x'), 'audio/webm', { language: 'es-US' });
+    await client().speechToText(Buffer.from('x'), 'audio/webm');
+    const urls = fetchMock.mock.calls.map((c) => String((c as unknown as [string])[0]));
+    expect(urls[0]).toContain('&language=es-US');
+    expect(urls[0]).not.toContain('detect_language');
+    expect(urls[1]).toContain('&detect_language=true');
+  });
+});
+
+describe('deepgramListenUrl', () => {
+  it('accepts language codes and ignores anything that is not one', async () => {
+    const { deepgramListenUrl } = await import('../src/lib/speech/providers');
+    expect(deepgramListenUrl('en-US')).toMatch(/&language=en-US$/);
+    expect(deepgramListenUrl('en')).toMatch(/&language=en$/);
+    expect(deepgramListenUrl('es-419')).toMatch(/&language=es-419$/);
+    for (const bad of ['', null, undefined, 'en&model=x', 'english', '../x']) {
+      expect(deepgramListenUrl(bad)).toMatch(/&detect_language=true$/);
+    }
+  });
+});

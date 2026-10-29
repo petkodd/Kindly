@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
     const audioEntry = formData.get('audio');
     if (!(audioEntry instanceof Blob)) throw new ValidationError('audio file is required');
 
-    const mimeType = audioEntry.type || 'audio/webm';
+    // Base type only ('audio/webm;codecs=opus' → 'audio/webm'): Safari records
+    // MP4, other browsers WebM, and the speech provider sniffs the container.
+    const mimeType = audioEntry.type.split(';')[0].trim() || 'audio/webm';
     const audioBuffer = Buffer.from(await audioEntry.arrayBuffer());
 
     // Ownership + open check before doing any provider work.
@@ -54,7 +56,9 @@ export async function POST(req: NextRequest) {
 
     // --- STT ---
     const speech = getSpeechClient();
-    const { transcript, durationSeconds } = await speech.speechToText(audioBuffer, mimeType);
+    const { transcript, durationSeconds } = await speech.speechToText(audioBuffer, mimeType, {
+      language: parent.language,
+    });
     if (!transcript) {
       return NextResponse.json(
         { error: { code: 'no_transcript', message: 'Could not transcribe audio.' } },
