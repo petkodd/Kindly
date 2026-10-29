@@ -15,6 +15,8 @@ export interface SendSmsInput {
 export interface SendSmsResult {
   /** Provider message id, or a fake-* id when the deterministic fake is used. */
   id: string;
+  /** True when the deterministic fake handled the send: no real SMS went out. */
+  simulated?: boolean;
 }
 
 export interface SmsClient {

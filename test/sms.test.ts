@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { getSmsClient, resetSmsClient, fakeSmsClient, SmsError } from '../src/lib/sms';
+import { getSmsClient, resetSmsClient, fakeSmsClient, SmsError, isSmsMissingInProduction } from '../src/lib/sms';
 import { createTwilioSmsClient } from '../src/lib/sms/providers';
 
-const ENV = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM', 'DEMO_MODE'] as const;
+const ENV = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM', 'DEMO_MODE', 'VERCEL_ENV'] as const;
 
 afterEach(() => {
   for (const k of ENV) delete process.env[k];
@@ -53,5 +53,25 @@ describe('createTwilioSmsClient', () => {
     const err = await client.send({ to: '+15551234567', body: 'private text' }).catch((e) => e);
     expect(err).toBeInstanceOf(SmsError);
     expect(err.message).toBe('Twilio returned HTTP 400 (Twilio code 21211)');
+  });
+});
+
+describe('fake SMS client and production config check', () => {
+  it('the fake marks its sends as simulated', async () => {
+    expect(await fakeSmsClient.send({ to: '+15551234567', body: 'x' })).toMatchObject({ simulated: true });
+  });
+
+  it('isSmsMissingInProduction is true only on production, without DEMO_MODE, with a Twilio key missing', () => {
+    expect(isSmsMissingInProduction({})).toBe(false);
+    expect(isSmsMissingInProduction({ VERCEL_ENV: 'production' })).toBe(true);
+    expect(isSmsMissingInProduction({ VERCEL_ENV: 'production', DEMO_MODE: 'true' })).toBe(false);
+    expect(
+      isSmsMissingInProduction({
+        VERCEL_ENV: 'production',
+        TWILIO_ACCOUNT_SID: 'AC1',
+        TWILIO_AUTH_TOKEN: 't',
+        TWILIO_FROM: '+15550000000',
+      }),
+    ).toBe(false);
   });
 });

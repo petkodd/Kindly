@@ -39,8 +39,10 @@ let smsSend: MockInstance<typeof fakeSmsClient.send>;
 beforeEach(() => {
   q = makeTestDb();
   process.env.ADMIN_ALERT_EMAIL = ADMIN_EMAIL;
-  emailSend = vi.spyOn(fakeEmailClient, 'send');
-  smsSend = vi.spyOn(fakeSmsClient, 'send');
+  // Model real providers: a delivery only counts as 'sent' when a real client
+  // took it. The unmocked fakes report `simulated` (tested further down).
+  emailSend = vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-email-1' });
+  smsSend = vi.spyOn(fakeSmsClient, 'send').mockResolvedValue({ id: 'provider-sms-1' });
   vi.mocked(Sentry.captureMessage).mockClear();
 });
 
@@ -230,5 +232,52 @@ describe('userRepo alert phone', () => {
     const { buyerId } = await setup();
     const c = await userRepo.setAlertPhone(q, buyerId, { phone: '+15551234567', smsConsent: false });
     expect(c.smsAlertConsentAt).toBeNull();
+  });
+});
+
+describe('honest delivery status (fake clients never count as a notified family)', () => {
+  afterEach(() => {
+    delete process.env.VERCEL_ENV;
+  });
+
+  it("a fake SMS and a fake email are recorded as 'simulated', notified_at stays null, and the team is told", async () => {
+    const { parent } = await setup({ phone: '+15551234567' });
+    emailSend.mockRestore();
+    smsSend.mockRestore();
+    const realEmailSend = fakeEmailClient.send;
+    const simEmail = vi
+      .spyOn(fakeEmailClient, 'send')
+      .mockImplementation(async (input) => ({ ...(await realEmailSend(input)), simulated: true }));
+    const flag = await flagFor(parent, 'p0');
+    const outcome = await dispatchSafetyAlert(q, { flag, parent });
+
+    expect(outcome).toMatchObject({ email: 'simulated', sms: 'simulated', admin: 'simulated', notifiedAt: null });
+    expect(simEmail.mock.calls.map((c) => (c[0] as { to: string }).to)).toEqual([BUYER_EMAIL, ADMIN_EMAIL]);
+    const stored = (await q.query(`SELECT * FROM safety_flags WHERE id = $1`, [flag.id])).rows[0];
+    expect(stored.notified_at).toBeNull();
+    expect(stored.alert_sms_status).toBe('simulated');
+    expect(stored.alert_email_status).toBe('simulated');
+  });
+
+  it('a real email plus a simulated SMS still counts as notified (the email reached the family)', async () => {
+    const { parent } = await setup({ phone: '+15551234567' });
+    smsSend.mockResolvedValue({ id: 'fake-sms-1', simulated: true });
+    const outcome = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p1'), parent });
+    expect(outcome).toMatchObject({ email: 'sent', sms: 'simulated', admin: null });
+    expect(outcome?.notifiedAt).not.toBeNull();
+  });
+
+  it("production without Twilio keys: SMS is 'not_configured', never sent through the fake, and Sentry is told", async () => {
+    process.env.VERCEL_ENV = 'production';
+    const { parent } = await setup({ phone: '+15551234567' });
+    const flag = await flagFor(parent, 'p0');
+    const outcome = await dispatchSafetyAlert(q, { flag, parent });
+
+    expect(outcome).toMatchObject({ email: 'sent', sms: 'not_configured' });
+    expect(smsSend).not.toHaveBeenCalled();
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith(
+      expect.stringContaining('Twilio is not configured'),
+      expect.objectContaining({ level: 'error' }),
+    );
   });
 });

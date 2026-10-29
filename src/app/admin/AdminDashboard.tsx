@@ -41,6 +41,7 @@ const ALERT_STATUS_LABEL: Record<string, string> = {
   skipped_no_consent: 'no SMS consent',
   suppressed_rate_limit: 'already alerted <30 min',
   not_configured: 'not configured',
+  simulated: 'simulated (nothing really sent)',
 };
 
 /** One-line summary of who was alerted for a flag, or null when no alert applies. */

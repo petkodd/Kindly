@@ -112,7 +112,9 @@ export type AlertDeliveryStatus =
   | 'skipped_no_phone'
   | 'skipped_no_consent'
   | 'suppressed_rate_limit'
-  | 'not_configured';
+  | 'not_configured'
+  /** Went through a fake (dev/demo) client: nothing reached a real inbox or phone. */
+  | 'simulated';
 
 export interface Conversation {
   id: string;

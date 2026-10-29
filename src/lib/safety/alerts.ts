@@ -6,7 +6,7 @@ import { userRepo, type AlertContact } from '../repos/user';
 import { auditRepo } from '../repos/audit';
 import { getEmailClient } from '../email';
 import { adminSafetyAlertEmail, safetyAlertEmail, safetyAlertSms } from '../email/templates';
-import { getSmsClient } from '../sms';
+import { getSmsClient, isSmsMissingInProduction } from '../sms';
 import { getAppBaseUrl } from '../appUrl';
 
 /**
@@ -25,6 +25,17 @@ import { getAppBaseUrl } from '../appUrl';
  */
 
 export const ALERT_THROTTLE_MS = 30 * 60 * 1000;
+
+/**
+ * 'sent' only when a real provider took the message. A fake client (dev,
+ * tests, DEMO_MODE) reports `simulated: true` and is recorded as 'simulated',
+ * which never counts as the family having been notified.
+ */
+export function deliveryStatus(result: unknown): AlertDeliveryStatus {
+  const simulated =
+    typeof result === 'object' && result !== null && (result as { simulated?: unknown }).simulated === true;
+  return simulated ? 'simulated' : 'sent';
+}
 
 const SHORT: Record<FlagSeverity, 'p0' | 'p1' | 'p2' | 'p3'> = {
   p0_crisis: 'p0',
@@ -92,11 +103,11 @@ async function sendAdminEmail(
     return 'not_configured';
   }
   try {
-    await getEmailClient().send({
+    const result = await getEmailClient().send({
       to,
       ...adminSafetyAlertEmail({ flagId: flag.id, severity, reason, adminUrl: appUrl('/admin') }),
     });
-    return 'sent';
+    return deliveryStatus(result);
   } catch (err) {
     console.error('safety alert: admin email failed', flag.id, err);
     Sentry.captureException(err, { tags: { area: 'safety_alert', channel: 'admin_email', flag_id: flag.id } });
@@ -129,7 +140,7 @@ async function alertFamily(
   const link = appUrl('/app');
   const emailPromise = getEmailClient()
     .send({ to: contact.email, ...safetyAlertEmail({ parentFirstName: parent.first_name, severity, appUrl: link }) })
-    .then((): AlertDeliveryStatus => 'sent')
+    .then(deliveryStatus)
     .catch((err): AlertDeliveryStatus => {
       console.error('safety alert: buyer email failed', flag.id, err);
       Sentry.captureException(err, { tags: { area: 'safety_alert', channel: 'email', flag_id: flag.id } });
@@ -139,10 +150,16 @@ async function alertFamily(
   let smsPromise: Promise<AlertDeliveryStatus>;
   if (!contact.alertPhone) smsPromise = Promise.resolve('skipped_no_phone');
   else if (!contact.smsAlertConsentAt) smsPromise = Promise.resolve('skipped_no_consent');
-  else {
+  else if (isSmsMissingInProduction()) {
+    Sentry.captureMessage('safety alert: Twilio is not configured, SMS alert not sent', {
+      level: 'error',
+      tags: { area: 'safety_alert', channel: 'sms', flag_id: flag.id, severity },
+    });
+    smsPromise = Promise.resolve('not_configured');
+  } else {
     smsPromise = getSmsClient()
       .send({ to: contact.alertPhone, body: safetyAlertSms({ parentFirstName: parent.first_name, severity, appUrl: link }) })
-      .then((): AlertDeliveryStatus => 'sent')
+      .then(deliveryStatus)
       .catch((err): AlertDeliveryStatus => {
         console.error('safety alert: buyer SMS failed', flag.id, err);
         Sentry.captureException(err, { tags: { area: 'safety_alert', channel: 'sms', flag_id: flag.id } });
@@ -152,6 +169,7 @@ async function alertFamily(
 
   const [email, sms] = await Promise.all([emailPromise, smsPromise]);
   const delivered = email === 'sent' || sms === 'sent';
+  // Only a real delivery counts. 'simulated' means nobody was actually told.
   // Backup: if nothing reached the family, a human on the team must know now.
   const admin = delivered ? null : await sendAdminEmail(flag, severity, 'the family alert could not be delivered');
   return { ...base, email, sms, admin, notifiedAt: delivered ? now : null };
