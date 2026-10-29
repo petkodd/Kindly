@@ -57,6 +57,7 @@ export function validateParentFields(input: {
   };
 }
 import { consentRepo } from './consent';
+import { billingCancellation } from '../billing/cancel';
 
 const RELATIONSHIPS: Relationship[] = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other', 'self'];
 
@@ -210,8 +211,19 @@ export const parentRepo = {
   },
 
   /** Soft-delete; a daily job hard-deletes within the retention window. */
+  /**
+   * Delete one parent profile: cancel its subscription (Stripe first; throws
+   * BillingUnavailableError and deletes nothing if Stripe can't be reached),
+   * revoke its talk links, then soft-delete (hard purge after 30 days).
+   * Idempotent: safe to retry.
+   */
   async softDelete(q: Querier, parentId: string, buyerId: string): Promise<void> {
     await parentRepo.getOwned(q, parentId, buyerId);
+    await billingCancellation.cancelForParent(q, parentId);
+    await q.query(
+      `UPDATE parent_access_tokens SET revoked_at = now() WHERE parent_id = $1 AND revoked_at IS NULL`,
+      [parentId],
+    );
     await q.query(
       `UPDATE parents SET deleted_at = now() WHERE id = $1 AND buyer_id = $2`,
       [parentId, buyerId],

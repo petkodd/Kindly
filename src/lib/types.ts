@@ -224,6 +224,22 @@ export class ConflictError extends Error {
   }
 }
 
+/** A required upstream (e.g. Stripe) can't be reached or isn't configured. API maps to 503. */
+export class BillingUnavailableError extends Error {
+  constructor(message = 'We couldn’t reach our billing provider. Nothing was deleted. Please try again in a few minutes.') {
+    super(message);
+    this.name = 'BillingUnavailableError';
+  }
+}
+
+/** A one-time link (e.g. a summary invite) is valid but too old. API maps to 410. */
+export class ExpiredError extends Error {
+  constructor(message = 'This link has expired.') {
+    super(message);
+    this.name = 'ExpiredError';
+  }
+}
+
 /** Thrown when an upload or message is over its size cap. API maps to 413. */
 export class PayloadTooLargeError extends Error {
   constructor(message = 'That was too long.') {

@@ -84,3 +84,18 @@ export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) =>
     client.release();
   }
 }
+
+/**
+ * Run `fn` in one transaction when `q` is a pool (production, and pg-mem's
+ * pool in tests), or directly on `q` otherwise. Lets a repo or job that takes
+ * a Querier group its writes atomically without caring what it was given.
+ */
+export async function runInTransaction<T>(
+  q: import('./querier').Querier,
+  fn: (tx: import('./querier').Querier) => Promise<T>,
+): Promise<T> {
+  if (typeof (q as unknown as Pool).connect === 'function') {
+    return withTransaction(q as unknown as Pool, (client) => fn(client as unknown as import('./querier').Querier));
+  }
+  return fn(q);
+}
