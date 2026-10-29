@@ -206,7 +206,8 @@ describe('POST /api/talk/voice — safety pipeline (same as text)', () => {
   });
 
   it('prefixes a voice P0 with 988 and says honestly that the buyer is being told (case 14)', async () => {
-    const send = vi.spyOn(fakeEmailClient, 'send');
+    // Model a real email provider: only a real send counts as the family being notified.
+    const send = vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-email-1' });
     const { body, parentId, tts } = await sayOverVoice("I don't want to live anymore");
     expect(body.reply).toMatch(/988/);
     expect(body.reply).toMatch(/I'm going to let Sarah know so they can check on you/);

@@ -46,7 +46,8 @@ async function turn(message: string, ai: AiClient = fakeAiClient, parentOpts = {
 
 beforeEach(() => {
   q = makeTestDb();
-  vi.spyOn(fakeEmailClient, 'send');
+  // Model a real email provider: only a real send counts as the family being notified.
+  vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-email-1' });
 });
 afterEach(() => {
   vi.restoreAllMocks();
