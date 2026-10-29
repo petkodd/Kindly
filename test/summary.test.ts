@@ -115,6 +115,13 @@ describe('weekly summary preview', () => {
 });
 
 describe('weekly summary send (consent-gated)', () => {
+  // These tests model a REAL email provider: the send resolves with a
+  // provider id and no `simulated` flag. The fake client's own behaviour
+  // ('simulated' deliveries) is covered in the describe block below.
+  beforeEach(() => {
+    vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-msg-1' });
+  });
+
   it('refuses to send with no consented recipient (409)', async () => {
     const { id, firstName } = await seedParent();
     await expect(summaryRepo.send(q, id, firstName, REF)).rejects.toBeInstanceOf(
@@ -241,5 +248,44 @@ describe('weekly summary send (consent-gated)', () => {
     await expect(summaryRepo.send(q, id, firstName, REF)).rejects.toBeInstanceOf(
       PreconditionError,
     );
+  });
+});
+
+describe('weekly summary send through the fake email client (local dev, tests, DEMO_MODE)', () => {
+  it("records deliveries as 'simulated', never 'sent', and leaves the summary in preview", async () => {
+    const { id, firstName } = await seedParent();
+    await addConversation(id, '2026-06-29T10:00:00Z', 'A good week.', 'warm');
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
+
+    const { summary, deliveries } = await summaryRepo.send(q, id, firstName, REF);
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0].status).toBe('simulated');
+    expect(summary.status).toBe('preview');
+
+    const { rows } = await q.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM summary_deliveries WHERE status = 'sent'`,
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  it('does not re-deliver a simulated recipient on a second send', async () => {
+    const { id, firstName } = await seedParent();
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'mike@example.com', status: 'accepted' },
+    });
+    const sendSpy = vi.spyOn(fakeEmailClient, 'send');
+
+    const first = await summaryRepo.send(q, id, firstName, REF);
+    const second = await summaryRepo.send(q, id, firstName, REF);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(second.deliveries).toHaveLength(1);
+    expect(second.deliveries[0].id).toBe(first.deliveries[0].id);
+    expect(second.deliveries[0].status).toBe('simulated');
   });
 });

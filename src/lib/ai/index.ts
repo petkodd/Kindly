@@ -1,5 +1,6 @@
 import type { AiClient } from './types';
 import { fakeAiClient } from './fake';
+import { AI_KEYS, shouldUseFake } from '../runtimeMode';
 
 export * from './types';
 export { fakeAiClient } from './fake';
@@ -10,19 +11,19 @@ export { fakeAiClient } from './fake';
 let cached: AiClient | undefined;
 
 /**
- * Resolve the companion model client. Uses the real Anthropic-backed client when
- * AI_API_KEY is set; otherwise falls back to the deterministic fake so local dev
- * and tests run without a key (mirrors the email provider's "mocked if unset"
- * behavior noted in .env.example). The real client is imported lazily so the SDK
- * never loads in the keyless path.
+ * Resolve the companion model client. Uses the deterministic fake when
+ * DEMO_MODE=true, or when AI_API_KEY is unset outside production (local dev,
+ * tests). On the production deploy a missing key throws
+ * MissingProviderKeyError instead — see src/lib/runtimeMode.ts. The real
+ * client is imported lazily so the SDK never loads in the keyless path.
  */
 export function getAiClient(): AiClient {
   if (cached) return cached;
-  const apiKey = process.env.AI_API_KEY;
-  if (!apiKey) {
+  if (shouldUseFake(AI_KEYS)) {
     cached = fakeAiClient;
     return cached;
   }
+  const apiKey = process.env.AI_API_KEY as string;
   // Lazy require keeps the SDK out of the keyless (test/dev) path.
   const { createAnthropicAiClient } = require('./anthropic') as typeof import('./anthropic');
   cached = createAnthropicAiClient(apiKey);

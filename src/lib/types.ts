@@ -78,6 +78,7 @@ export interface SummaryDelivery {
   channel: DeliveryChannel;
   consent_id: string;
   sent_at: string | null;
+  /** 'pending' | 'sent' | 'simulated' (fake email client, nothing sent) | 'failed' */
   status: string;
 }
 

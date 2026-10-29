@@ -8,6 +8,10 @@ import { withSentryConfig } from '@sentry/nextjs';
 // close XSS-via-inline-script. Everything else is locked to 'self'.
 // connect-src allows Sentry's error-report ingest endpoints (client-side
 // captureException calls go directly to Sentry, bypassing our own API).
+// `next dev` evaluates its webpack modules with eval(), so ONLY in development
+// script-src also gets 'unsafe-eval' — without it the app never hydrates
+// locally (no login, no talk screen). Production headers are unchanged.
+const isDev = process.env.NODE_ENV === 'development';
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -17,7 +21,7 @@ const csp = [
   "img-src 'self' data: https:",
   "font-src 'self' https://fonts.gstatic.com data:",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io",
 ].join('; ');
 

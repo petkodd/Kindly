@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import { parentRepo } from '../src/lib/repos/parent';
 import { consentRepo } from '../src/lib/repos/consent';
 import { summaryRepo } from '../src/lib/repos/summary';
 import { generateWeeklySummaries, lastCompletedWeekRef } from '../src/lib/jobs/weeklySummary';
+import { fakeEmailClient } from '../src/lib/email';
 
 let q: Querier;
 
@@ -85,8 +86,11 @@ describe('generate_weekly_summary job', () => {
       detail: { recipient_email: 'mike@example.com', status: 'accepted' },
     });
 
-    // Buyer reviews + sends this week's summary.
+    // Buyer reviews + sends this week's summary through a real provider
+    // (the fake client would record it as 'simulated' and keep it in preview).
+    const realSend = vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-msg-1' });
     const { summary } = await summaryRepo.send(q, active, 'Robert', REF);
+    realSend.mockRestore();
     expect(summary.status).toBe('sent');
 
     // A later cron pass for the same week leaves the sent row untouched.

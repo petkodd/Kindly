@@ -191,7 +191,9 @@ export const summaryRepo = {
   },
 
   /**
-   * Deliver the current-week summary to every consented recipient. Refuses with
+   * Deliver the current-week summary to every consented recipient. Each
+   * delivery ends as 'sent', 'simulated' (fake email client — nothing left the
+   * app) or 'failed'. Refuses with
    * a PreconditionError (API → 409) when no active summary_recipient consent
    * exists — consent is a hard gate on every delivery.
    */
@@ -271,10 +273,13 @@ export const summaryRepo = {
       }
 
       try {
-        await getEmailClient().send({ to, subject, html, text });
+        const result = await getEmailClient().send({ to, subject, html, text });
+        // The fake email client (local dev, tests, DEMO_MODE) sends nothing, so
+        // its deliveries are recorded as 'simulated' — never 'sent'.
+        const deliveredStatus = result.simulated ? 'simulated' : 'sent';
         const { rows } = await q.query<SummaryDelivery>(
-          `UPDATE summary_deliveries SET status = 'sent', sent_at = now() WHERE id = $1 RETURNING *`,
-          [delivery.id],
+          `UPDATE summary_deliveries SET status = $2, sent_at = now() WHERE id = $1 RETURNING *`,
+          [delivery.id, deliveredStatus],
         );
         deliveries.push(rows[0]);
       } catch (err) {
@@ -293,8 +298,8 @@ export const summaryRepo = {
     }
 
     // Only mark the summary 'sent' once at least one delivery actually went
-    // out — an all-failed round leaves it in 'preview' so it can be retried,
-    // instead of the DB claiming a delivery that never happened.
+    // out — an all-failed (or all-simulated) round leaves it in 'preview', so
+    // the DB never claims a delivery that never happened.
     const anySent = deliveries.some((d) => d.status === 'sent');
     const { rows } = await q.query<WeeklySummary>(
       `UPDATE weekly_summaries SET status = $2 WHERE id = $1 RETURNING *`,

@@ -201,6 +201,9 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
     expect(sent.status).toBe(200);
     const body = await sent.json();
     expect(body.deliveries).toHaveLength(1);
-    expect(body.summary.status).toBe('sent');
+    // No email key in tests → the fake client → recorded as simulated, and the
+    // summary is not claimed as sent (see summary.test.ts for the real-provider path).
+    expect(body.deliveries[0].status).toBe('simulated');
+    expect(body.summary.status).toBe('preview');
   });
 });
