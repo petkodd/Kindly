@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { api } from '@/lib/apiClient';
+import { api, ApiError } from '@/lib/apiClient';
 
 // useSearchParams() opts this out of static prerendering unless it sits under a
 // Suspense boundary (Next.js CSR-bailout rule) — same pattern as /app/talk's
@@ -15,7 +15,7 @@ export function InviteAccept() {
   );
 }
 
-type State = 'checking' | 'accepted' | 'invalid';
+type State = 'checking' | 'accepted' | 'invalid' | 'expired';
 
 function AcceptEntry() {
   const token = useSearchParams().get('token');
@@ -29,8 +29,9 @@ function AcceptEntry() {
       .then(() => {
         if (active) setState('accepted');
       })
-      .catch(() => {
-        if (active) setState('invalid');
+      .catch((err) => {
+        // 410: a real invite that is older than 14 days.
+        if (active) setState(err instanceof ApiError && err.status === 410 ? 'expired' : 'invalid');
       });
     return () => {
       active = false;
@@ -39,6 +40,17 @@ function AcceptEntry() {
 
   if (state === 'checking') {
     return <p className="text-lg text-muted">Confirming your invitation…</p>;
+  }
+
+  if (state === 'expired') {
+    return (
+      <div className="max-w-md">
+        <h1 className="font-display text-3xl font-semibold text-ink">This invitation has expired</h1>
+        <p className="mt-4 text-lg text-muted">
+          Invitations last 14 days. Ask your family member to send a new one from their Dearly account.
+        </p>
+      </div>
+    );
   }
 
   if (state === 'invalid') {

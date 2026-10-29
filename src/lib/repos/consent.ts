@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Querier } from '../querier';
-import { type Consent, type ConsentKind, NotFoundError, ValidationError } from '../types';
+import { type Consent, type ConsentKind, NotFoundError, ValidationError, ExpiredError } from '../types';
 import { EMAIL_RE } from '../validation';
 
 function hashToken(raw: string): string {
@@ -13,6 +13,9 @@ function hashToken(raw: string): string {
  *  - parent_conversation must exist before the first message is processed.
  *  - summary_recipient must exist (per recipient) before any summary is delivered.
  */
+/** Summary-recipient invites can be accepted for this many days. */
+export const INVITE_TTL_DAYS = 14;
+
 export const consentRepo = {
   async record(
     q: Querier,
@@ -147,6 +150,11 @@ export const consentRepo = {
     );
     const consent = rows[0];
     if (!consent) throw new NotFoundError('Invite not found');
+    // Invites expire after INVITE_TTL_DAYS. Only a holder of the real token
+    // reaches this point, so saying "expired" reveals nothing to a guesser.
+    if (Date.now() - new Date(consent.granted_at).getTime() > INVITE_TTL_DAYS * 24 * 60 * 60 * 1000) {
+      throw new ExpiredError('This invitation has expired. Please ask the person who invited you to send a new one.');
+    }
     const detail = { ...(consent.detail ?? {}), status: 'accepted' };
     const { rows: updated } = await q.query<Consent>(
       `UPDATE consents SET detail = $2 WHERE id = $1 RETURNING *`,

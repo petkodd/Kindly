@@ -14,7 +14,9 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   try {
     const pool = db();
     const parent = await parentRepo.getOwned(pool, params.id, buyerId); // isolation
-    const summary = await summaryRepo.preview(pool, params.id, parent.first_name);
+    // Read-only (decision D5): shows what a send would deliver — the last full
+    // week — without writing anything. Sending (POST …/summary/send) stores it.
+    const summary = await summaryRepo.peek(pool, params.id, parent.first_name);
     return NextResponse.json({ summary });
   } catch (err) {
     const { status, body } = errorToResponse(err);

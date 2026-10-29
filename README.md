@@ -149,8 +149,9 @@ issues, PRs or chat. Refer to them by name.
 | `npm run db:seed` | Apply migrations and (re)seed the demo. Local databases only. |
 | `npm run db:migrate` | Apply migrations only. Reads `DATABASE_URL` from your shell, not `.env.local`. |
 | `npm run admin:create -- <email> --confirm` | Make an existing user an admin (see below). |
-| `npm run cron:weekly` | Run the weekly-summary job now: previews last full week (needs `npm run dev` running). |
+| `npm run cron:weekly` | Run the weekly-summary job now: builds last full week's summaries and auto-sends them for buyers who opted in (needs `npm run dev` running). |
 | `npm run cron:purge` | Run the hard-delete purge job now (needs `npm run dev` running). |
+| `npm run cron:idle` | End conversations idle for 30+ minutes and summarize them (needs `npm run dev` running). Runs every 15 minutes on Vercel. |
 | `npm run dev` | Dev server on http://localhost:3000. |
 | `npm test` | Unit, route and component tests (vitest + in-memory Postgres). |
 | `npm run typecheck` / `npm run lint` | TypeScript and ESLint. |
