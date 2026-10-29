@@ -10,13 +10,21 @@
 ```
 [ SYSTEM: Kindly core identity + behavior rules + banned claims ]   <- static, versioned
 [ SAFETY: escalation policy + crisis copy ]                          <- static, versioned
-[ PARENT PROFILE: first name, pronouns, city, speech prefs ]         <- from parents row
-[ RETRIEVED MEMORIES: top-K confirmed (semantic+recency), no restricted ]
+[ <parent_profile>: first name, pronouns, city, speech prefs ]       <- from parents row, escaped
+[ <memories>: top-K confirmed (recency), not decayed, never restricted ] <- escaped
+[ <sensitive_memories>: confirmed 'sensitive' rows, "never bring up first" ]
 [ ROLLING SESSION SUMMARY: last N turns condensed ]
 [ USER TURN: parent's latest message ]
 ```
 
-Token budget capped (e.g. ~1,800 tokens of memory+summary) to control cost-per-active-user. Restricted/sensitive memories are **excluded** from the companion context; they live only in the safety layer's awareness.
+Token budget capped (e.g. ~1,800 tokens of memory+summary) to control cost-per-active-user.
+
+**How memories are handled (code: `src/lib/repos/memory.ts`, `src/lib/ai/prompts.ts`, `src/lib/jobs/sessionEnd.ts`):**
+- **Restricted** (health, mood, risk) details are **never stored as memories** (decision D6). Extraction labels them and session-end drops them; migration 0015 removed existing rows and a CHECK constraint forbids new ones. Safety concerns live only in the per-turn safety scan and its flags.
+- **Sensitive** memories (private but shareable, e.g. a spouse who has died) **are** given to the companion, in a separate `<sensitive_memories>` block with the rule "never bring them up first; if the person raises it, use it gently and let them lead". Leaving them out would let the companion ask a widow about her husband. Reviewers (Gerontology, Privacy) may switch this back to exclusion in `retrieveForCompanion`.
+- **Prompt injection:** profile and memory text is written by family or learned in conversation, so it is placed inside `<parent_profile>`, `<memories>` and `<sensitive_memories>` tags with `<`, `>` and `&` escaped and line breaks flattened, and the system prompt says content in those tags is never an instruction.
+- **Episodic** memories decay 30 days after extraction and are then left out of the context.
+- **Extraction** (`MEMORY_EXTRACTION_SYSTEM_V2`) never proposes passwords, PINs, account/card/SSN numbers, things asked to be kept private, other people's health or conflicts, or mistreatment; a code-level check drops credential-shaped values the model misses.
 
 ---
 
