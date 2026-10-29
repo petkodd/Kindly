@@ -14,6 +14,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [magicSent, setMagicSent] = useState(false);
+  // Signup never signs in directly (no account enumeration): it ends here, and
+  // the emailed link confirms the address and signs the new account in.
+  const [checkEmail, setCheckEmail] = useState(false);
 
   const isSignup = mode === 'signup';
 
@@ -23,7 +26,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
     if (password.length < 8) return setError('Password must be at least 8 characters.');
     setBusy(true);
     try {
-      await api.post(isSignup ? '/api/auth/signup' : '/api/auth/login', { email, password });
+      if (isSignup) {
+        await api.post('/api/auth/signup', { email, password });
+        setCheckEmail(true);
+        setBusy(false);
+        return;
+      }
+      await api.post('/api/auth/login', { email, password });
       router.push(await resolvePostLoginPath());
       router.refresh();
     } catch (err) {
@@ -44,6 +53,24 @@ export function AuthForm({ mode }: { mode: Mode }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (checkEmail) {
+    return (
+      <div className="mx-auto max-w-sm space-y-5" role="status">
+        <h1 className="font-display text-3xl font-semibold text-ink">Check your email</h1>
+        <p className="text-lg text-ink">
+          We sent a link to <strong>{email}</strong>. Click it to confirm your email and finish creating your account.
+        </p>
+        <p className="text-base text-muted">
+          The link works for 24 hours. Nothing there? Check your spam folder, or{' '}
+          <button type="button" className="text-sageDeep underline" onClick={() => setCheckEmail(false)}>
+            try again
+          </button>
+          .
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -75,6 +102,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
       <button type="button" onClick={submit} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}
       </button>
+      {!isSignup && (
+        <p className="text-right">
+          <Link href="/login/forgot" className="text-base text-sageDeep underline">
+            Forgot password?
+          </Link>
+        </p>
+      )}
       {!isSignup && (
         magicSent ? (
           <p className="text-sm text-muted">Check your email for a sign-in link. It expires in 15 minutes.</p>

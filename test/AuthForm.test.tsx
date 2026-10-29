@@ -73,14 +73,21 @@ describe('AuthForm', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/app/onboarding'));
   });
 
-  it('sends a buyer whose only parent is unactivated (incomplete onboarding) into onboarding', async () => {
-    stubFetch({
-      'POST /api/auth/signup': () => json({ user: {} }),
-      'GET /api/parents': () => json({ parents: [{ id: 'p1', activated_at: null }] }),
+  it('signup does not sign in: it shows "Check your email" and never redirects', async () => {
+    const fetchMock = stubFetch({
+      'POST /api/auth/signup': () => json({ ok: true, next: 'check_email' }, 202),
     });
     render(<AuthForm mode="signup" />);
     fillAndSubmit('signup');
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/app/onboarding'));
+    expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeTruthy();
+    expect(screen.getByText('sarah@example.com')).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no post-login parents lookup
+  });
+
+  it('the login form links to "Forgot password?"', () => {
+    render(<AuthForm mode="login" />);
+    expect(screen.getByRole('link', { name: /forgot password/i }).getAttribute('href')).toBe('/login/forgot');
   });
 
   it('falls back to onboarding if the post-login parents lookup fails', async () => {
