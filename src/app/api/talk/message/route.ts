@@ -4,35 +4,21 @@ import { resolveParentFromRequest, readJsonBody, errorToResponse } from '@/lib/a
 import { parentRepo } from '@/lib/repos/parent';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { memoryRepo } from '@/lib/repos/memory';
-import { getAiClient } from '@/lib/ai';
-import type { ConversationTurn, RetrievedMemory, SafetyScan } from '@/lib/ai';
-import { crisisResourceV1 } from '@/lib/ai/prompts';
-import { applyBannedOutputFilter } from '@/lib/ai/outputFilter';
-import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
-import { auditRepo } from '@/lib/repos/audit';
+import type { ConversationTurn, RetrievedMemory } from '@/lib/ai';
+import { runCompanionTurn } from '@/lib/ai/turn';
 import { ValidationError } from '@/lib/types';
 
 const unauthorized = () =>
   NextResponse.json({ error: { code: 'unauthorized', message: 'Valid access token required.' } }, { status: 401 });
 
 /**
- * Process a parent turn: assemble the companion context (profile + confirmed
- * non-restricted memories + rolling history), run the safety pre-scan and the
- * companion reply, then record BOTH turns. Turns are written only after a
- * successful reply, so a model failure never leaves an orphaned parent turn (and
- * a client retry can't duplicate it).
- *
- * Safety: the scan runs in parallel with the reply. A flagged turn (P0–P3)
- * writes a minimized safety_flag for human review; P0/P1 additionally prepend
- * deterministic crisis resources (988/911) to the reply so they always surface.
- * If the scan itself errors, we fail SAFE — route it to human review as P2
- * rather than silently clearing — without blocking the reply.
- *
- * The model's raw reply text also passes through applyBannedOutputFilter
- * before being surfaced or persisted: a hard-ban match (impersonation, medical
- * claims, a false "I contacted help", credential requests, secrecy promises)
- * is redacted to a safe fallback and audit-logged; an elderspeak-only match is
- * left as-is but still audit-logged for manual Gerontology Advisor review.
+ * Process a typed parent turn: assemble the companion context (profile +
+ * confirmed non-restricted memories + rolling history), run it through the
+ * shared safety pipeline (runCompanionTurn: scan, reply, banned-output filter,
+ * crisis prefix, alerting), then record BOTH turns. Turns are written only
+ * after a successful reply, so a model failure never leaves an orphaned parent
+ * turn (and a client retry can't duplicate it). The voice route uses the same
+ * pipeline.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -58,63 +44,15 @@ export async function POST(req: NextRequest) {
       await memoryRepo.retrieveForCompanion(pool, parentId)
     ).map((m) => ({ layer: m.layer, key: m.mem_key, value: m.mem_value }));
 
-    const ai = getAiClient();
-    // Scan and reply run concurrently, but the flag is persisted from the scan
-    // BEFORE we await the reply — safety detection must not depend on the reply
-    // succeeding. A scan failure fails SAFE (route to human review as P2); a
-    // reply failure rejects → 502, with the flag already recorded.
-    const scanPromise = ai
-      .safetyScan({ message: content })
-      .catch(
-        (): SafetyScan => ({ severity: 'p2', rationale: 'safety scan unavailable — manual review' }),
-      );
-    const replyPromise = ai.companionReply({
-      profile: {
-        firstName: parent.first_name,
-        pronouns: parent.pronouns,
-        city: parent.city,
-        speechRate: parent.speech_rate,
-      },
-      memories,
-      history,
+    // Scan → reply → banned-output filter → crisis prefix, plus D2 alerting.
+    const { replyText } = await runCompanionTurn(pool, {
+      parent,
+      conversationId,
       message: content,
-      isSessionOpen: false,
+      history,
+      memories,
+      channel: 'text',
     });
-
-    // A flagged turn is recorded for human review (minimized detail — rationale,
-    // never the raw message). Recorded first so a reply failure can't lose it.
-    const scan = await scanPromise;
-    if (scan.severity !== 'none') {
-      await safetyFlagRepo.record(pool, {
-        parentId,
-        conversationId,
-        severity: scan.severity,
-        detail: scan.rationale,
-      });
-    }
-
-    const reply = await replyPromise;
-
-    // Runtime hard-ban post-filter: redact to a safe fallback on a violation
-    // (impersonation, medical claims, false "I contacted help", credential
-    // requests, secrecy promises), and log either the redaction or a softer
-    // elderspeak signal for manual review. Never blocks the response.
-    const filtered = applyBannedOutputFilter(reply.text);
-    if (filtered.violated.length > 0 || filtered.flaggedForReview.length > 0) {
-      await auditRepo.log(pool, {
-        actorId: null,
-        action: filtered.redacted ? 'banned_output_redacted' : 'banned_output_review_flag',
-        targetType: 'conversation',
-        targetId: conversationId,
-        meta: { violated: filtered.violated, flaggedForReview: filtered.flaggedForReview },
-      });
-    }
-
-    // P0/P1 always surface crisis resources, regardless of what the model wrote.
-    const replyText =
-      scan.severity === 'p0' || scan.severity === 'p1'
-        ? `${crisisResourceV1(scan.severity)}\n\n${filtered.text}`
-        : filtered.text;
 
     // Persist the exchange only now that we have a reply.
     await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', content);

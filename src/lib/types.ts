@@ -98,7 +98,23 @@ export interface SafetyFlag {
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
+  /** When a family alert went out for this flag (decision D2); null if none did. */
+  notified_at: string | null;
+  /** Per-channel alert delivery status — see db/migrations/0014_safety_alerts.sql. */
+  alert_email_status: AlertDeliveryStatus | null;
+  alert_sms_status: AlertDeliveryStatus | null;
+  alert_admin_status: AlertDeliveryStatus | null;
 }
+
+export type AlertDeliveryStatus =
+  | 'sent'
+  | 'failed'
+  | 'skipped_no_phone'
+  | 'skipped_no_consent'
+  | 'suppressed_rate_limit'
+  | 'not_configured'
+  /** Went through a fake (dev/demo) client: nothing reached a real inbox or phone. */
+  | 'simulated';
 
 export interface Conversation {
   id: string;

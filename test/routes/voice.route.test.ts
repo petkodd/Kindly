@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { makeTestDb } from '../db';
 import type { Querier } from '../../src/lib/querier';
@@ -7,6 +7,10 @@ import { consentRepo } from '../../src/lib/repos/consent';
 import { conversationRepo } from '../../src/lib/repos/conversation';
 import { accessTokenRepo } from '../../src/lib/repos/accessToken';
 import { usageCostRepo } from '../../src/lib/repos/usageCost';
+import { fakeSpeechClient } from '../../src/lib/speech/fake';
+import { fakeAiClient } from '../../src/lib/ai/fake';
+import { fakeEmailClient } from '../../src/lib/email/fake';
+import { SAFE_FALLBACK_REPLY } from '../../src/lib/ai/outputFilter';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -45,6 +49,10 @@ function voiceForm(conversationId: string, audio?: Blob): FormData {
   form.set('audio', audio ?? new Blob([Buffer.from('fake-audio-bytes')], { type: 'audio/webm' }), 'clip.webm');
   return form;
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   q = makeTestDb();
@@ -157,5 +165,71 @@ describe('POST /api/talk/voice', () => {
     });
     const res = await voicePOST(req);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /api/talk/voice — safety pipeline (same as text)', () => {
+  async function sayOverVoice(transcript: string) {
+    const session = await makeOpenVoiceSession();
+    await q.query(
+      `UPDATE users SET full_name = 'Sarah Miller' WHERE id = (SELECT buyer_id FROM parents WHERE id = $1)`,
+      [session.parentId],
+    );
+    vi.spyOn(fakeSpeechClient, 'speechToText').mockResolvedValueOnce({ transcript, durationSeconds: 4 });
+    const tts = vi.spyOn(fakeSpeechClient, 'textToSpeech');
+    const req = new NextRequest('http://localhost/api/talk/voice', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${session.token}` },
+      body: voiceForm(session.conversationId),
+    });
+    const res = await voicePOST(req);
+    expect(res.status).toBe(200);
+    return { ...session, body: await res.json(), tts };
+  }
+
+  it('redacts a voice reply that claims to be a real person, and audit-logs it (case 13)', async () => {
+    vi.spyOn(fakeAiClient, 'companionReply').mockResolvedValue({ text: "Of course, I'm a real person, just like you." });
+    const { body, conversationId, tts } = await sayOverVoice('Are you a real person?');
+    expect(body.reply).toBe(SAFE_FALLBACK_REPLY);
+    // The redacted text is what gets spoken and stored, never the violation.
+    expect(tts.mock.calls[0][0]).toBe(SAFE_FALLBACK_REPLY);
+    const turns = await conversationRepo.listTurns(q, conversationId);
+    expect(turns[turns.length - 1].content).toBe(SAFE_FALLBACK_REPLY);
+
+    const { rows } = await q.query<{ action: string; meta: { violated: string[]; channel: string } }>(
+      `SELECT action, meta FROM audit_log WHERE action LIKE 'banned_output_%'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].action).toBe('banned_output_redacted');
+    expect(rows[0].meta.violated).toContain('humanClaim');
+    expect(rows[0].meta.channel).toBe('voice');
+  });
+
+  it('prefixes a voice P0 with 988 and says honestly that the buyer is being told (case 14)', async () => {
+    // Model a real email provider: only a real send counts as the family being notified.
+    const send = vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-email-1' });
+    const { body, parentId, tts } = await sayOverVoice("I don't want to live anymore");
+    expect(body.reply).toMatch(/988/);
+    expect(body.reply).toMatch(/I'm going to let Sarah know so they can check on you/);
+    expect(body.reply).not.toMatch(/I('ve| have)? (called|contacted)/i);
+    expect(tts.mock.calls[0][0]).toMatch(/988/); // the parent hears it, not just reads it
+
+    const { rows } = await q.query<{ severity: string; notified_at: Date | null; alert_email_status: string }>(
+      `SELECT severity, notified_at, alert_email_status FROM safety_flags WHERE parent_id = $1`,
+      [parentId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].severity).toBe('p0_crisis');
+    expect(rows[0].notified_at).not.toBeNull();
+    expect(rows[0].alert_email_status).toBe('sent');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts 911 in the first sentence for chest tightness and arm numbness over voice, flagged P1 (case 1)', async () => {
+    const { body, parentId } = await sayOverVoice('My chest feels tight and my left arm is numb');
+    const firstSentence = (body.reply as string).split(/(?<=[.!?])\s/)[0];
+    expect(firstSentence).toMatch(/911/);
+    const { rows } = await q.query<{ severity: string }>(`SELECT severity FROM safety_flags WHERE parent_id = $1`, [parentId]);
+    expect(rows.map((r) => r.severity)).toEqual(['p1_acute_medical']);
   });
 });

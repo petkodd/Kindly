@@ -4,11 +4,9 @@ import { resolveParentFromRequest, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
 import { conversationRepo } from '@/lib/repos/conversation';
 import { memoryRepo } from '@/lib/repos/memory';
-import { safetyFlagRepo } from '@/lib/repos/safetyFlag';
 import { usageCostRepo } from '@/lib/repos/usageCost';
-import { getAiClient } from '@/lib/ai';
-import type { ConversationTurn, RetrievedMemory, SafetyScan } from '@/lib/ai';
-import { crisisResourceV1 } from '@/lib/ai/prompts';
+import type { ConversationTurn, RetrievedMemory } from '@/lib/ai';
+import { runCompanionTurn } from '@/lib/ai/turn';
 import { getSpeechClient } from '@/lib/speech';
 import { ValidationError } from '@/lib/types';
 
@@ -21,11 +19,10 @@ const unauthorized = () =>
 /**
  * POST /api/talk/voice
  * Body: multipart/form-data — `audio` (Blob) + `conversation_id` (string).
- * Pipeline: STT → safety scan + companion reply (concurrent) → TTS → persist
- * turns → log voice_minutes → record usage_costs (auxiliary — swallowed on
- * failure, see the try/catch around it below). Same safety contract as the
- * text turn: P0/P1 crisis resources always prepend the reply; scan failures
- * fail safe (P2 for human review).
+ * Pipeline: STT → runCompanionTurn (safety scan + reply, banned-output filter,
+ * crisis prefix, alerting — the same pipeline as the text turn) → TTS →
+ * persist turns → log voice_minutes → record usage_costs (auxiliary —
+ * swallowed on failure, see the try/catch around it below).
  *
  * <2.5s perceived start is a performance target for streaming TTS (follow-up).
  * Alpha returns the full audio as a data URL once the pipeline completes.
@@ -73,42 +70,16 @@ export async function POST(req: NextRequest) {
       await memoryRepo.retrieveForCompanion(pool, parentId)
     ).map((m) => ({ layer: m.layer, key: m.mem_key, value: m.mem_value }));
 
-    const ai = getAiClient();
-
-    // Safety scan and companion reply run concurrently — same contract as text turn.
-    const scanPromise = ai
-      .safetyScan({ message: transcript })
-      .catch(
-        (): SafetyScan => ({ severity: 'p2', rationale: 'safety scan unavailable — manual review' }),
-      );
-    const replyPromise = ai.companionReply({
-      profile: {
-        firstName: parent.first_name,
-        pronouns: parent.pronouns,
-        city: parent.city,
-        speechRate: parent.speech_rate,
-      },
-      memories,
-      history,
+    // Same pipeline as the text turn: scan → reply → banned-output filter →
+    // crisis prefix, plus D2 alerting.
+    const { replyText } = await runCompanionTurn(pool, {
+      parent,
+      conversationId,
       message: transcript,
+      history,
+      memories,
+      channel: 'voice',
     });
-
-    const scan = await scanPromise;
-    if (scan.severity !== 'none') {
-      await safetyFlagRepo.record(pool, {
-        parentId,
-        conversationId,
-        severity: scan.severity,
-        detail: scan.rationale,
-      });
-    }
-
-    const reply = await replyPromise;
-
-    const replyText =
-      scan.severity === 'p0' || scan.severity === 'p1'
-        ? `${crisisResourceV1(scan.severity)}\n\n${reply.text}`
-        : reply.text;
 
     // --- TTS runs before persisting, mirroring the text-turn invariant: turns
     // are written only after the full pipeline succeeds, so a TTS failure never

@@ -62,3 +62,40 @@ hash, that test fails with a message naming the prompt and role — the fix is
 to get that role to re-review the new text and run `scripts/sign-prompt.mjs`
 again. There's no way to "silently" edit a prompt that already has approvals
 without CI catching it.
+
+## V2 prompts are signed as a bundle
+
+From V2 on, a sign-off covers everything that shapes what the person hears,
+not just the system constant. `SIGNOFF_TEXT` in `src/lib/ai/prompts.ts` builds
+the exact text that is hashed:
+
+- `COMPANION_SYSTEM_V2`: the system constant, the per-turn context template,
+  the crisis copy (P0/P1/P3), the greeting, the banned-output patterns, the
+  safe fallback reply, the default model id and `max_tokens`.
+- `SAFETY_SCAN_SYSTEM_V2`: the system constant, the `<conversation>` /
+  `<message>` input template, the default safety model id and limits.
+
+Changing any of these changes the hash, so an earlier approval shows as stale.
+V1 keys still hash only their constant. `sign-prompt.mjs` and
+`check-prompt-signoffs.mjs` read `SIGNOFF_TEXT` automatically.
+
+An `AI_MODEL` / `AI_SAFETY_MODEL` override that differs from the signed
+default runs an unsigned configuration; the client logs a warning at startup.
+
+`prompts/signoffs.json` is protected by `.github/CODEOWNERS` (the handles
+there are placeholders until the reviewers' GitHub accounts exist).
+
+## Live red-team suite
+
+`test/redteam-live/` calls the real companion reply and safety scan and grades
+the replies with regex checks plus an LLM-judge rubric. It is skipped unless
+`AI_API_KEY` is set, and costs real tokens (about 30 model calls):
+
+```
+AI_API_KEY=... npm run test:redteam-live
+```
+
+Optional: `AI_JUDGE_MODEL` picks the judge model (defaults to the companion
+default). Email and SMS always use the fakes in this suite. Run it before
+asking reviewers to sign off a prompt change, and paste the result in the PR.
+Note that `npm test` also runs it if `AI_API_KEY` is set in your shell.

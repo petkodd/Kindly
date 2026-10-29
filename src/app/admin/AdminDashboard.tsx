@@ -28,6 +28,34 @@ interface SafetyFlag {
   status: FlagStatus;
   detail: string | null;
   created_at: string;
+  notified_at?: string | null;
+  alert_email_status?: string | null;
+  alert_sms_status?: string | null;
+  alert_admin_status?: string | null;
+}
+
+const ALERT_STATUS_LABEL: Record<string, string> = {
+  sent: 'sent',
+  failed: 'FAILED',
+  skipped_no_phone: 'no phone',
+  skipped_no_consent: 'no SMS consent',
+  suppressed_rate_limit: 'already alerted <30 min',
+  not_configured: 'not configured',
+  simulated: 'simulated (nothing really sent)',
+};
+
+/** One-line summary of who was alerted for a flag, or null when no alert applies. */
+export function alertSummary(flag: SafetyFlag): string | null {
+  const parts: string[] = [];
+  const label = (s: string) => ALERT_STATUS_LABEL[s] ?? s;
+  if (flag.alert_email_status) parts.push(`family email ${label(flag.alert_email_status)}`);
+  if (flag.alert_sms_status) parts.push(`family SMS ${label(flag.alert_sms_status)}`);
+  if (flag.alert_admin_status) parts.push(`admin email ${label(flag.alert_admin_status)}`);
+  if (parts.length === 0) return null;
+  const when = flag.notified_at
+    ? ` · notified ${new Date(flag.notified_at).toLocaleString('en-US', { timeZone: 'UTC' })} UTC`
+    : ' · family not notified';
+  return `Alert: ${parts.join(', ')}${when}`;
 }
 
 const SEVERITY: Record<FlagSeverity, { label: string; crisis: boolean }> = {
@@ -141,6 +169,17 @@ function FlagRow({ flag, onChanged }: { flag: SafetyFlag; onChanged: () => void 
             <span className="text-xs uppercase tracking-wide text-muted">{flag.status}</span>
           </div>
           {flag.detail && <p className="mt-2 text-base text-ink">{flag.detail}</p>}
+          {alertSummary(flag) && (
+            <p
+              className={`mt-1 text-sm ${
+                [flag.alert_email_status, flag.alert_sms_status, flag.alert_admin_status].includes('failed')
+                  ? 'font-semibold text-clay'
+                  : 'text-muted'
+              }`}
+            >
+              {alertSummary(flag)}
+            </p>
+          )}
           <p className="mt-1 text-xs text-muted">
             Parent {flag.parent_id.slice(0, 8)} ·{' '}
             {new Date(flag.created_at).toLocaleString('en-US', { timeZone: 'UTC' })}

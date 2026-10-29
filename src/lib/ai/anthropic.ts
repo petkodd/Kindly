@@ -13,24 +13,42 @@ import type {
 } from './types';
 import { AiError } from './types';
 import {
-  COMPANION_SYSTEM_V1,
+  COMPANION_MAX_TOKENS_V2,
+  COMPANION_SYSTEM_V2,
   CONVERSATION_SUMMARY_SYSTEM_V1,
+  DEFAULT_COMPANION_MODEL_V2,
+  DEFAULT_SAFETY_MODEL_V2,
   MEMORY_EXTRACTION_SYSTEM_V1,
-  SAFETY_SCAN_SYSTEM_V1,
+  SAFETY_SCAN_MAX_TOKENS_V2,
+  SAFETY_SCAN_SYSTEM_V2,
+  renderCompanionContextV2,
+  renderSafetyScanInputV2,
 } from './prompts';
 
 /**
  * Real companion model, backed by the official Anthropic SDK. Constructed by
  * `getAiClient()` only when AI_API_KEY is set; otherwise the fake is used. The
- * model id comes from AI_MODEL (see .env.example — the project pins
- * claude-sonnet-4-6), defaulting to the latest Opus when unset.
+ * companion model id comes from AI_MODEL and the safety scan's from
+ * AI_SAFETY_MODEL (a small, fast model). Both default to the ids in the signed
+ * prompt bundle (prompts.ts); an override that differs is warned about once,
+ * because it runs a configuration nobody signed off.
  *
  * The three JSON operations use structured outputs (`output_config.format`) so
  * the model's reply is schema-constrained and safe to JSON.parse. The companion
  * reply is plain text and does not use thinking — talk latency is user-facing.
  */
 
-const MODEL = process.env.AI_MODEL || 'claude-opus-4-8';
+const MODEL = process.env.AI_MODEL || DEFAULT_COMPANION_MODEL_V2;
+const SAFETY_MODEL = process.env.AI_SAFETY_MODEL || DEFAULT_SAFETY_MODEL_V2;
+
+function warnIfUnsignedModels(): void {
+  if (MODEL !== DEFAULT_COMPANION_MODEL_V2 || SAFETY_MODEL !== DEFAULT_SAFETY_MODEL_V2) {
+    console.warn(
+      `[ai] running models that differ from the signed defaults (companion ${MODEL}, safety ${SAFETY_MODEL}); ` +
+        'update the defaults in prompts.ts and get a new sign-off.',
+    );
+  }
+}
 
 function textOf(message: Message): string {
   return message.content
@@ -66,27 +84,6 @@ export function parseJson<T>(message: Message, where: string): T {
   }
 }
 
-/** Render the personalization layers into a single system suffix. */
-function renderContext(input: CompanionReplyInput): string {
-  const lines: string[] = [];
-  const p = input.profile;
-  const profileBits = [
-    `first name: ${p.firstName}`,
-    p.pronouns ? `pronouns: ${p.pronouns}` : null,
-    p.city ? `city: ${p.city}` : null,
-    p.speechRate ? `speech: ${p.speechRate}` : null,
-  ].filter(Boolean);
-  lines.push(`PARENT PROFILE — ${profileBits.join(', ')}.`);
-  if (input.memories.length > 0) {
-    lines.push('CONFIRMED MEMORIES (never restricted):');
-    for (const m of input.memories) lines.push(`- [${m.layer}] ${m.key}: ${m.value}`);
-  }
-  if (input.isSessionOpen) {
-    lines.push('This is the first turn of the session — open by disclosing you are an AI companion.');
-  }
-  return lines.join('\n');
-}
-
 /**
  * Assemble the Messages API `messages` array for a companion turn. The Messages
  * API requires the first message to be from the user, but the session-open
@@ -106,6 +103,7 @@ export function buildCompanionMessages(input: CompanionReplyInput): MessageParam
 
 export function createAnthropicAiClient(apiKey: string): AiClient {
   const client = new Anthropic({ apiKey });
+  warnIfUnsignedModels();
 
   async function jsonCall<T>(
     where: string,
@@ -113,9 +111,10 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
     userText: string,
     schema: Record<string, unknown>,
     maxTokens: number,
+    model: string = MODEL,
   ): Promise<T> {
     const message = await client.messages.create({
-      model: MODEL,
+      model,
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: userText }],
@@ -128,18 +127,18 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
     async companionReply(input: CompanionReplyInput): Promise<CompanionReply> {
       const message = await client.messages.create({
         model: MODEL,
-        max_tokens: 1024,
-        system: `${COMPANION_SYSTEM_V1}\n\n${renderContext(input)}`,
+        max_tokens: COMPANION_MAX_TOKENS_V2,
+        system: `${COMPANION_SYSTEM_V2}\n\n${renderCompanionContextV2(input)}`,
         messages: buildCompanionMessages(input),
       });
       return { text: requireText(message, 'companionReply') };
     },
 
-    async safetyScan({ message }: SafetyScanInput): Promise<SafetyScan> {
+    async safetyScan({ message, history }: SafetyScanInput): Promise<SafetyScan> {
       return jsonCall<SafetyScan>(
         'safetyScan',
-        SAFETY_SCAN_SYSTEM_V1,
-        message,
+        SAFETY_SCAN_SYSTEM_V2,
+        renderSafetyScanInputV2({ message, history }),
         {
           type: 'object',
           additionalProperties: false,
@@ -149,7 +148,8 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
             rationale: { type: 'string' },
           },
         },
-        1024,
+        SAFETY_SCAN_MAX_TOKENS_V2,
+        SAFETY_MODEL,
       );
     },
 

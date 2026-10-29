@@ -6,6 +6,7 @@ import {
   PreconditionError,
 } from '../types';
 import { consentRepo } from './consent';
+import { safetyFlagRepo } from './safetyFlag';
 import { getEmailClient } from '../email';
 import { weeklySummaryEmail } from '../email/templates';
 
@@ -69,10 +70,31 @@ export function weekBounds(ref: Date = new Date()): WeekBounds {
   };
 }
 
-/** Compose the family-facing body from this week's conversation signals. */
+/** P0/P1 safety flags this week, reduced to what the summary may act on. */
+export interface WeekCrisisFlags {
+  /** At least one P0/P1 flag is still open or in review. */
+  unresolved: boolean;
+  /** At least one P0/P1 flag was marked resolved by an admin. */
+  reviewed: boolean;
+}
+
+/** Neutral line shown only after an admin has marked a week's P0/P1 flag resolved. Never says why. */
+export const REVIEWED_FLAG_LINE =
+  'Our team reviewed a conversation this week and will reach out if needed.';
+
+/**
+ * Compose the family-facing body from this week's conversation signals.
+ *
+ * Safety flags: a week with a P0/P1 flag never says "Nothing alarming". While
+ * the flag is unresolved the summary says nothing about it (the buyer was
+ * already alerted directly, decision D2); once an admin resolves it, the
+ * neutral REVIEWED_FLAG_LINE appears. P2/P3 flags never reach the summary —
+ * P3 in particular must never reach family.
+ */
 function composeBody(
   firstName: string,
   convs: ConversationRow[],
+  crisis: WeekCrisisFlags = { unresolved: false, reviewed: false },
 ): { bodyLong: string; bodyShort: string; hasConcern: boolean } {
   const chats = convs.length;
   const highlights = convs.map((c) => c.summary_text?.trim()).filter(Boolean) as string[];
@@ -96,11 +118,17 @@ function composeBody(
     lines.push('', 'Some moments from the week:');
     for (const h of highlights) lines.push(`• ${h}`);
   }
+  const anyCrisis = crisis.unresolved || crisis.reviewed;
   if (hasConcern) {
     lines.push(
       '',
-      `A gentle heads-up: ${firstName} seemed a little low in one of their chats. Nothing alarming — it may be worth a gentle check-in this week.`,
+      anyCrisis
+        ? `A gentle heads-up: ${firstName} seemed a little low in one of their chats. It may be worth a gentle check-in this week.`
+        : `A gentle heads-up: ${firstName} seemed a little low in one of their chats. Nothing alarming — it may be worth a gentle check-in this week.`,
     );
+  }
+  if (crisis.reviewed && !crisis.unresolved) {
+    lines.push('', REVIEWED_FLAG_LINE);
   }
 
   return { bodyShort, bodyLong: lines.join('\n'), hasConcern };
@@ -130,7 +158,13 @@ export const summaryRepo = {
       [parentId, b.startTs, b.nextStartTs],
     );
 
-    const { bodyLong, bodyShort, hasConcern } = composeBody(firstName, convRows);
+    const crisisFlags = await safetyFlagRepo.listCrisisForPeriod(q, parentId, b.startTs, b.nextStartTs);
+    const crisis: WeekCrisisFlags = {
+      unresolved: crisisFlags.some((f) => f.status === 'open' || f.status === 'reviewing'),
+      reviewed: crisisFlags.some((f) => f.status === 'resolved'),
+    };
+
+    const { bodyLong, bodyShort, hasConcern } = composeBody(firstName, convRows, crisis);
 
     // Refresh an existing week's row in place — but never rewrite one that has
     // already been sent (sent history is immutable).

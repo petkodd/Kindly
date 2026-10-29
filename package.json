@@ -2,7 +2,7 @@
   "name": "kindly",
   "version": "0.1.0-alpha",
   "private": true,
-  "description": "Kindly — a warm, voice-first AI companion gift for aging parents. Alpha v0.1.",
+  "description": "Kindly \u2014 a warm, voice-first AI companion gift for aging parents. Alpha v0.1.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -17,7 +17,8 @@
     "beta:invite": "node scripts/beta-invite.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:prompt-signoffs": "node scripts/check-prompt-signoffs.mjs"
+    "check:prompt-signoffs": "node scripts/check-prompt-signoffs.mjs",
+    "test:redteam-live": "vitest run test/redteam-live"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.1",

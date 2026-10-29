@@ -289,3 +289,50 @@ describe('weekly summary send through the fake email client (local dev, tests, D
     expect(second.deliveries[0].status).toBe('simulated');
   });
 });
+
+describe('weekly summary preview — safety flags (chat 3, task 7)', () => {
+  async function addFlag(parentId: string, severity: string, status: string, createdAt: string) {
+    await q.query(
+      `INSERT INTO safety_flags (parent_id, severity, status, detail, created_at) VALUES ($1, $2, $3, 'x', $4)`,
+      [parentId, severity, status, new Date(createdAt)],
+    );
+  }
+
+  it('never says "Nothing alarming" in a week with an unresolved P0/P1, and says nothing about the flag', async () => {
+    const p = await seedParent();
+    await addConversation(p.id, '2026-06-30T10:00:00Z', 'Robert talked about baseball.', 'low');
+    await addFlag(p.id, 'p1_acute_medical', 'open', '2026-06-30T10:05:00Z');
+    const s = await summaryRepo.preview(q, p.id, p.firstName, REF);
+    expect(s.body_long).not.toMatch(/Nothing alarming/i);
+    expect(s.body_long).not.toMatch(/Our team reviewed/);
+    expect(s.body_long).toMatch(/seemed a little low/); // the mood heads-up itself is chat 9's to change
+  });
+
+  it('an in-review flag still counts as unresolved', async () => {
+    const p = await seedParent();
+    await addConversation(p.id, '2026-06-30T10:00:00Z', 'A chat.', 'warm');
+    await addFlag(p.id, 'p0_crisis', 'reviewing', '2026-06-30T10:05:00Z');
+    const s = await summaryRepo.preview(q, p.id, p.firstName, REF);
+    expect(s.body_long).not.toMatch(/Our team reviewed|Nothing alarming/);
+  });
+
+  it('shows the neutral reviewed line only after an admin resolves the flag', async () => {
+    const p = await seedParent();
+    await addConversation(p.id, '2026-06-30T10:00:00Z', 'A chat.', 'low');
+    await addFlag(p.id, 'p0_crisis', 'resolved', '2026-06-30T10:05:00Z');
+    const s = await summaryRepo.preview(q, p.id, p.firstName, REF);
+    expect(s.body_long).toContain('Our team reviewed a conversation this week and will reach out if needed.');
+    expect(s.body_long).not.toMatch(/Nothing alarming/i);
+  });
+
+  it('P2/P3 flags and last week\'s flags never reach the summary', async () => {
+    const p = await seedParent();
+    await addConversation(p.id, '2026-06-30T10:00:00Z', 'A chat.', 'low');
+    await addFlag(p.id, 'p3_abuse', 'resolved', '2026-06-30T10:05:00Z');
+    await addFlag(p.id, 'p2_welfare', 'resolved', '2026-06-30T10:06:00Z');
+    await addFlag(p.id, 'p0_crisis', 'resolved', '2026-06-20T10:06:00Z'); // previous week
+    const s = await summaryRepo.preview(q, p.id, p.firstName, REF);
+    expect(s.body_long).not.toMatch(/Our team reviewed/);
+    expect(s.body_long).toMatch(/Nothing alarming/); // unchanged behavior when no P0/P1 this week
+  });
+});

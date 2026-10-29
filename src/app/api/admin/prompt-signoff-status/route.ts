@@ -2,20 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { resolveAdmin, adminForbidden, errorToResponse } from '@/lib/auth';
 import { auditRepo } from '@/lib/repos/audit';
-import {
-  COMPANION_SYSTEM_V1,
-  SAFETY_SCAN_SYSTEM_V1,
-  MEMORY_EXTRACTION_SYSTEM_V1,
-  CONVERSATION_SUMMARY_SYSTEM_V1,
-} from '@/lib/ai/prompts';
+import { SIGNOFF_TEXT } from '@/lib/ai/prompts';
 import { getPromptSignOffStatus } from '@/lib/ai/promptSignOff';
-
-const LIVE_PROMPTS: Record<string, string> = {
-  COMPANION_SYSTEM_V1,
-  SAFETY_SCAN_SYSTEM_V1,
-  MEMORY_EXTRACTION_SYSTEM_V1,
-  CONVERSATION_SUMMARY_SYSTEM_V1,
-};
 
 /**
  * Machine-readable prompt sign-off status, for the future "Reviewed for
@@ -28,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!adminId) return adminForbidden();
   try {
     const pool = db();
-    const prompts = Object.entries(LIVE_PROMPTS).map(([promptKey, text]) =>
+    const prompts = Object.entries(SIGNOFF_TEXT).map(([promptKey, text]) =>
       getPromptSignOffStatus(promptKey, text),
     );
     const allApproved = prompts.every((p) => p.fullyApproved);
