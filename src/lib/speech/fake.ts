@@ -1,4 +1,4 @@
-import type { SpeechClient, SttResult, TtsResult } from './types';
+import type { SpeechClient, SttOptions, SttResult, TtsOptions, TtsResult } from './types';
 
 /**
  * Deterministic stand-in for STT + TTS. Used by tests and local dev when
@@ -6,11 +6,11 @@ import type { SpeechClient, SttResult, TtsResult } from './types';
  * downstream voice route tests don't require live speech providers.
  */
 export const fakeSpeechClient: SpeechClient = {
-  async speechToText(_audio: Buffer, _mimeType: string): Promise<SttResult> {
+  async speechToText(_audio: Buffer, _mimeType: string, _opts?: SttOptions): Promise<SttResult> {
     return { transcript: 'Hello, I would like to talk.', durationSeconds: 3.0 };
   },
 
-  async textToSpeech(text: string, _opts?: { speechRate?: 'slow' | 'normal' }): Promise<TtsResult> {
+  async textToSpeech(text: string, _opts?: TtsOptions): Promise<TtsResult> {
     // Return a minimal valid data URL so the client can detect the format.
     const encoded = Buffer.from(text).toString('base64');
     return { audioUrl: `data:audio/mp3;base64,${encoded}` };

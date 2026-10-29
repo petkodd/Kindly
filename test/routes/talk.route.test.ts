@@ -8,6 +8,7 @@ import { accessTokenRepo } from '../../src/lib/repos/accessToken';
 import { PARENT_TOKEN_COOKIE } from '../../src/lib/parentSession';
 import { fakeAiClient } from '../../src/lib/ai/fake';
 import { SAFE_FALLBACK_REPLY } from '../../src/lib/ai/outputFilter';
+import { fakeSpeechClient } from '../../src/lib/speech/fake';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -78,6 +79,24 @@ describe('POST /api/talk/auth', () => {
     expect(setCookie).toContain(`${PARENT_TOKEN_COOKIE}=${token}`);
     expect(setCookie.toLowerCase()).toContain('httponly');
   });
+
+  it("returns the buyer's sanitized first name for plain 'ask Sarah for a new link' copy", async () => {
+    const buyerId = await makeBuyer('sarah@example.com');
+    await q.query(`UPDATE users SET full_name = $1 WHERE id = $2`, ['Sarah<script> Miller', buyerId]);
+    const parent = await parentRepo.create(q, { buyerId, firstName: 'Robert', relationship: 'father' });
+    const { token } = await accessTokenRepo.issue(q, parent.id);
+
+    const body = await (await talkAuthPOST(bearerReq('http://localhost/api/talk/auth', null, { token }))).json();
+    expect(body).toMatchObject({ ok: true, family_first_name: 'Sarahscript', link_owner: 'family' });
+  });
+
+  it('a self-use profile has no family to name', async () => {
+    const buyerId = await makeBuyer('me@example.com');
+    const parent = await parentRepo.create(q, { buyerId, firstName: 'Me', relationship: 'self' });
+    const { token } = await accessTokenRepo.issue(q, parent.id);
+    const body = await (await talkAuthPOST(bearerReq('http://localhost/api/talk/auth', null, { token }))).json();
+    expect(body).toMatchObject({ family_first_name: null, link_owner: 'self' });
+  });
 });
 
 describe('POST /api/talk/session', () => {
@@ -103,6 +122,39 @@ describe('POST /api/talk/session', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.conversation_id).toBeTruthy();
+    expect(body.greeting).toContain('Robert');
+  });
+
+  it('speaks the greeting (with the AI disclosure) and records its TTS cost', async () => {
+    const tts = vi.spyOn(fakeSpeechClient, 'textToSpeech');
+    const { token, parentId } = await makeReadyParent();
+    await q.query(`UPDATE parents SET speech_rate = 'slow' WHERE id = $1`, [parentId]);
+    const body = await (await sessionPOST(bearerReq('http://localhost/api/talk/session', token))).json();
+
+    expect(tts).toHaveBeenCalledWith(body.greeting, { speechRate: 'slow' });
+    expect(body.greeting).toMatch(/AI companion, not a real person/);
+    expect(body.greeting_audio_url).toMatch(/^data:audio\/mp3;base64,/);
+    const { rows } = await q.query<{ provider: string }>(`SELECT provider FROM usage_costs WHERE parent_id = $1`, [parentId]);
+    expect(rows.map((r) => r.provider)).toEqual(['elevenlabs_tts']);
+  });
+
+  it('returns the talk settings and who set Dearly up', async () => {
+    const { token, parentId } = await makeReadyParent();
+    await q.query(`UPDATE parents SET large_text = false, voice_first = false WHERE id = $1`, [parentId]);
+    const body = await (await sessionPOST(bearerReq('http://localhost/api/talk/session', token))).json();
+    expect(body.settings).toEqual({ large_text: false, voice_first: false, speech_rate: 'slow', language: 'en-US' }); // 'slow' is the profile default
+    expect(body.link_owner).toBe('family');
+    expect(body).toHaveProperty('family_first_name');
+  });
+
+  it('still opens the conversation when speech synthesis fails (greeting shown as text)', async () => {
+    vi.spyOn(fakeSpeechClient, 'textToSpeech').mockRejectedValueOnce(new Error('tts down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { token } = await makeReadyParent();
+    const res = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.greeting_audio_url).toBeNull();
     expect(body.greeting).toContain('Robert');
   });
 });
@@ -233,7 +285,7 @@ describe('POST /api/talk/session/end', () => {
     expect(res.status).toBe(401);
   });
 
-  it('ends the session, runs summarize/extract jobs, and clears the talk cookie', async () => {
+  it('ends the session, runs summarize/extract jobs, and keeps the talk cookie so "Talk again" works', async () => {
     const { token } = await makeReadyParent();
     const opened = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
     const { conversation_id: conversationId } = await opened.json();
@@ -248,7 +300,19 @@ describe('POST /api/talk/session/end', () => {
     expect(body.summarized).toBe(true);
 
     const setCookie = res.headers.get('set-cookie') ?? '';
-    expect(setCookie).toMatch(new RegExp(`${PARENT_TOKEN_COOKIE}=;|Max-Age=0`, 'i'));
+    expect(setCookie).not.toMatch(new RegExp(`${PARENT_TOKEN_COOKIE}=;|Max-Age=0`, 'i'));
+
+    // Talk again: a new session opens with the same credential.
+    const again = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
+    expect(again.status).toBe(201);
+    expect((await again.json()).conversation_id).not.toBe(conversationId);
+  });
+
+  it('a revoked link is refused on the next request even though the cookie was kept', async () => {
+    const { token, parentId } = await makeReadyParent();
+    await q.query(`UPDATE parent_access_tokens SET revoked_at = now() WHERE parent_id = $1`, [parentId]);
+    const res = await sessionPOST(bearerReq('http://localhost/api/talk/session', token));
+    expect(res.status).toBe(401);
   });
 
   it('is idempotent — ending twice does not re-run the jobs', async () => {

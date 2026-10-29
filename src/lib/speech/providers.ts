@@ -1,4 +1,14 @@
-import { SpeechError, type SpeechClient, type SttResult, type TtsResult } from './types';
+import { SpeechError, TTS_SPEED, type SpeechClient, type SttOptions, type SttResult, type TtsOptions, type TtsResult } from './types';
+
+/** Deepgram language codes look like 'en', 'en-US', 'es-419'. Anything else falls back to detection. */
+const LANGUAGE_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,4})?$/;
+
+/** Deepgram /listen URL: the profile's language when valid, otherwise language detection. */
+export function deepgramListenUrl(language?: string | null): string {
+  const base = 'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true';
+  const lang = language?.trim();
+  return lang && LANGUAGE_RE.test(lang) ? `${base}&language=${encodeURIComponent(lang)}` : `${base}&detect_language=true`;
+}
 
 /**
  * Real speech client using Deepgram (STT) and ElevenLabs (TTS).
@@ -19,9 +29,9 @@ export function createSpeechClient(opts: {
   const voiceId = opts.elevenlabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
 
   return {
-    async speechToText(audio: Buffer, mimeType: string): Promise<SttResult> {
+    async speechToText(audio: Buffer, mimeType: string, sttOpts?: SttOptions): Promise<SttResult> {
       const res = await fetch(
-        'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&detect_language=true',
+        deepgramListenUrl(sttOpts?.language),
         {
           method: 'POST',
           headers: {
@@ -48,12 +58,11 @@ export function createSpeechClient(opts: {
       return { transcript, durationSeconds };
     },
 
-    async textToSpeech(
-      text: string,
-      opts2?: { speechRate?: 'slow' | 'normal' },
-    ): Promise<TtsResult> {
-      // stability + similarity_boost tuned for clarity with older listeners.
-      const stability = opts2?.speechRate === 'slow' ? 0.75 : 0.6;
+    async textToSpeech(text: string, opts2?: TtsOptions): Promise<TtsResult> {
+      // stability + similarity_boost tuned for clarity with older listeners;
+      // speed is the real pace control (voice_settings.speed, 0.7–1.2).
+      const rate = opts2?.speechRate === 'slow' ? 'slow' : 'normal';
+      const stability = rate === 'slow' ? 0.75 : 0.6;
       const res = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
         {
@@ -65,7 +74,7 @@ export function createSpeechClient(opts: {
           body: JSON.stringify({
             text,
             model_id: 'eleven_multilingual_v2',
-            voice_settings: { stability, similarity_boost: 0.75 },
+            voice_settings: { stability, similarity_boost: 0.75, speed: TTS_SPEED[rate] },
           }),
         },
       );

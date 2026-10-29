@@ -32,3 +32,23 @@ describe('Content-Security-Policy script-src', () => {
     expect(await scriptSrc('test')).not.toContain('unsafe-eval');
   });
 });
+
+describe('Content-Security-Policy media-src', () => {
+  async function directive(name: string): Promise<string | undefined> {
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    const config = (await import('../next.config.mjs')).default as {
+      headers: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]>;
+    };
+    const csp = (await config.headers()).flatMap((h) => h.headers).find((h) => h.key === 'Content-Security-Policy')!.value;
+    return csp.split('; ').find((d) => d.startsWith(`${name} `));
+  }
+
+  it('lets the talk screen play data: and blob: audio (spoken replies are data:audio/mp3 URLs)', async () => {
+    expect(await directive('media-src')).toBe("media-src 'self' data: blob:");
+  });
+
+  it('keeps everything else locked to default-src self', async () => {
+    expect(await directive('default-src')).toBe("default-src 'self'");
+  });
+});
