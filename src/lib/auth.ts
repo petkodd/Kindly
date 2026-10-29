@@ -168,6 +168,10 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
         status: 429,
         body: { error: { code: (err as { code?: string }).code ?? 'rate_limited', message: (err as Error).message } },
       };
+    case 'BillingUnavailableError':
+      return { status: 503, body: { error: { code: 'billing_unavailable', message: (err as Error).message } } };
+    case 'ExpiredError':
+      return { status: 410, body: { error: { code: 'expired', message: (err as Error).message } } };
     case 'PayloadTooLargeError':
       return { status: 413, body: { error: { code: 'too_large', message: (err as Error).message } } };
     case 'ConversationFullError':

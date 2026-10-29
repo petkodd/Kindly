@@ -62,6 +62,7 @@ describe('FamilySummaryPage', () => {
 
   it('renders the current-week preview and sends it to consented recipients', async () => {
     stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -74,12 +75,13 @@ describe('FamilySummaryPage', () => {
     render(<FamilySummaryPage />);
 
     expect(await screen.findByText(/2 conversations with Dearly/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /send this week’s summary/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send last week’s summary/i }));
     expect(await screen.findByText(/sent to 1 recipient\./i)).toBeTruthy();
   });
 
   it('says plainly when a send was only simulated (demo mode, no email key)', async () => {
     stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -88,13 +90,14 @@ describe('FamilySummaryPage', () => {
     });
     render(<FamilySummaryPage />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /send this week’s summary/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /send last week’s summary/i }));
     expect(await screen.findByText(/simulated for 1 recipient — demo mode, no email was sent\./i)).toBeTruthy();
     expect(screen.queryByText(/^sent to/i)).toBeNull();
   });
 
   it('guides the buyer to invite a recipient when send is gated on consent (409)', async () => {
     stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -103,7 +106,7 @@ describe('FamilySummaryPage', () => {
     });
     render(<FamilySummaryPage />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /send this week’s summary/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /send last week’s summary/i }));
     await waitFor(() =>
       expect(screen.getByRole('link', { name: /invite a family member/i })).toBeTruthy(),
     );
@@ -111,6 +114,7 @@ describe('FamilySummaryPage', () => {
 
   it('redirects to login on a 401', async () => {
     stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
       'GET /api/parents': () =>
         json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, 401),
     });

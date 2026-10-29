@@ -154,7 +154,17 @@ export const subscriptionRepo = {
    * should acknowledge and move on rather than erroring — an uncaught throw
    * here would have Stripe retry the same unfixable event forever.
    */
-  async upsertFromStripeSubscription(q: Querier, stripeSub: StripeSubscriptionLike): Promise<Subscription | null> {
+  async upsertFromStripeSubscription(
+    q: Querier,
+    stripeSub: StripeSubscriptionLike,
+    /**
+     * Stripe's `created` time of the event carrying this state. Stripe does not
+     * guarantee delivery order, so an event OLDER than the one that last wrote
+     * the row is ignored (it would roll a cancellation back to 'active', say).
+     * Omit only for callers that read the subscription fresh from Stripe.
+     */
+    eventAt: Date = new Date(),
+  ): Promise<Subscription | null> {
     const status = mapStripeStatus(stripeSub.status);
     const currentPeriodEnd = new Date(stripeSub.current_period_end * 1000).toISOString();
     const buyerId = stripeSub.metadata.buyer_id;
@@ -168,10 +178,11 @@ export const subscriptionRepo = {
       const { rows } = await q.query<Subscription>(
         `UPDATE subscriptions
             SET status = $2, stripe_customer_id = $3, current_period_end = $4,
-                billing_interval = COALESCE($5, billing_interval)
+                billing_interval = COALESCE($5, billing_interval), stripe_event_at = $6
           WHERE stripe_sub_id = $1
+            AND (stripe_event_at IS NULL OR stripe_event_at <= $6)
           RETURNING *`,
-        [stripeSub.id, status, stripeSub.customer, currentPeriodEnd, stripeSub.billingInterval],
+        [stripeSub.id, status, stripeSub.customer, currentPeriodEnd, stripeSub.billingInterval, eventAt],
       );
       return rows[0] ?? null;
     }
@@ -179,16 +190,22 @@ export const subscriptionRepo = {
     const parentId = stripeSub.metadata.parent_id ?? null;
     const { rows } = await q.query<Subscription>(
       `INSERT INTO subscriptions
-         (buyer_id, parent_id, plan, status, stripe_customer_id, stripe_sub_id, current_period_end, billing_interval)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (buyer_id, parent_id, plan, status, stripe_customer_id, stripe_sub_id, current_period_end, billing_interval,
+          stripe_event_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (stripe_sub_id) DO UPDATE
          SET status = EXCLUDED.status,
              stripe_customer_id = EXCLUDED.stripe_customer_id,
              current_period_end = EXCLUDED.current_period_end,
-             billing_interval = COALESCE(EXCLUDED.billing_interval, subscriptions.billing_interval)
+             billing_interval = COALESCE(EXCLUDED.billing_interval, subscriptions.billing_interval),
+             stripe_event_at = EXCLUDED.stripe_event_at
+         WHERE subscriptions.stripe_event_at IS NULL OR subscriptions.stripe_event_at <= EXCLUDED.stripe_event_at
        RETURNING *`,
-      [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd, stripeSub.billingInterval],
+      [buyerId, parentId, ALPHA_PLAN, status, stripeSub.customer, stripeSub.id, currentPeriodEnd, stripeSub.billingInterval, eventAt],
     );
-    return rows[0];
+    // Empty when an older (out-of-order) event was ignored: return the row as it stands.
+    if (rows[0]) return rows[0];
+    const { rows: current } = await q.query<Subscription>(`SELECT * FROM subscriptions WHERE stripe_sub_id = $1`, [stripeSub.id]);
+    return current[0] ?? null;
   },
 };

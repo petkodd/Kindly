@@ -14,6 +14,7 @@
     "admin:create": "node scripts/admin-create.mjs",
     "cron:weekly": "node scripts/cron.mjs weekly",
     "cron:purge": "node scripts/cron.mjs purge",
+    "cron:idle": "node scripts/cron.mjs idle",
     "beta:invite": "node scripts/beta-invite.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

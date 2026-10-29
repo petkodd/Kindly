@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm run cron:weekly | npm run cron:purge
+// npm run cron:weekly | npm run cron:purge | npm run cron:idle
 //
 // Calls the local job routes exactly as Vercel Cron does in production
 // (GET with "Authorization: Bearer $CRON_SECRET"). Needs `npm run dev`
@@ -11,6 +11,7 @@ import { loadLocalEnv } from './lib/env.mjs';
 export const JOBS = {
   weekly: '/api/jobs/generate-weekly-summary',
   purge: '/api/jobs/purge-hard-deletes',
+  idle: '/api/jobs/end-idle-sessions',
 };
 
 /**

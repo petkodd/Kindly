@@ -20,13 +20,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** Update the buyer's own profile (display name). */
+/** Update the buyer's own profile: display name, and weekly-summary auto-send (decision D5). */
 export async function PATCH(req: NextRequest) {
   const userId = await resolveBuyer(req);
   if (!userId) return unauthorized();
   try {
     const body = await readJsonBody(req);
-    const account = await userRepo.updateProfile(db(), userId, { fullName: body.full_name as string });
+    const account = await userRepo.updateProfile(db(), userId, {
+      fullName: body.full_name as string | undefined,
+      autoSendSummaries: body.auto_send_summaries,
+    });
     return NextResponse.json({ account });
   } catch (err) {
     const { status, body } = errorToResponse(err);
@@ -34,7 +37,12 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-/** Soft-delete the buyer's own account and end the session. */
+/**
+ * Delete the buyer's own account and end the session: cancels every
+ * subscription in Stripe first (503 and nothing deleted if Stripe can't be
+ * reached), revokes every parent talk link, then soft-deletes (hard purge
+ * after 30 days).
+ */
 export async function DELETE(req: NextRequest) {
   const userId = await resolveBuyer(req);
   if (!userId) return unauthorized();

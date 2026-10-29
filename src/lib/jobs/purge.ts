@@ -1,4 +1,5 @@
 import type { Querier } from '../querier';
+import { runInTransaction } from '../db';
 
 /**
  * `purge_hard_deletes` (daily cron): honor the delete promise. Accounts and
@@ -7,11 +8,16 @@ import type { Querier } from '../querier';
  * keeping the "your data is gone within 30 days" promise true.
  *
  * What one run does, in order:
- *  1. Anonymize the non-cascading references to purgeable users. Six columns
- *     reference users(id) without ON DELETE (consents.granted_by,
+ *  1. Per purgeable user, IN ITS OWN TRANSACTION, so one failure can't stop
+ *     the rest of the batch (a failure is counted and retried next run):
+ *     anonymize the non-cascading references to that user. Eight columns
+ *     reference users(id) without a cascading ON DELETE (consents.granted_by,
  *     memories.created_by, safety_flags.resolved_by,
  *     summary_deliveries.recipient_user, referrals.redeemed_by,
- *     audit_log.actor_id). Rows that live under the user's own parents cascade
+ *     audit_log.actor_id, beta_invites.redeemed_by_user_id,
+ *     beta_invites.created_by_user_id — the last two also have ON DELETE SET
+ *     NULL since migration 0017; listing them here keeps the purge correct
+ *     even before that migration runs). Rows that live under the user's own parents cascade
  *     away anyway; these NULLs cover rows OUTSIDE their cascade tree (e.g. a
  *     referral they redeemed, an audit row they wrote as admin) which would
  *     otherwise block the DELETE with an FK violation. The row survives,
@@ -38,6 +44,8 @@ export interface PurgeResult {
   /** ISO cutoff used: rows soft-deleted before this were purged. */
   cutoff: string;
   purgedUsers: number;
+  /** Users whose purge failed this run (left soft-deleted; retried next run). */
+  failedUsers: number;
   purgedParents: number;
   purgedTurns: number;
   purgedWaitlistSignups: number;
@@ -57,6 +65,8 @@ const USER_REF_NULLIFICATIONS: { table: string; column: string }[] = [
   { table: 'summary_deliveries', column: 'recipient_user' },
   { table: 'referrals', column: 'redeemed_by' },
   { table: 'audit_log', column: 'actor_id' },
+  { table: 'beta_invites', column: 'redeemed_by_user_id' },
+  { table: 'beta_invites', column: 'created_by_user_id' },
 ];
 
 export async function purgeHardDeletes(
@@ -69,47 +79,45 @@ export async function purgeHardDeletes(
   const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
   const waitlistCutoff = new Date(now.getTime() - waitlistRetentionDays * DAY_MS);
 
-  for (const { table, column } of USER_REF_NULLIFICATIONS) {
-    // Table/column names come from the constant above — never from input.
-    await q.query(
-      `UPDATE ${table} SET ${column} = NULL
-        WHERE ${column} IN (
-          SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1
-        )`,
-      [cutoff],
-    );
+  // Parents of purgeable buyers: their analytics events are anonymized with the buyer.
+  const { rows: purgeable } = await q.query<{ id: string }>(
+    `SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1 ORDER BY id`,
+    [cutoff],
+  );
+
+  let purgedUsers = 0;
+  let failedUsers = 0;
+  for (const { id: userId } of purgeable) {
+    try {
+      await runInTransaction(q, async (tx) => {
+        for (const { table, column } of USER_REF_NULLIFICATIONS) {
+          // Table/column names come from the constant above — never from input.
+          await tx.query(`UPDATE ${table} SET ${column} = NULL WHERE ${column} = $1`, [userId]);
+        }
+        // analytics_events has NO foreign keys, so a purge would never error —
+        // the ids would just silently outlive the delete. Anonymize explicitly,
+        // for the user and for every parent under them (which cascade below).
+        await tx.query(`UPDATE analytics_events SET user_id = NULL WHERE user_id = $1`, [userId]);
+        await tx.query(
+          `UPDATE analytics_events SET parent_id = NULL
+            WHERE parent_id IN (SELECT id FROM parents WHERE buyer_id = $1)`,
+          [userId],
+        );
+        // Parents and everything beneath them cascade with the user.
+        const { rowCount } = await tx.query(`DELETE FROM users WHERE id = $1 AND deleted_at IS NOT NULL`, [userId]);
+        purgedUsers += rowCount ?? 0;
+      });
+    } catch (err) {
+      failedUsers += 1;
+      // Never log the error detail (a pg detail can echo row values).
+      console.error('purge: user purge failed; will retry next run', userId, (err as { code?: string }).code ?? 'error');
+    }
   }
 
-  // analytics_events has NO foreign keys, so a purge would never error — the
-  // ids would just silently outlive the delete. Anonymize them explicitly:
-  // events of purgeable users, and events of parents that are about to go
-  // (soft-deleted past the window, or belonging to a purgeable buyer — a
-  // buyer's parents cascade even when never individually soft-deleted).
-  await q.query(
-    `UPDATE analytics_events SET user_id = NULL
-      WHERE user_id IN (
-        SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1
-      )`,
-    [cutoff],
-  );
+  // analytics_events for soft-deleted parents (whose buyer is alive) — no FK, so anonymize explicitly.
   await q.query(
     `UPDATE analytics_events SET parent_id = NULL
-      WHERE parent_id IN (
-        SELECT id FROM parents
-         WHERE (deleted_at IS NOT NULL AND deleted_at < $1)
-            OR buyer_id IN (SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1)
-      )`,
-    [cutoff],
-  );
-
-  // NOTE: the statements in this run auto-commit individually (Querier exposes
-  // no transaction). A mid-run crash leaves refs anonymized with the user row
-  // still present; every statement re-derives its set from deleted_at, so the
-  // next daily run completes the purge — self-healing, at the cost of possibly
-  // anonymizing a run early.
-  const users = await q.query(
-    `DELETE FROM users
-      WHERE deleted_at IS NOT NULL AND deleted_at < $1`,
+      WHERE parent_id IN (SELECT id FROM parents WHERE deleted_at IS NOT NULL AND deleted_at < $1)`,
     [cutoff],
   );
 
@@ -138,7 +146,8 @@ export async function purgeHardDeletes(
 
   return {
     cutoff: cutoff.toISOString(),
-    purgedUsers: users.rowCount ?? 0,
+    purgedUsers,
+    failedUsers,
     purgedParents: parents.rowCount ?? 0,
     purgedTurns: turns.rowCount ?? 0,
     purgedWaitlistSignups: waitlist.rowCount ?? 0,

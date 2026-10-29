@@ -61,7 +61,19 @@ describe('cron scripts', () => {
   it('always target the local dev server', () => {
     expect(jobUrl('weekly', {})).toBe('http://localhost:3000/api/jobs/generate-weekly-summary');
     expect(jobUrl('purge', { PORT: '4000' })).toBe('http://localhost:4000/api/jobs/purge-hard-deletes');
-    expect(Object.keys(JOBS)).toEqual(['weekly', 'purge']);
+    expect(Object.keys(JOBS)).toEqual(['weekly', 'purge', 'idle']);
+    expect(jobUrl('idle', {})).toBe('http://localhost:3000/api/jobs/end-idle-sessions');
+  });
+
+  it('every Vercel cron runs at most once a day (the Hobby plan rejects anything more frequent)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: { path: string; schedule: string }[] };
+    for (const { path, schedule } of vercel.crons) {
+      const [minute, hour] = schedule.trim().split(/\s+/);
+      // A fixed minute and a fixed hour = once per day (or less, via day/weekday fields).
+      expect(minute, `${path}: ${schedule}`).toMatch(/^\d{1,2}$/);
+      expect(hour, `${path}: ${schedule}`).toMatch(/^\d{1,2}$/);
+    }
   });
 
   it('match the routes scheduled in vercel.json', async () => {

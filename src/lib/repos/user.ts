@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Querier } from '../querier';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../types';
 import { EMAIL_RE } from '../validation';
+import { billingCancellation } from '../billing/cancel';
 
 /**
  * Buyer accounts. Passwords are stored as scrypt(salt, password) — never
@@ -21,6 +22,8 @@ export interface Account {
   full_name: string | null;
   is_admin: boolean;
   created_at: string;
+  /** Decision D5: weekly summaries are sent automatically on Monday when true. */
+  auto_send_summaries: boolean;
 }
 
 /** Buyer contact details used for P0/P1 safety alerts. */
@@ -186,7 +189,7 @@ export const userRepo = {
   /** The owner's own account (password hash never selected). */
   async getAccount(q: Querier, userId: string): Promise<Account> {
     const { rows } = await q.query<Account>(
-      `SELECT id, email, full_name, is_admin, created_at FROM users
+      `SELECT id, email, full_name, is_admin, created_at, auto_send_summaries FROM users
        WHERE id = $1 AND deleted_at IS NULL`,
       [userId],
     );
@@ -195,17 +198,25 @@ export const userRepo = {
   },
 
   /** Update the owner's display name. */
-  async updateProfile(q: Querier, userId: string, patch: { fullName?: string | null }): Promise<Account> {
+  async updateProfile(
+    q: Querier,
+    userId: string,
+    patch: { fullName?: string | null; autoSendSummaries?: unknown },
+  ): Promise<Account> {
     await userRepo.getAccount(q, userId); // ensures the account exists / not deleted
     const fullName = patch.fullName === undefined ? undefined : (patch.fullName ?? '').trim();
     if (fullName !== undefined && fullName.length > 120) {
       throw new ValidationError('name is too long');
     }
+    if (patch.autoSendSummaries !== undefined && typeof patch.autoSendSummaries !== 'boolean') {
+      throw new ValidationError('auto_send_summaries must be true or false');
+    }
     const { rows } = await q.query<Account>(
-      `UPDATE users SET full_name = COALESCE($2, full_name)
+      `UPDATE users SET full_name = COALESCE($2, full_name),
+                        auto_send_summaries = COALESCE($3, auto_send_summaries)
        WHERE id = $1
-       RETURNING id, email, full_name, is_admin, created_at`,
-      [userId, fullName ?? null],
+       RETURNING id, email, full_name, is_admin, created_at, auto_send_summaries`,
+      [userId, fullName ?? null, patch.autoSendSummaries ?? null],
     );
     return rows[0];
   },
@@ -243,7 +254,20 @@ export const userRepo = {
   },
 
   /** Soft-delete the owner's account + revoke its sessions immediately. */
+  /**
+   * Delete the account: cancel every subscription the buyer pays for (Stripe
+   * first; throws BillingUnavailableError and deletes nothing if Stripe can't
+   * be reached), revoke every parent talk link so nobody can keep talking on
+   * the deleted account, then soft-delete (hard purge after 30 days).
+   * Idempotent: safe to retry after a failure at any step.
+   */
   async softDelete(q: Querier, userId: string): Promise<void> {
+    await billingCancellation.cancelForBuyer(q, userId);
+    await q.query(
+      `UPDATE parent_access_tokens SET revoked_at = now()
+        WHERE revoked_at IS NULL AND parent_id IN (SELECT id FROM parents WHERE buyer_id = $1)`,
+      [userId],
+    );
     await q.query(
       `UPDATE users SET deleted_at = now(), sessions_valid_from = now()
        WHERE id = $1 AND deleted_at IS NULL`,

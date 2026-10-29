@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { isAuthorizedCron } from '@/lib/auth';
@@ -34,6 +35,15 @@ export async function GET(req: NextRequest) {
       console.info(
         `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents, ${result.purgedTurns} turns, ${result.purgedWaitlistSignups} waitlist signups (cutoff ${result.cutoff})`,
       );
+    }
+    if (result.failedUsers > 0) {
+      // The deletion promise ("gone within 30 days") is at risk: a human must look.
+      console.error(`purge-hard-deletes: ${result.failedUsers} user purge(s) failed; retried next run`);
+      Sentry.captureMessage('purge-hard-deletes: user purge failed', {
+        level: 'error',
+        tags: { area: 'purge' },
+        extra: { failedUsers: result.failedUsers },
+      });
     }
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

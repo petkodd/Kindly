@@ -57,8 +57,8 @@ export default function FamilySummaryPage() {
               </h1>
               <p className="mt-2 text-base text-muted">
                 {isSelf
-                  ? 'A warm, private recap built only from this week’s conversations. Preview it, then send it to anyone you’d like to keep in the loop.'
-                  : 'A warm, family-safe recap built only from this week’s conversations. Preview it, then send it to the people who’ve been invited.'}
+                  ? 'A warm, private recap built only from last week’s conversations. Preview it, then send it to anyone you’d like to keep in the loop.'
+                  : 'A warm, family-safe recap built only from last week’s conversations. Preview it, then send it to the people who’ve been invited.'}
               </p>
             </div>
 
@@ -202,7 +202,7 @@ function PreviewCard({
       <div className="mt-6 border-t border-line pt-6">
         {sent ? (
           <p className="text-base text-muted">
-            This week&rsquo;s summary has been sent. You can send it again if you invite more
+            Last week&rsquo;s summary has been sent. You can send it again if you invite more
             recipients.
           </p>
         ) : (
@@ -229,13 +229,72 @@ function PreviewCard({
             disabled={busy}
             className="btn-primary mt-4 disabled:opacity-60"
           >
-            {busy ? 'Sending…' : sent ? 'Send again' : 'Send this week’s summary'}
+            {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
           </button>
         )}
 
         {status && <p className="mt-3 text-sm text-muted">{status}</p>}
+
+        <AutoSendToggle />
       </div>
     </section>
+  );
+}
+
+/**
+ * Decision D5: the buyer opts in to automatic sending. When on, the summary
+ * for the week that just ended goes to accepted recipients every Monday.
+ */
+function AutoSendToggle() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<{ account: { auto_send_summaries?: boolean } }>('/api/me')
+      .then((r) => active && setOn(!!r.account.auto_send_summaries))
+      .catch(() => active && setOn(null));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (on === null) return null;
+
+  async function toggle(next: boolean) {
+    setSaving(true);
+    setNote('');
+    try {
+      const r = await api.patch<{ account: { auto_send_summaries: boolean } }>('/api/me', { auto_send_summaries: next });
+      setOn(r.account.auto_send_summaries);
+      setNote(next ? 'Summaries will be sent automatically every Monday.' : 'Automatic sending is off.');
+    } catch {
+      setNote('Could not save that setting. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-base text-ink">
+        <input
+          type="checkbox"
+          className="h-6 w-6 accent-sageDeep"
+          checked={on}
+          disabled={saving}
+          onChange={(e) => void toggle(e.target.checked)}
+        />
+        Send it automatically every Monday
+      </label>
+      {note && (
+        <p role="status" className="mt-1 text-base text-muted">
+          {note}
+        </p>
+      )}
+    </div>
   );
 }
 

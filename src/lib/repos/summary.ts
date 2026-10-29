@@ -70,6 +70,17 @@ export function weekBounds(ref: Date = new Date()): WeekBounds {
   };
 }
 
+/**
+ * A reference timestamp inside the most recently *completed* ISO week. Weekly
+ * summaries always cover a full Monday–Sunday week that has ended (decision
+ * D5): the cron, the manual send and the preview all use this, so the buyer
+ * previews exactly what will be sent and never a half-finished week.
+ */
+export function lastCompletedWeekRef(now: Date = new Date()): Date {
+  // 1ms before this week's Monday lands on last week's Sunday 23:59:59.999.
+  return new Date(weekBounds(now).startTs.getTime() - 1);
+}
+
 /** P0/P1 safety flags this week, reduced to what the summary may act on. */
 export interface WeekCrisisFlags {
   /** At least one P0/P1 flag is still open or in review. */
@@ -134,37 +145,75 @@ function composeBody(
   return { bodyShort, bodyLong: lines.join('\n'), hasConcern };
 }
 
+/** Read a week's signals and compose the family-facing body. No writes. */
+async function composeWeek(q: Querier, parentId: string, firstName: string, b: WeekBounds) {
+  const { rows: convRows } = await q.query<ConversationRow>(
+    `SELECT summary_text, mood_signal
+       FROM conversations
+      WHERE parent_id = $1 AND started_at >= $2 AND started_at < $3
+      ORDER BY started_at ASC`,
+    [parentId, b.startTs, b.nextStartTs],
+  );
+  const crisisFlags = await safetyFlagRepo.listCrisisForPeriod(q, parentId, b.startTs, b.nextStartTs);
+  const crisis: WeekCrisisFlags = {
+    unresolved: crisisFlags.some((f) => f.status === 'open' || f.status === 'reviewing'),
+    reviewed: crisisFlags.some((f) => f.status === 'resolved'),
+  };
+  return composeBody(firstName, convRows, crisis);
+}
+
 export const summaryRepo = {
   weekBounds,
+  lastCompletedWeekRef,
 
   /**
    * Generate (or refresh) the current-week preview for a parent and return it.
    * Idempotent per (parent_id, period_start). A summary that has already been
    * sent is returned untouched — we never silently regenerate sent history.
    */
+  /**
+   * Read-only preview of a week's summary: the stored row when it was
+   * already sent (sent history never changes), otherwise freshly composed
+   * from the week's conversations WITHOUT writing anything. `id` is the
+   * stored row's id when one exists, else null. Defaults to the last full week.
+   */
+  async peek(
+    q: Querier,
+    parentId: string,
+    firstName: string,
+    ref: Date = lastCompletedWeekRef(),
+  ): Promise<Omit<WeeklySummary, 'id' | 'generated_at'> & { id: string | null; generated_at: string | null }> {
+    const b = weekBounds(ref);
+    const { rows } = await q.query<WeeklySummary>(
+      `SELECT * FROM weekly_summaries WHERE parent_id = $1 AND period_start = $2`,
+      [parentId, b.periodStart],
+    );
+    const existing = rows[0] ? normalizeSummaryRow(rows[0]) : undefined;
+    if (existing?.status === 'sent') return existing;
+    const { bodyLong, bodyShort, hasConcern } = await composeWeek(q, parentId, firstName, b);
+    return {
+      ...(existing ?? ({} as Partial<WeeklySummary>)),
+      id: existing?.id ?? null,
+      parent_id: parentId,
+      period_start: b.periodStart,
+      period_end: b.periodEnd,
+      status: existing?.status ?? 'preview',
+      body_long: bodyLong,
+      body_short: bodyShort,
+      has_concern: hasConcern,
+      generated_at: existing?.generated_at ?? null,
+    } as Omit<WeeklySummary, 'id' | 'generated_at'> & { id: string | null; generated_at: string | null };
+  },
+
   async preview(
     q: Querier,
     parentId: string,
     firstName: string,
-    ref: Date = new Date(),
+    ref: Date = lastCompletedWeekRef(),
   ): Promise<WeeklySummary> {
     const b = weekBounds(ref);
 
-    const { rows: convRows } = await q.query<ConversationRow>(
-      `SELECT summary_text, mood_signal
-         FROM conversations
-        WHERE parent_id = $1 AND started_at >= $2 AND started_at < $3
-        ORDER BY started_at ASC`,
-      [parentId, b.startTs, b.nextStartTs],
-    );
-
-    const crisisFlags = await safetyFlagRepo.listCrisisForPeriod(q, parentId, b.startTs, b.nextStartTs);
-    const crisis: WeekCrisisFlags = {
-      unresolved: crisisFlags.some((f) => f.status === 'open' || f.status === 'reviewing'),
-      reviewed: crisisFlags.some((f) => f.status === 'resolved'),
-    };
-
-    const { bodyLong, bodyShort, hasConcern } = composeBody(firstName, convRows, crisis);
+    const { bodyLong, bodyShort, hasConcern } = await composeWeek(q, parentId, firstName, b);
 
     // Refresh an existing week's row in place — but never rewrite one that has
     // already been sent (sent history is immutable).
@@ -235,7 +284,8 @@ export const summaryRepo = {
     q: Querier,
     parentId: string,
     firstName: string,
-    ref: Date = new Date(),
+    // Decision D5: a manual send covers the last FULL week, like the cron.
+    ref: Date = lastCompletedWeekRef(),
   ): Promise<{ summary: WeeklySummary; deliveries: SummaryDelivery[] }> {
     // Only ACCEPTED recipients — a pending (unaccepted) invite must never
     // receive a summary.
