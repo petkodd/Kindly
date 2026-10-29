@@ -12,7 +12,8 @@ interface Memory {
   mem_key: string;
   mem_value: string;
   status: 'proposed' | 'confirmed' | 'retired';
-  sensitivity: 'normal' | 'sensitive' | 'restricted';
+  // The API never returns restricted rows (decision D6).
+  sensitivity: 'normal' | 'sensitive';
 }
 
 export default function MemoriesPage() {
@@ -160,9 +161,9 @@ function MemoryRow({
             <span className="text-xs uppercase tracking-wide text-muted">
               {LAYER_LABEL[memory.layer]}
             </span>
-            {memory.sensitivity !== 'normal' && (
+            {memory.sensitivity === 'sensitive' && (
               <span className="rounded-full border border-clay px-2 py-0.5 text-xs font-semibold text-clay">
-                {memory.sensitivity === 'restricted' ? 'Private — not shared' : 'Sensitive'}
+                Sensitive
               </span>
             )}
           </div>

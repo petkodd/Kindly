@@ -18,7 +18,7 @@ import {
   CONVERSATION_SUMMARY_SYSTEM_V1,
   DEFAULT_COMPANION_MODEL_V2,
   DEFAULT_SAFETY_MODEL_V2,
-  MEMORY_EXTRACTION_SYSTEM_V1,
+  MEMORY_EXTRACTION_SYSTEM_V2,
   SAFETY_SCAN_MAX_TOKENS_V2,
   SAFETY_SCAN_SYSTEM_V2,
   renderCompanionContextV2,
@@ -157,7 +157,7 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
       const transcript = turns.map((t) => `${t.role}: ${t.content}`).join('\n');
       const { candidates } = await jsonCall<{ candidates: MemoryCandidate[] }>(
         'extractMemories',
-        MEMORY_EXTRACTION_SYSTEM_V1,
+        MEMORY_EXTRACTION_SYSTEM_V2,
         transcript,
         {
           type: 'object',

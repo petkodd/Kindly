@@ -218,21 +218,30 @@ describe('memory approval semantics + restricted exclusion', () => {
     expect(still?.id).toBe(m.id);
   });
 
-  it('FAMILY VIEW never includes restricted memories or unconfirmed ones', async () => {
+  it('restricted details are never stored as memories (D6): the repo refuses and the schema forbids them', async () => {
+    const { parentId } = await seedParent();
+    await expect(
+      memoryRepo.add(q, {
+        parentId, layer: 'sensitive', key: 'mood', value: 'felt low Tuesday',
+        source: 'conversation', sensitivity: 'restricted',
+      }),
+    ).rejects.toThrow(/sensitivity is invalid/);
+    await expect(
+      q.query(
+        `INSERT INTO memories (parent_id, layer, mem_key, mem_value, source, status, sensitivity)
+         VALUES ($1, 'sensitive', 'mood', 'x', 'conversation', 'confirmed', 'restricted')`,
+        [parentId],
+      ),
+    ).rejects.toThrow();
+    expect(await memoryRepo.list(q, parentId)).toHaveLength(0);
+  });
+
+  it('FAMILY VIEW never includes unconfirmed memories', async () => {
     const { parentId } = await seedParent();
     // Confirmed, normal — should appear.
     await memoryRepo.add(q, {
       parentId, layer: 'core', key: 'hometown', value: 'Detroit', source: 'onboarding',
     });
-    // Confirmed but restricted (health) — must be excluded.
-    await memoryRepo.add(q, {
-      parentId, layer: 'sensitive', key: 'mood', value: 'felt low Tuesday',
-      source: 'conversation', sensitivity: 'restricted',
-    });
-    // Manually confirm the restricted one to prove sensitivity (not status) excludes it.
-    const all = await memoryRepo.list(q, parentId);
-    const restricted = all.find((m) => m.sensitivity === 'restricted')!;
-    await q.query(`UPDATE memories SET status = 'confirmed' WHERE id = $1`, [restricted.id]);
     // Proposed, normal — excluded because not confirmed.
     await memoryRepo.add(q, {
       parentId, layer: 'interest', key: 'food', value: 'pie', source: 'conversation',
@@ -241,7 +250,6 @@ describe('memory approval semantics + restricted exclusion', () => {
     const family = await memoryRepo.listForFamily(q, parentId);
     const keys = family.map((m) => m.mem_key);
     expect(keys).toContain('hometown');
-    expect(keys).not.toContain('mood'); // restricted excluded
     expect(keys).not.toContain('food'); // unconfirmed excluded
   });
 

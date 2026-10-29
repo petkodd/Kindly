@@ -2,10 +2,60 @@ import type { Querier } from '../querier';
 import {
   type Parent,
   type Relationship,
+  PARENT_LANGUAGES,
+  PARENT_SHORT_FIELD_MAX,
+  SPEECH_RATES,
   NotFoundError,
   PreconditionError,
   ValidationError,
 } from '../types';
+
+/** Optional short text (pronouns, city): trimmed, empty → null, capped. */
+function shortText(value: unknown, field: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new ValidationError(`${field} must be text`);
+  const t = value.trim();
+  if (t.length > PARENT_SHORT_FIELD_MAX) {
+    throw new ValidationError(`${field} must be ${PARENT_SHORT_FIELD_MAX} characters or fewer`);
+  }
+  return t || null;
+}
+
+function checkEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!allowed.includes(value as T)) throw new ValidationError(`${field} is invalid`);
+  return value as T;
+}
+
+function checkBool(value: unknown, field: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') throw new ValidationError(`${field} must be true or false`);
+  return value;
+}
+
+/**
+ * Validate the profile fields a buyer can set. These values reach the
+ * companion's prompt (pronouns, city) and the speech providers (language,
+ * speech_rate), so they are capped and allow-listed on every write.
+ */
+export function validateParentFields(input: {
+  pronouns?: unknown;
+  city?: unknown;
+  language?: unknown;
+  speechRate?: unknown;
+  largeText?: unknown;
+  voiceFirst?: unknown;
+}) {
+  return {
+    pronouns: shortText(input.pronouns, 'pronouns'),
+    city: shortText(input.city, 'city'),
+    language: checkEnum(input.language, PARENT_LANGUAGES, 'language'),
+    speechRate: checkEnum(input.speechRate, SPEECH_RATES, 'speech_rate'),
+    largeText: checkBool(input.largeText, 'large_text'),
+    voiceFirst: checkBool(input.voiceFirst, 'voice_first'),
+  };
+}
 import { consentRepo } from './consent';
 
 const RELATIONSHIPS: Relationship[] = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other', 'self'];
@@ -27,6 +77,7 @@ export const parentRepo = {
     const firstName = (input.firstName ?? '').trim();
     if (!firstName) throw new ValidationError('firstName is required');
     if (firstName.length > 80) throw new ValidationError('firstName is too long');
+    const fields = validateParentFields(input);
     if (!RELATIONSHIPS.includes(input.relationship)) {
       throw new ValidationError('relationship is invalid');
     }
@@ -41,13 +92,13 @@ export const parentRepo = {
       [
         input.buyerId,
         firstName,
-        input.pronouns ?? null,
+        fields.pronouns ?? null,
         input.relationship,
-        input.city ?? null,
-        input.language ?? 'en-US',
-        input.largeText ?? true,
-        input.voiceFirst ?? true,
-        input.speechRate ?? 'slow',
+        fields.city ?? null,
+        fields.language ?? 'en-US',
+        fields.largeText ?? true,
+        fields.voiceFirst ?? true,
+        fields.speechRate ?? 'slow',
       ],
     );
     return rows[0];
@@ -102,6 +153,14 @@ export const parentRepo = {
     patch: Partial<Pick<Parent, 'pronouns' | 'city' | 'language' | 'large_text' | 'voice_first' | 'speech_rate'>>,
   ): Promise<Parent> {
     await parentRepo.getOwned(q, parentId, buyerId); // enforces isolation
+    const f = validateParentFields({
+      pronouns: patch.pronouns,
+      city: patch.city,
+      language: patch.language,
+      speechRate: patch.speech_rate,
+      largeText: patch.large_text,
+      voiceFirst: patch.voice_first,
+    });
     const { rows } = await q.query<Parent>(
       `UPDATE parents SET
          pronouns    = COALESCE($3, pronouns),
@@ -115,12 +174,12 @@ export const parentRepo = {
       [
         parentId,
         buyerId,
-        patch.pronouns ?? null,
-        patch.city ?? null,
-        patch.language ?? null,
-        patch.large_text ?? null,
-        patch.voice_first ?? null,
-        patch.speech_rate ?? null,
+        f.pronouns ?? null,
+        f.city ?? null,
+        f.language ?? null,
+        f.largeText ?? null,
+        f.voiceFirst ?? null,
+        f.speechRate ?? null,
       ],
     );
     return rows[0];

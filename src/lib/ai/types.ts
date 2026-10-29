@@ -33,6 +33,8 @@ export interface RetrievedMemory {
   layer: MemoryLayer;
   key: string;
   value: string;
+  /** 'sensitive' memories are rendered in their own "never bring up first" block. */
+  sensitivity?: Sensitivity;
 }
 
 /** Minimal parent context the companion needs to personalize a reply. */

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     const memories: RetrievedMemory[] = (
       await memoryRepo.retrieveForCompanion(pool, parentId)
-    ).map((m) => ({ layer: m.layer, key: m.mem_key, value: m.mem_value }));
+    ).map((m) => ({ layer: m.layer, key: m.mem_key, value: m.mem_value, sensitivity: m.sensitivity }));
 
     // Scan → reply → banned-output filter → crisis prefix, plus D2 alerting.
     const { replyText } = await runCompanionTurn(pool, {

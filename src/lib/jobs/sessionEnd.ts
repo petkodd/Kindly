@@ -4,9 +4,10 @@ import type { AiClient, ConversationTurn, MoodSignal } from '../ai';
 import { getAiClient } from '../ai';
 import { sanitizeFamilySummary } from '../ai/prompts';
 import { conversationRepo } from '../repos/conversation';
-import { memoryRepo } from '../repos/memory';
+import { containsSecretDetail, memoryRepo } from '../repos/memory';
 import { parentRepo } from '../repos/parent';
 import { auditRepo } from '../repos/audit';
+import { EPISODIC_DECAY_DAYS, ValidationError } from '../types';
 
 /**
  * Session-end jobs from api_plan_v1.md, run when a conversation ends:
@@ -125,18 +126,44 @@ export async function runSessionEndJobs(
   let memoriesProposed = 0;
   if (needsExtraction) {
     const candidates = await ai.extractMemories({ turns });
+    const decayAt = new Date(Date.now() + EPISODIC_DECAY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    let dropped = 0;
     for (const c of candidates) {
       if (c.confidence < minConfidence) continue;
-      await memoryRepo.add(q, {
-        parentId: convo.parent_id,
-        layer: c.layer,
-        key: c.key,
-        value: c.value,
-        source: 'conversation',
-        sensitivity: c.sensitivity,
-      });
-      memoriesProposed += 1;
+      // Decision D6: restricted candidates (health, mood, risk) are dropped,
+      // never stored as reviewable memories. Safety concerns are already
+      // caught per turn by the safety scan (src/lib/ai/turn.ts), which is the
+      // only place such signals live.
+      if (c.sensitivity === 'restricted') {
+        dropped += 1;
+        continue;
+      }
+      // Never propose a PIN, password or account number for family review,
+      // even if the model ignored MEMORY_EXTRACTION_SYSTEM_V2.
+      if (containsSecretDetail(`${c.key} ${c.value}`)) {
+        dropped += 1;
+        continue;
+      }
+      try {
+        await memoryRepo.add(q, {
+          parentId: convo.parent_id,
+          layer: c.layer,
+          key: c.key,
+          value: c.value,
+          source: 'conversation',
+          sensitivity: c.sensitivity,
+          // Episodic memories are time-bound by definition; they fade.
+          decayAt: c.layer === 'episodic' ? decayAt : null,
+        });
+        memoriesProposed += 1;
+      } catch (err) {
+        // A malformed or over-long candidate must not stop the others. Never
+        // log the candidate text (it is personal data).
+        if (!(err instanceof ValidationError)) throw err;
+        dropped += 1;
+      }
     }
+    if (dropped > 0) console.info(`session-end: dropped ${dropped} memory candidate(s) for ${conversationId}`);
     await conversationRepo.markMemoriesExtracted(q, conversationId);
   }
 

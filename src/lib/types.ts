@@ -10,6 +10,24 @@ export type MemorySource = 'onboarding' | 'conversation' | 'family';
 export type MemoryStatus = 'proposed' | 'confirmed' | 'retired';
 export type Sensitivity = 'normal' | 'sensitive' | 'restricted';
 
+/** Layers a buyer may write to. */
+export const MEMORY_LAYERS: MemoryLayer[] = ['profile', 'core', 'interest', 'episodic', 'sensitive'];
+/**
+ * Sensitivities a memory may be STORED with. 'restricted' (health, mood, risk)
+ * is never stored as a memory (decision D6): it stays a safety signal only.
+ */
+export const STORABLE_SENSITIVITIES: Exclude<Sensitivity, 'restricted'>[] = ['normal', 'sensitive'];
+/** Server caps, shared with the UI (chat 12 shows them on the form). */
+export const MEMORY_KEY_MAX = 64;
+export const MEMORY_VALUE_MAX = 300;
+/** Episodic memories fade after this long (they are time-bound by definition). */
+export const EPISODIC_DECAY_DAYS = 30;
+
+/** Talk languages the app supports (speech-to-text + profile picker). */
+export const PARENT_LANGUAGES = ['en-US', 'en-GB', 'es-US', 'fr-FR', 'de-DE'] as const;
+export const SPEECH_RATES = ['slow', 'normal'] as const;
+export const PARENT_SHORT_FIELD_MAX = 40;
+
 export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary_recipient';
 
 export type SummaryStatus = 'draft' | 'preview' | 'sent';

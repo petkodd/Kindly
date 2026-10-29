@@ -28,8 +28,8 @@ describe('renderCompanionContextV2', () => {
       memories: [{ layer: 'interest', key: 'music', value: 'Glenn Miller' }],
       isSessionOpen: true,
     });
-    expect(out).toContain('PARENT PROFILE — first name: Ruth, city: Tulsa.');
-    expect(out).toContain('- [interest] music: Glenn Miller');
+    expect(out).toContain('<parent_profile>\nfirst name: Ruth, city: Tulsa\n</parent_profile>');
+    expect(out).toContain('<memories>\n- [interest] music: Glenn Miller\n</memories>');
     expect(out).toMatch(/first turn of the session/);
   });
 
