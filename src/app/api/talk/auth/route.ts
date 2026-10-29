@@ -5,6 +5,8 @@ import { accessTokenRepo } from '@/lib/repos/accessToken';
 import { attachParentToken } from '@/lib/parentSession';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { NotFoundError, RateLimitError } from '@/lib/types';
+import { parentRepo } from '@/lib/repos/parent';
+import { talkContextFor, type TalkContextPayload } from '@/lib/talk/serverContext';
 
 const unauthorized = () =>
   NextResponse.json({ error: { code: 'unauthorized', message: 'Invalid or expired link.' } }, { status: 401 });
@@ -30,13 +32,22 @@ export async function POST(req: NextRequest) {
 
     const body = await readJsonBody(req);
     const token = (body.token as string) ?? '';
+    let parentId: string;
     try {
-      await accessTokenRepo.resolveParentId(pool, token);
+      parentId = await accessTokenRepo.resolveParentId(pool, token);
     } catch (err) {
       if (err instanceof NotFoundError) return unauthorized();
       throw err;
     }
-    return attachParentToken(NextResponse.json({ ok: true }), token);
+    // Who to name in "Please ask Sarah to send you a new link." Only after the
+    // token is proven valid; best-effort, never blocks the exchange.
+    let context: TalkContextPayload = { family_first_name: null, link_owner: 'family' };
+    try {
+      context = await talkContextFor(pool, await parentRepo.getById(pool, parentId));
+    } catch (err) {
+      console.error('talk context lookup failed', err);
+    }
+    return attachParentToken(NextResponse.json({ ok: true, ...context }), token);
   } catch (err) {
     const { status, body } = errorToResponse(err);
     return NextResponse.json(body, { status });
