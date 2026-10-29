@@ -20,6 +20,11 @@ const csp = [
   "form-action 'self'",
   "img-src 'self' data: https:",
   "font-src 'self' https://fonts.gstatic.com data:",
+  // Spoken replies arrive as data:audio/mp3 URLs (src/lib/speech/providers.ts)
+  // and the talk screen unlocks playback with a data: WAV. Without media-src
+  // they fall back to default-src 'self' and the browser refuses to play them.
+  // blob: covers a future streamed/object-URL player.
+  "media-src 'self' data: blob:",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io",
