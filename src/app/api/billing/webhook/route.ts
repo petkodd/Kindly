@@ -51,24 +51,43 @@ export async function POST(req: NextRequest) {
 
   const pool = db();
 
+  // Idempotency: a redelivered event that was already applied is acknowledged and skipped.
+  // (Real Stripe events always carry an id and a created time; the guards keep
+  // a malformed payload from crashing the handler.)
+  if (event.id) {
+    const { rows: seen } = await pool.query(`SELECT 1 FROM stripe_events WHERE id = $1`, [event.id]);
+    if (seen.length > 0) return NextResponse.json({ received: true, duplicate: true });
+  }
+
+  // Stripe's own timestamp for this event; older events never overwrite newer state.
+  const eventAt = Number.isFinite(event.created) ? new Date(event.created * 1000) : new Date();
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         if (typeof session.subscription === 'string') {
           const subscription = await getStripeClient().subscriptions.retrieve(session.subscription);
-          await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription));
+          // Read fresh from Stripe, so it is current state as of now.
+          await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription), eventAt);
         }
         break;
       }
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription));
+        await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription), eventAt);
         break;
       }
       default:
         break; // other event types are not relevant to billing state
+    }
+    // Recorded only after it was applied, so a failure above lets Stripe retry it.
+    if (event.id) {
+      await pool.query(
+        `INSERT INTO stripe_events (id, type) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
+        [event.id, event.type],
+      );
     }
   } catch (err) {
     // A genuinely unexpected failure (DB unreachable, etc.) — 500 so Stripe's
