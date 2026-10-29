@@ -55,7 +55,7 @@ export interface CompanionReplyInput {
   profile: CompanionProfile;
   /** Top-K confirmed, non-restricted memories (retrieval is the caller's job). */
   memories: RetrievedMemory[];
-  /** Recent turns, oldest first, already trimmed to the token budget. */
+  /** Recent turns, oldest first. Callers trim with trimHistory() (src/lib/ai/history.ts): last 20 turns within ~1,800 tokens. */
   history: ConversationTurn[];
   /** The parent's latest message. */
   message: string;
@@ -74,8 +74,20 @@ export interface CompanionReplyInput {
   violations?: string[];
 }
 
+/**
+ * Tokens one model call used, as reported by the provider. Only the real
+ * client sets it; the fake leaves it undefined, so simulated turns never
+ * write LLM cost rows.
+ */
+export interface AiUsage {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface CompanionReply {
   text: string;
+  usage?: AiUsage;
 }
 
 export interface SafetyScanInput {
@@ -87,6 +99,7 @@ export interface SafetyScanInput {
 export interface SafetyScan {
   severity: SafetySeverity;
   rationale: string;
+  usage?: AiUsage;
 }
 
 export interface MemoryExtractionInput {
@@ -103,6 +116,11 @@ export interface MemoryCandidate {
   confidence: number;
 }
 
+export interface MemoryExtraction {
+  candidates: MemoryCandidate[];
+  usage?: AiUsage;
+}
+
 export interface ConversationSummaryInput {
   firstName: string;
   turns: ConversationTurn[];
@@ -113,6 +131,7 @@ export interface ConversationSummary {
   summaryText: string;
   /** Coarse mood; null when there isn't a clear signal. */
   moodSignal: MoodSignal | null;
+  usage?: AiUsage;
 }
 
 /**
@@ -125,7 +144,7 @@ export interface AiClient {
   /** (1) Lightweight safety pre-scan run on each parent turn. */
   safetyScan(input: SafetyScanInput): Promise<SafetyScan>;
   /** (3) Async post-turn extraction of candidate memories. */
-  extractMemories(input: MemoryExtractionInput): Promise<MemoryCandidate[]>;
+  extractMemories(input: MemoryExtractionInput): Promise<MemoryExtraction>;
   /** (4) Session-end conversation summary + mood signal. */
   summarizeConversation(input: ConversationSummaryInput): Promise<ConversationSummary>;
 }

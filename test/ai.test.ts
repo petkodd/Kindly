@@ -66,7 +66,7 @@ describe('fake safety scan (keyword tiers)', () => {
 
 describe('fake memory extraction', () => {
   it('extracts an interest and flags a low-mood moment as restricted', async () => {
-    const candidates = await fakeAiClient.extractMemories({
+    const { candidates } = await fakeAiClient.extractMemories({
       turns: [
         { role: 'parent', content: 'I love gardening in the spring' },
         { role: 'parent', content: 'I feel a bit lonely today' },
@@ -81,7 +81,7 @@ describe('fake memory extraction', () => {
   });
 
   it('returns nothing when no durable facts are shared', async () => {
-    const candidates = await fakeAiClient.extractMemories({
+    const { candidates } = await fakeAiClient.extractMemories({
       turns: [{ role: 'parent', content: 'mm, okay' }],
     });
     expect(candidates).toHaveLength(0);

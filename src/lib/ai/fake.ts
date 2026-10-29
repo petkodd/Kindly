@@ -5,6 +5,7 @@ import type {
   ConversationSummary,
   ConversationSummaryInput,
   MemoryCandidate,
+  MemoryExtraction,
   MemoryExtractionInput,
   MoodSignal,
   SafetyScan,
@@ -78,7 +79,7 @@ export const fakeAiClient: AiClient = {
     return { severity: 'none', rationale: 'no safety concern detected' };
   },
 
-  async extractMemories({ turns }: MemoryExtractionInput): Promise<MemoryCandidate[]> {
+  async extractMemories({ turns }: MemoryExtractionInput): Promise<MemoryExtraction> {
     const candidates: MemoryCandidate[] = [];
     for (const turn of turns) {
       if (turn.role !== 'parent') continue;
@@ -102,7 +103,7 @@ export const fakeAiClient: AiClient = {
         });
       }
     }
-    return candidates;
+    return { candidates };
   },
 
   async summarizeConversation({

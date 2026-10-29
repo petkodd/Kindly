@@ -7,6 +7,7 @@ import { conversationRepo } from '../repos/conversation';
 import { containsSecretDetail, memoryRepo } from '../repos/memory';
 import { parentRepo } from '../repos/parent';
 import { auditRepo } from '../repos/audit';
+import { usageCostRepo } from '../repos/usageCost';
 import { EPISODIC_DECAY_DAYS, ValidationError } from '../types';
 
 /**
@@ -96,6 +97,12 @@ export async function runSessionEndJobs(
   // summarize_conversation
   if (needsSummary) {
     const summary = await ai.summarizeConversation({ firstName: parent.first_name, turns });
+    await usageCostRepo.recordLlmUsages(q, {
+      turnId: null,
+      conversationId,
+      parentId: convo.parent_id,
+      usages: [{ usage: summary.usage, operation: 'summary' }],
+    });
     // Code-level backstop: never surface restricted detail to family, even if
     // the model ignored the prompt. A redaction firing means
     // CONVERSATION_SUMMARY_SYSTEM_V1 was NOT followed in production — that's
@@ -125,7 +132,13 @@ export async function runSessionEndJobs(
   // extract_memory_candidates — proposed memories await parent/buyer confirmation.
   let memoriesProposed = 0;
   if (needsExtraction) {
-    const candidates = await ai.extractMemories({ turns });
+    const { candidates, usage: extractionUsage } = await ai.extractMemories({ turns });
+    await usageCostRepo.recordLlmUsages(q, {
+      turnId: null,
+      conversationId,
+      parentId: convo.parent_id,
+      usages: [{ usage: extractionUsage, operation: 'extraction' }],
+    });
     const decayAt = new Date(Date.now() + EPISODIC_DECAY_DAYS * 24 * 60 * 60 * 1000).toISOString();
     let dropped = 0;
     for (const c of candidates) {

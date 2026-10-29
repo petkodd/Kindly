@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { Message, MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type {
   AiClient,
+  AiUsage,
+  MemoryExtraction,
   CompanionReply,
   CompanionReplyInput,
   ConversationSummary,
@@ -48,6 +50,15 @@ function warnIfUnsignedModels(): void {
         'update the defaults in prompts.ts and get a new sign-off.',
     );
   }
+}
+
+/** The provider's token counts for one call. Exported for unit testing. */
+export function usageOf(message: Message, model: string): AiUsage {
+  return {
+    model,
+    inputTokens: message.usage?.input_tokens ?? 0,
+    outputTokens: message.usage?.output_tokens ?? 0,
+  };
 }
 
 function textOf(message: Message): string {
@@ -112,7 +123,7 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
     schema: Record<string, unknown>,
     maxTokens: number,
     model: string = MODEL,
-  ): Promise<T> {
+  ): Promise<{ value: T; usage: AiUsage }> {
     const message = await client.messages.create({
       model,
       max_tokens: maxTokens,
@@ -120,7 +131,7 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
       messages: [{ role: 'user', content: userText }],
       output_config: { format: { type: 'json_schema', schema } },
     });
-    return parseJson<T>(message, where);
+    return { value: parseJson<T>(message, where), usage: usageOf(message, model) };
   }
 
   return {
@@ -131,11 +142,11 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
         system: `${COMPANION_SYSTEM_V2}\n\n${renderCompanionContextV2(input)}`,
         messages: buildCompanionMessages(input),
       });
-      return { text: requireText(message, 'companionReply') };
+      return { text: requireText(message, 'companionReply'), usage: usageOf(message, MODEL) };
     },
 
     async safetyScan({ message, history }: SafetyScanInput): Promise<SafetyScan> {
-      return jsonCall<SafetyScan>(
+      const { value, usage } = await jsonCall<SafetyScan>(
         'safetyScan',
         SAFETY_SCAN_SYSTEM_V2,
         renderSafetyScanInputV2({ message, history }),
@@ -151,11 +162,12 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
         SAFETY_SCAN_MAX_TOKENS_V2,
         SAFETY_MODEL,
       );
+      return { ...value, usage };
     },
 
-    async extractMemories({ turns }: MemoryExtractionInput): Promise<MemoryCandidate[]> {
+    async extractMemories({ turns }: MemoryExtractionInput): Promise<MemoryExtraction> {
       const transcript = turns.map((t) => `${t.role}: ${t.content}`).join('\n');
-      const { candidates } = await jsonCall<{ candidates: MemoryCandidate[] }>(
+      const { value, usage } = await jsonCall<{ candidates: MemoryCandidate[] }>(
         'extractMemories',
         MEMORY_EXTRACTION_SYSTEM_V2,
         transcript,
@@ -184,7 +196,7 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
         // Scales with transcript length — more headroom than the short ops.
         4096,
       );
-      return candidates;
+      return { candidates: value.candidates, usage };
     },
 
     async summarizeConversation({
@@ -194,7 +206,7 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
       const transcript = `Parent's first name: ${firstName}\n\n${turns
         .map((t) => `${t.role}: ${t.content}`)
         .join('\n')}`;
-      return jsonCall<ConversationSummary>(
+      const { value, usage } = await jsonCall<ConversationSummary>(
         'summarizeConversation',
         CONVERSATION_SUMMARY_SYSTEM_V1,
         transcript,
@@ -211,6 +223,7 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
         },
         1024,
       );
+      return { ...value, usage };
     },
   };
 }
