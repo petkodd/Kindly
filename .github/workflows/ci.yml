@@ -16,8 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
       - name: Lint
@@ -40,8 +40,8 @@ jobs:
     env:
       SIGNOFF_BLOCKING: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) || startsWith(github.base_ref, 'release/') }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
       - name: Prompt sign-off coverage
@@ -66,8 +66,8 @@ jobs:
       group: production-migrate
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
       - name: Write optional database CA certificate
