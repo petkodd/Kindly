@@ -76,6 +76,16 @@ describe('cron scripts', () => {
     }
   });
 
+  it('Vercel auto-deploys only main (Hobby caps deployments per day; branch pushes must not use them up)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { git?: { deploymentEnabled?: Record<string, boolean> } };
+    // Vercel deploys a branch if ANY matching rule is true, and deploys unmatched branches.
+    // So: '**' (every branch, slashes included) is off, and 'main' is the only rule turned on.
+    const rules = vercel.git?.deploymentEnabled ?? {};
+    expect(rules['**']).toBe(false);
+    expect(Object.entries(rules).filter(([, on]) => on).map(([glob]) => glob)).toEqual(['main']);
+  });
+
   it('match the routes scheduled in vercel.json', async () => {
     const { readFileSync } = await import('node:fs');
     const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: { path: string }[] };
