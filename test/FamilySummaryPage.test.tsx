@@ -112,6 +112,22 @@ describe('FamilySummaryPage', () => {
     );
   });
 
+  it('says the parent has not agreed yet when the send is gated on the parent’s consent (chat 9)', async () => {
+    stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
+      'GET /api/parents': () => json({ parents: [PARENT] }),
+      'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
+      'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
+      'POST /api/parents/p1/summary/send': () =>
+        json({ error: { code: 'parent_consent_required', message: 'not yet' } }, 409),
+    });
+    render(<FamilySummaryPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /send last week’s summary/i }));
+    expect(await screen.findByText(/hasn’t agreed to share weekly summaries yet/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /invite a family member/i })).toBeNull();
+  });
+
   it('redirects to login on a 401', async () => {
     stubFetch({
       'GET /api/me': () => json({ account: { auto_send_summaries: false } }),

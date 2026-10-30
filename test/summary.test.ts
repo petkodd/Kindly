@@ -20,13 +20,22 @@ async function makeBuyer(email: string): Promise<string> {
   return rows[0].id;
 }
 
-async function seedParent(): Promise<{ id: string; firstName: string }> {
+async function seedParent(opts: { parentSaidYes?: boolean } = {}): Promise<{ id: string; firstName: string }> {
   const buyer = await makeBuyer('sarah@example.com');
   const parent = await parentRepo.create(q, {
     buyerId: buyer,
     firstName: 'Robert',
     relationship: 'father',
   });
+  // Chat 9: sending needs the parent's own yes to the summary-sharing notice.
+  if (opts.parentSaidYes ?? true) {
+    await consentRepo.recordSummarySharingAnswer(q, {
+      parentId: parent.id,
+      answer: 'yes',
+      noticeText: 'Each week, Sarah gets a short note … Is that OK?',
+      noticeVersion: 'parent_summary_sharing.v1',
+    });
+  }
   return { id: parent.id, firstName: parent.first_name };
 }
 
@@ -81,7 +90,7 @@ describe('weekly summary preview', () => {
     expect(s.period_end).toBe('2026-07-05');
   });
 
-  it('summarizes the week and flags a respectful concern on a low mood', async () => {
+  it('summarizes the week and never shares mood with family (D3 default)', async () => {
     const { id, firstName } = await seedParent();
     await addConversation(id, '2026-06-29T10:00:00Z', 'Talked about the garden.', 'warm');
     await addConversation(id, '2026-07-01T15:00:00Z', 'Reminisced about Margaret.', 'low');
@@ -93,8 +102,9 @@ describe('weekly summary preview', () => {
     expect(s.body_long).toContain('Talked about the garden.');
     expect(s.body_long).toContain('Reminisced about Margaret.');
     expect(s.body_long).not.toContain('Next week chat.');
-    expect(s.has_concern).toBe(true);
-    expect(s.body_long?.toLowerCase()).toContain('heads-up');
+    expect(s.has_concern).toBe(false);
+    expect(s.body_long?.toLowerCase()).not.toContain('heads-up');
+    expect(s.body_long).not.toMatch(/seemed a little low/);
   });
 
   it('is idempotent per week — refreshes the same row, never duplicates', async () => {
@@ -120,6 +130,38 @@ describe('weekly summary send (consent-gated)', () => {
   // ('simulated' deliveries) is covered in the describe block below.
   beforeEach(() => {
     vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-msg-1' });
+  });
+
+  it('refuses to send without the parent\'s own consent, even to an accepted recipient (chat 9)', async () => {
+    const { id, firstName } = await seedParent({ parentSaidYes: false });
+    await addConversation(id, '2026-06-29T10:00:00Z', 'A good week.', 'warm');
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'jane@example.com', status: 'accepted' },
+    });
+    const err = await summaryRepo.send(q, id, firstName, REF).catch((e) => e);
+    expect(err).toBeInstanceOf(PreconditionError);
+    expect(err.code).toBe('parent_consent_required');
+    expect(fakeEmailClient.send).not.toHaveBeenCalled();
+    const { rows } = await q.query(`SELECT * FROM summary_deliveries`);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('a "Not now" answer does not count as consent', async () => {
+    const { id, firstName } = await seedParent({ parentSaidYes: false });
+    await consentRepo.recordSummarySharingAnswer(q, {
+      parentId: id,
+      answer: 'not_now',
+      noticeText: 'x',
+      noticeVersion: 'parent_summary_sharing.v1',
+    });
+    await consentRepo.record(q, {
+      parentId: id,
+      kind: 'summary_recipient',
+      detail: { recipient_email: 'jane@example.com', status: 'accepted' },
+    });
+    await expect(summaryRepo.send(q, id, firstName, REF)).rejects.toMatchObject({ code: 'parent_consent_required' });
   });
 
   it('refuses to send with no consented recipient (409)', async () => {
@@ -305,7 +347,7 @@ describe('weekly summary preview — safety flags (chat 3, task 7)', () => {
     const s = await summaryRepo.preview(q, p.id, p.firstName, REF);
     expect(s.body_long).not.toMatch(/Nothing alarming/i);
     expect(s.body_long).not.toMatch(/Our team reviewed/);
-    expect(s.body_long).toMatch(/seemed a little low/); // the mood heads-up itself is chat 9's to change
+    expect(s.body_long).not.toMatch(/seemed a little low/); // chat 9 (D3): no mood heads-up at all
   });
 
   it('an in-review flag still counts as unresolved', async () => {
@@ -333,6 +375,6 @@ describe('weekly summary preview — safety flags (chat 3, task 7)', () => {
     await addFlag(p.id, 'p0_crisis', 'resolved', '2026-06-20T10:06:00Z'); // previous week
     const s = await summaryRepo.preview(q, p.id, p.firstName, REF);
     expect(s.body_long).not.toMatch(/Our team reviewed/);
-    expect(s.body_long).toMatch(/Nothing alarming/); // unchanged behavior when no P0/P1 this week
+    expect(s.body_long).not.toMatch(/Nothing alarming|seemed a little low/); // no mood line at all since chat 9 (D3)
   });
 });

@@ -28,7 +28,7 @@ export const PARENT_LANGUAGES = ['en-US', 'en-GB', 'es-US', 'fr-FR', 'de-DE'] as
 export const SPEECH_RATES = ['slow', 'normal'] as const;
 export const PARENT_SHORT_FIELD_MAX = 40;
 
-export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary_recipient';
+export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary_recipient' | 'parent_summary_sharing';
 
 export type SummaryStatus = 'draft' | 'preview' | 'sent';
 export type DeliveryChannel = 'email' | 'sms';
@@ -181,7 +181,11 @@ export class NotFoundError extends Error {
 
 /** Thrown when an action is blocked by a missing precondition (e.g. consent). API maps to 409. */
 export class PreconditionError extends Error {
-  constructor(message: string) {
+  /** Optional machine-readable code for the API body (default 'precondition_failed'). */
+  constructor(
+    message: string,
+    public code?: string,
+  ) {
     super(message);
     this.name = 'PreconditionError';
   }

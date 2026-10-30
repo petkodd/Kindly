@@ -62,3 +62,22 @@ and signed off, or confirmed Bella against Antoni/Arnold specifically.
 3. ElevenLabs dashboard scope confirmation (key restricted to Text-to-Speech only, no
    billing/voice-cloning) has not been verified in this cycle — requires logging into the
    ElevenLabs dashboard directly, which needs to be done by someone with account access.
+
+## Vendor data handling
+
+Added in chat 9 (parent consent & summary privacy). This lists what each vendor
+receives from Dearly, what we know about retention, and the opt-outs we use.
+**The agreement status has not been verified against our actual accounts.**
+Every "TODO (Petko)" below needs someone with account access to check the
+signed terms or dashboard settings and update this table.
+
+| Vendor | Used for | Data sent | Retention (vendor side) | Opt-outs we use | Agreement status |
+|---|---|---|---|---|---|
+| Deepgram | Speech-to-text (Nova-2) | The parent's recorded audio for one turn, the language code | Per Deepgram's published terms, audio is not stored after processing unless the customer enables storage or takes part in the Model Improvement Program (MIP) | `mip_opt_out=true` on every `/v1/listen` request (`src/lib/speech/providers.ts`), so audio is never used for model training | TODO (Petko): confirm the account's terms (standard vs. enterprise), that no "store audio"/logging feature is enabled in the console, and whether a DPA is signed |
+| ElevenLabs | Text-to-speech | The companion's reply text (never the parent's audio), the voice id | Per ElevenLabs' published terms, request text may be retained for abuse monitoring; zero-retention mode is an enterprise feature | None at the API level today (zero-retention mode is not available on our plan) | TODO (Petko): confirm the plan's retention terms, whether "use my data to improve models" can be disabled for the account, and whether a DPA is signed |
+| Anthropic | Companion replies, safety scan, memory extraction, conversation summaries | Conversation text, the parent profile and approved memories in the prompt | Per Anthropic's commercial API terms, API inputs/outputs are not used for training and are kept for a limited period for trust and safety | Commercial API (no training on inputs by default) | TODO (Petko): confirm the account is on the commercial terms and whether a DPA/zero-retention addendum applies |
+
+Our own retention: transcripts are deleted after 30 days, and deleted accounts
+and profiles are purged 30 days after soft-delete (`src/lib/jobs/purge.ts`).
+Audio is never stored by Dearly: it is sent to Deepgram for one transcription
+and discarded.

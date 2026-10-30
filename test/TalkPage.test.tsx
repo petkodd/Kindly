@@ -479,4 +479,79 @@ describe('TalkPage', () => {
       expect(screen.getByLabelText(/your message/i)).toBeTruthy();
     });
   });
+
+  describe('summary-sharing notice (chat 9)', () => {
+    const NOTICE = {
+      version: 'parent_summary_sharing.v1',
+      text: 'Each week, Sarah gets a short note about what we chatted about in general — never our conversations word for word. And if you ever seem to be in danger, I’ll let Sarah know so they can check on you. Is that OK?',
+      audio_url: 'data:audio/mp3;base64,AAA',
+    };
+
+    it('shows and speaks the notice with large Yes / Not now, records Yes with the exact text, then starts', async () => {
+      const playMock = vi.fn().mockResolvedValue(undefined);
+      const audio = { play: playMock, src: '' };
+      vi.stubGlobal('Audio', vi.fn().mockImplementation(() => audio));
+      const answer = vi.fn((init?: RequestInit) => {
+        void init;
+        return json({ answer: 'yes' }, 201);
+      });
+      stubFetch({
+        ...AUTH_OK,
+        ...CONSENT_OK,
+        'POST /api/talk/session': session({ greeting: 'Hello Ruth!', greeting_audio_url: 'data:audio/mp3;base64,BBB', summary_notice: NOTICE }),
+        'POST /api/talk/consent/summary': answer,
+      });
+      render(<TalkPage />);
+      fireEvent.click(await startButton());
+
+      expect(await screen.findByText(NOTICE.text)).toBeTruthy();
+      expect(screen.getByRole('heading', { level: 1, name: 'Before we chat' })).toBeTruthy();
+      const yes = screen.getByRole('button', { name: 'Yes' });
+      const notNow = screen.getByRole('button', { name: 'Not now' });
+      for (const b of [yes, notNow]) expect(b.className).toMatch(/min-h-\[4\.5rem\]/);
+      expect(audio.src).toBe(NOTICE.audio_url);
+      expect(screen.queryByText('Hello Ruth!')).toBeNull(); // the conversation waits for the answer
+
+      fireEvent.click(yes);
+      expect(await screen.findByText('Hello Ruth!')).toBeTruthy();
+      expect(JSON.parse(String(answer.mock.calls[0][0]?.body))).toEqual({
+        answer: 'yes',
+        version: NOTICE.version,
+        text: NOTICE.text,
+      });
+      expect(audio.src).toBe('data:audio/mp3;base64,BBB');
+    });
+
+    it('Not now also starts the conversation', async () => {
+      const answer = vi.fn(() => json({ answer: 'not_now' }, 201));
+      stubFetch({
+        ...AUTH_OK,
+        ...CONSENT_OK,
+        'POST /api/talk/session': session({ summary_notice: { ...NOTICE, audio_url: null } }),
+        'POST /api/talk/consent/summary': answer,
+      });
+      render(<TalkPage />);
+      fireEvent.click(await startButton());
+      fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+      expect(await screen.findByText('Hi!')).toBeTruthy();
+      expect(answer).toHaveBeenCalledTimes(1);
+    });
+
+    it('if the notice changed meanwhile, shows the new words and asks again', async () => {
+      const fresh = { ...NOTICE, text: 'Each week, Sarah and 1 other family member get a short note … Is that OK?', audio_url: null };
+      stubFetch({
+        ...AUTH_OK,
+        ...CONSENT_OK,
+        'POST /api/talk/session': session({ summary_notice: NOTICE }),
+        'POST /api/talk/consent/summary': () =>
+          json({ error: { code: 'notice_changed', message: 'changed' }, summary_notice: fresh }, 409),
+      });
+      render(<TalkPage />);
+      fireEvent.click(await startButton());
+      fireEvent.click(await screen.findByRole('button', { name: 'Yes' }));
+      expect(await screen.findByText(fresh.text)).toBeTruthy();
+      expect(screen.getByRole('alert').textContent).toMatch(/updated the note/);
+      expect(screen.queryByText('Hi!')).toBeNull();
+    });
+  });
 });

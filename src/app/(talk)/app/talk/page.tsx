@@ -12,8 +12,9 @@ import {
   type TalkProblem,
 } from '@/lib/talk/errors';
 import { MAX_RECORDING_MS, pickRecordingMimeType, uploadFileFor } from '@/lib/talk/recording';
+import { PARENT_CONVERSATION_NOTICE, type SummarySharingNoticePayload } from '@/lib/talk/notices';
 
-type Phase = 'intro' | 'active' | 'ended';
+type Phase = 'intro' | 'notice' | 'active' | 'ended';
 type Role = 'parent' | 'kindly';
 type Mode = 'voice' | 'text';
 interface Turn {
@@ -36,15 +37,17 @@ interface SessionResponse {
   settings?: TalkSettings;
   family_first_name?: string | null;
   link_owner?: LinkOwner;
+  summary_notice?: SummarySharingNoticePayload | null;
 }
 
 // Profile defaults (db/migrations/0001_init.sql) until the session says otherwise.
 const DEFAULT_SETTINGS: TalkSettings = { large_text: true, voice_first: true, speech_rate: 'slow', language: 'en-US' };
 
-// Compliance-sensitive: Dearly must disclose it's an AI. Single-sourced so the
-// intro and in-conversation banners can't drift. The spoken greeting from
-// /api/talk/session says the same thing out loud.
-const AI_DISCLOSURE = 'Dearly is an AI companion — not a real person.';
+// Compliance-sensitive: Dearly must disclose it's an AI. Single-sourced (with
+// the rest of the intro text, which /api/talk/consent stores with the consent)
+// so the intro and in-conversation banners can't drift. The spoken greeting
+// from /api/talk/session says the same thing out loud.
+const AI_DISCLOSURE = PARENT_CONVERSATION_NOTICE.disclosure;
 
 // Accessible name of the talk button. Fixed on purpose: its on/off state is
 // carried by aria-pressed alone, so a screen reader hears one stable control.
@@ -128,6 +131,8 @@ function TalkFlow({ initialContext }: { initialContext: TalkContext }) {
   const [problem, setProblem] = useState<TalkProblem | null>(null);
   const [settings, setSettings] = useState<TalkSettings>(DEFAULT_SETTINGS);
   const [context, setContext] = useState<TalkContext>(initialContext);
+  const [notice, setNotice] = useState<SummarySharingNoticePayload | null>(null);
+  const [greeting, setGreeting] = useState<{ text: string; audioUrl: string | null } | null>(null);
   const nextId = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -189,6 +194,15 @@ function TalkFlow({ initialContext }: { initialContext: TalkContext }) {
       }
       nextId.current = 0;
       setTurns([]);
+      if (r.summary_notice) {
+        // Chat 9: the parent hears and reads the summary-sharing notice and
+        // answers it before the conversation starts.
+        setGreeting({ text: r.greeting, audioUrl: r.greeting_audio_url ?? null });
+        setNotice(r.summary_notice);
+        setPhase('notice');
+        void playAudio(r.summary_notice.audio_url);
+        return;
+      }
       add('kindly', r.greeting);
       setPhase('active');
       void playAudio(r.greeting_audio_url);
@@ -197,6 +211,49 @@ function TalkFlow({ initialContext }: { initialContext: TalkContext }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function answerNotice(answer: 'yes' | 'not_now') {
+    if (!notice) return;
+    primeAudio();
+    setProblem(null);
+    setBusy(true);
+    try {
+      await api.post('/api/talk/consent/summary', { answer, version: notice.version, text: notice.text });
+      if (greeting) add('kindly', greeting.text);
+      setNotice(null);
+      setPhase('active');
+      void playAudio(greeting?.audioUrl);
+    } catch (err) {
+      // The notice changed since it was shown (e.g. someone new was invited):
+      // show the new words and ask again. Nothing was recorded.
+      if (err instanceof ApiError && err.code === 'notice_changed') {
+        const fresh = (err.body as { summary_notice?: SummarySharingNoticePayload } | undefined)?.summary_notice;
+        if (fresh) setNotice(fresh);
+        setProblem({
+          kind: 'went_wrong',
+          message: 'I updated the note above. Please have a look and answer again.',
+          canType: false,
+          canRetry: false,
+        });
+      } else {
+        setProblem(mapTalkError(toFailure(err), context));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (phase === 'notice' && notice) {
+    return (
+      <SummaryNotice
+        notice={notice}
+        busy={busy}
+        largeText={settings.large_text}
+        problem={problem}
+        onAnswer={answerNotice}
+      />
+    );
   }
 
   if (phase === 'intro' || phase === 'ended') {
@@ -212,7 +269,7 @@ function TalkFlow({ initialContext }: { initialContext: TalkContext }) {
         <p className="mt-4 text-ink">
           {ended
             ? 'It was lovely talking with you. I’ll be here whenever you want to chat again.'
-            : 'I’m Dearly. I’d love to chat with you whenever you like.'}
+            : PARENT_CONVERSATION_NOTICE.invite}
         </p>
         <button
           type="button"
@@ -239,6 +296,59 @@ function TalkFlow({ initialContext }: { initialContext: TalkContext }) {
       playAudio={playAudio}
       onEnded={() => setPhase('ended')}
     />
+  );
+}
+
+/**
+ * The one-time summary-sharing notice (chat 9). Shown and spoken before the
+ * conversation, with two large answers. The safety sentence in it is not
+ * optional (D2): the parent can say "Not now" to weekly notes, but is always
+ * told who is alerted if they seem to be in danger.
+ */
+function SummaryNotice({
+  notice,
+  busy,
+  largeText,
+  problem,
+  onAnswer,
+}: {
+  notice: SummarySharingNoticePayload;
+  busy: boolean;
+  largeText: boolean;
+  problem: TalkProblem | null;
+  onAnswer: (answer: 'yes' | 'not_now') => void;
+}) {
+  return (
+    <section
+      aria-labelledby="summary-notice-title"
+      className={`mx-auto max-w-xl text-center ${largeText ? 'text-xl' : 'text-lg'}`}
+    >
+      <p className="rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink">{AI_DISCLOSURE}</p>
+      <h1 id="summary-notice-title" className="mt-8 font-display text-3xl font-semibold text-ink sm:text-4xl">
+        Before we chat
+      </h1>
+      <p className="mt-6 text-left text-2xl leading-relaxed text-ink sm:text-center">{notice.text}</p>
+      <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
+        <button
+          type="button"
+          onClick={() => onAnswer('yes')}
+          disabled={busy}
+          className="btn-primary min-h-[4.5rem] w-full px-10 text-2xl disabled:opacity-60 sm:w-auto"
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          onClick={() => onAnswer('not_now')}
+          disabled={busy}
+          className="min-h-[4.5rem] w-full rounded-xl border-2 border-sageDeep bg-cloud px-10 text-2xl font-semibold text-ink disabled:opacity-60 sm:w-auto"
+        >
+          Not now
+        </button>
+      </div>
+      {busy && <p className="mt-4 text-lg text-muted">One moment…</p>}
+      {problem && <ProblemNotice problem={problem} />}
+    </section>
   );
 }
 

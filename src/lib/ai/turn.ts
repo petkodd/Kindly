@@ -102,6 +102,9 @@ export async function runCompanionTurn(q: Querier, input: CompanionTurnInput): P
     message,
     isSessionOpen: input.isSessionOpen ?? false,
     alertContactFirstName: alertName,
+    // Who can see the memories (D8): the buyer, or the parent themselves for self-use.
+    memoryViewerFirstName: contact ? alertContactFirstName(contact.fullName) : null,
+    selfUse: parent.relationship === 'self',
   };
 
   // --- 1. scan (concurrent with the reply) ---

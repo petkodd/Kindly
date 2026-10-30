@@ -243,7 +243,10 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       // Upstream STT/TTS provider failure — same rationale as AiError above.
       return { status: 502, body: { error: { code: 'speech_unavailable', message: 'Voice is unavailable right now.' } } };
     case 'PreconditionError':
-      return { status: 409, body: { error: { code: 'precondition_failed', message: (err as Error).message } } };
+      return {
+        status: 409,
+        body: { error: { code: (err as { code?: string }).code ?? 'precondition_failed', message: (err as Error).message } },
+      };
     case 'ValidationError':
       return { status: 400, body: { error: { code: 'invalid_input', message: (err as Error).message } } };
     default:
