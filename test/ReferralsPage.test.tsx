@@ -134,8 +134,39 @@ describe('ReferralsPage', () => {
       'POST /api/referrals': () => json({ code: 'WXYZ6789' }, 201),
     });
     render(<ReferralsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: /generate a code/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /get my code/i }));
     expect(await screen.findByText('WXYZ6789')).toBeTruthy();
+  });
+
+  it('explains the real reward and shows each redemption as pending or credited (chat 11)', async () => {
+    stubFetch({
+      'GET /api/parents': () => json({ parents: [] }),
+      'GET /api/referrals': () =>
+        json({
+          code: 'ABCDEFGHJK',
+          redemptions: [
+            { redeemed_at: '2026-10-20T12:00:00.000Z', status: 'credited' },
+            { redeemed_at: '2026-10-28T12:00:00.000Z', status: 'pending' },
+          ],
+        }),
+    });
+    render(<ReferralsPage />);
+    expect(await screen.findByText('ABCDEFGHJK')).toBeTruthy();
+    expect(screen.getByText(/after their first paid month, you each get one month free/i)).toBeTruthy();
+    expect(screen.getByText('Credited: 1 free month')).toBeTruthy();
+    expect(screen.getByText('Pending: waiting for their first payment')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /copy link/i })).toBeTruthy();
+    // The old, inaccurate copy is gone.
+    expect(screen.queryByText(/they enter this code when they sign up\./i)).toBeNull();
+  });
+
+  it('offers a new code once the last one was used', async () => {
+    stubFetch({
+      'GET /api/parents': () => json({ parents: [] }),
+      'GET /api/referrals': () => json({ code: null, redemptions: [{ redeemed_at: '2026-10-28T12:00:00.000Z', status: 'pending' }] }),
+    });
+    render(<ReferralsPage />);
+    expect(await screen.findByRole('button', { name: /get a new code/i })).toBeTruthy();
   });
 
   it('redirects to login on a 401 from the parents load', async () => {
