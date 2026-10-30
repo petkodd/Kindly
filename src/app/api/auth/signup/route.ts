@@ -8,6 +8,7 @@ import { analyticsEventRepo } from '@/lib/repos/analyticsEvent';
 import { getEmailClient } from '@/lib/email';
 import { accountExistsEmail, verifyEmailEmail } from '@/lib/email/templates';
 import { SITE } from '@/lib/seo';
+import { safeNextPath } from '@/lib/nextPath';
 
 /**
  * Create a buyer account WITHOUT revealing whether the email is registered.
@@ -20,6 +21,10 @@ import { SITE } from '@/lib/seo';
  * - existing email → nothing changes on that account; its owner is emailed a
  *   "you already have an account — sign in or reset your password" note.
  * Validation errors (bad email, short password) are the same for everyone.
+ *
+ * An optional `next` (validated by safeNextPath — same-site /app or /admin
+ * paths only) rides along in the confirmation link, so a buyer who started
+ * from "Set up the gift" lands back in onboarding after confirming.
  */
 export async function POST(req: NextRequest) {
   const blocked = rejectCrossOrigin(req);
@@ -39,7 +44,9 @@ export async function POST(req: NextRequest) {
     if (outcome.created) {
       to = outcome.user.email;
       const { token } = await magicLinkRepo.issue(pool, outcome.user.id, { purpose: 'login', ttlMs: LINK_TTL_MS.signupVerify });
-      email = verifyEmailEmail({ verifyUrl: `${SITE.url}/login/verify?token=${token}` });
+      const next = safeNextPath(body.next);
+      const nextParam = next ? `&next=${encodeURIComponent(next)}` : '';
+      email = verifyEmailEmail({ verifyUrl: `${SITE.url}/login/verify?token=${token}${nextParam}` });
       await analyticsEventRepo.record(pool, 'account_created', { method: 'password' }, { userId: outcome.user.id });
     } else {
       to = outcome.existing.email;

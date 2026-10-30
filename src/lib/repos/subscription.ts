@@ -53,6 +53,22 @@ export const subscriptionRepo = {
   },
 
   /**
+   * The Stripe customer to open the billing portal for (chat 10): the newest
+   * subscription row of this buyer's that has one. Beta-only rows have no
+   * customer, so a beta-only buyer gets null. Deleted parents are included on
+   * purpose — the buyer may still want their invoices.
+   */
+  async latestStripeCustomerForBuyer(q: Querier, buyerId: string): Promise<string | null> {
+    const { rows } = await q.query<{ stripe_customer_id: string }>(
+      `SELECT stripe_customer_id FROM subscriptions
+        WHERE buyer_id = $1 AND stripe_customer_id IS NOT NULL
+        ORDER BY created_at DESC LIMIT 1`,
+      [buyerId],
+    );
+    return rows[0]?.stripe_customer_id ?? null;
+  },
+
+  /**
    * The single gate other code should call to decide whether a specific
    * parent's talk access is currently paid for: true while trialing/active,
    * true for a past_due subscription still within the grace window, false

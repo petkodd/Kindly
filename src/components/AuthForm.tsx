@@ -4,11 +4,18 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError, resolvePostLoginPath } from '@/lib/apiClient';
+import { safeNextPath, withNext } from '@/lib/nextPath';
 
 type Mode = 'login' | 'signup';
 
-export function AuthForm({ mode }: { mode: Mode }) {
+/**
+ * `next` comes from the page's ?next= (set by the middleware or a gift CTA).
+ * It is re-validated here and on the server, and carried through signup's
+ * confirmation link so the buyer lands where they were going.
+ */
+export function AuthForm({ mode, next: rawNext }: { mode: Mode; next?: string | null }) {
   const router = useRouter();
+  const next = safeNextPath(rawNext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -27,13 +34,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
     setBusy(true);
     try {
       if (isSignup) {
-        await api.post('/api/auth/signup', { email, password });
+        await api.post('/api/auth/signup', next ? { email, password, next } : { email, password });
         setCheckEmail(true);
         setBusy(false);
         return;
       }
       await api.post('/api/auth/login', { email, password });
-      router.push(await resolvePostLoginPath());
+      router.push(next ?? (await resolvePostLoginPath()));
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -125,9 +132,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
       )}
       <p className="text-sm text-muted">
         {isSignup ? (
-          <>Already have an account? <Link href="/login" className="text-sage underline">Sign in</Link></>
+          <>Already have an account? <Link href={withNext('/login', next)} className="text-sage underline">Sign in</Link></>
         ) : (
-          <>New to Dearly? <Link href="/signup" className="text-sage underline">Create an account</Link></>
+          <>New to Dearly? <Link href={withNext('/signup', next)} className="text-sage underline">Create an account</Link></>
         )}
       </p>
     </div>

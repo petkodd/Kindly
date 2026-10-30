@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
+import { useEmailVerified, UNVERIFIED_REASON } from '@/hooks/useEmailVerified';
 
 interface WeeklySummary {
   id: string;
@@ -150,6 +151,9 @@ function PreviewCard({
   const [status, setStatus] = useState('');
   const [needsRecipient, setNeedsRecipient] = useState(false);
   const sent = summary.status === 'sent';
+  const emailVerified = useEmailVerified();
+  const blockedUnverified = emailVerified === false;
+  const body = (summary.body_long || summary.body_short || '').trim();
 
   async function send() {
     setStatus('');
@@ -196,15 +200,23 @@ function PreviewCard({
         <StatusBadge status={summary.status} />
       </div>
 
+      {/* has_concern is always false for new summaries (D3 default, chat 9);
+          older rows may still carry it. The old copy pointed to a "note
+          below" that never existed, so the badge now stands on its own. */}
       {summary.has_concern && (
         <p className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3 text-sm font-semibold text-ink">
-          This week includes a gentle heads-up — see the note below.
+          This week&rsquo;s summary includes a gentle heads-up.
         </p>
       )}
 
-      <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-ink">
-        {summary.body_long || summary.body_short}
-      </p>
+      {body ? (
+        <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-ink">{body}</p>
+      ) : (
+        <p className="mt-4 text-base text-muted">
+          There&rsquo;s nothing to share for this week yet. A summary is written from the week&rsquo;s conversations, so it
+          fills in once {isSelf ? 'you' : 'your parent'} {isSelf ? 'have' : 'has'} talked with Dearly.
+        </p>
+      )}
 
       <div className="mt-6 border-t border-line pt-6">
         {sent ? (
@@ -230,14 +242,22 @@ function PreviewCard({
             </Link>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={send}
-            disabled={busy}
-            className="btn-primary mt-4 disabled:opacity-60"
-          >
-            {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={send}
+              disabled={busy || blockedUnverified || !body}
+              aria-describedby={blockedUnverified ? 'send-blocked-reason' : undefined}
+              className="btn-primary mt-4 disabled:opacity-60"
+            >
+              {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
+            </button>
+            {blockedUnverified && (
+              <p id="send-blocked-reason" className="mt-2 text-base text-clay">
+                {UNVERIFIED_REASON}
+              </p>
+            )}
+          </>
         )}
 
         {status && <p className="mt-3 text-sm text-muted">{status}</p>}
@@ -318,18 +338,31 @@ function PastSummaries({ summaries }: { summaries: WeeklySummary[] }) {
     <div>
       <h2 className="text-lg font-semibold text-ink">Past weeks</h2>
       <ul className="mt-4 space-y-3">
-        {summaries.map((s) => (
-          <li
-            key={s.id}
-            className="flex items-center justify-between rounded-xl border border-line bg-cloud px-4 py-3"
-          >
-            <div>
-              <p className="text-base text-ink">{fmtRange(s.period_start, s.period_end)}</p>
-              {s.body_short && <p className="text-sm text-muted">{s.body_short}</p>}
-            </div>
-            <StatusBadge status={s.status} />
-          </li>
-        ))}
+        {summaries.map((s) => {
+          const body = (s.body_long || s.body_short || '').trim();
+          return (
+            <li key={s.id} className="rounded-xl border border-line bg-cloud">
+              {/* Native disclosure: keyboard and screen-reader friendly with no extra script. */}
+              <details className="group">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
+                  <span>
+                    <span className="block text-base text-ink">{fmtRange(s.period_start, s.period_end)}</span>
+                    <span className="block text-sm text-sageDeep underline group-open:hidden">Show summary</span>
+                    <span className="hidden text-sm text-sageDeep underline group-open:block">Hide summary</span>
+                  </span>
+                  <StatusBadge status={s.status} />
+                </summary>
+                <div className="border-t border-line px-4 py-3">
+                  {body ? (
+                    <p className="whitespace-pre-line text-base leading-relaxed text-ink">{body}</p>
+                  ) : (
+                    <p className="text-base text-muted">Nothing was written for this week.</p>
+                  )}
+                </div>
+              </details>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

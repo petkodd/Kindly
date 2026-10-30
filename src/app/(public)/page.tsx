@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { buildMetadata, organizationJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { Testimonials } from '@/components/Testimonials';
+import { signupHref } from '@/lib/nextPath';
 import {
   HERO,
   PROBLEM,
@@ -152,7 +153,7 @@ export default function HomePage() {
             ))}
           </ol>
           <div className="mt-10">
-            <TrackedCtaLink href="/app/onboarding" ctaId="steps_primary" slug="/" className="btn-primary">
+            <TrackedCtaLink href={signupHref()} ctaId="steps_primary" slug="/" className="btn-primary">
               Set up the gift
             </TrackedCtaLink>
           </div>

@@ -3,6 +3,8 @@
  * the session cookie rides along automatically. Parses the JSON error envelope
  * ({ error: { code, message } }) into a thrown Error with a readable message.
  */
+import { withNext } from './nextPath';
+
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -51,6 +53,7 @@ export const api = {
   get: <T>(path: string, headers?: Extra, signal?: AbortSignal) => request<T>(path, 'GET', undefined, headers, signal),
   post: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'POST', body, headers),
   patch: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PATCH', body, headers),
+  put: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PUT', body, headers),
   del: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'DELETE', body, headers),
 };
 
@@ -132,4 +135,24 @@ export async function resolvePostLoginPath(): Promise<string> {
   } catch {
     return '/app/onboarding';
   }
+}
+
+/**
+ * A buyer API call came back 401: the session is missing, expired, revoked or
+ * the account was deleted. Clear the cookie first (POST /api/auth/logout always
+ * clears it) — otherwise a signed-but-revoked cookie would make the middleware
+ * bounce /login → /app → /login forever — then send the buyer to sign in (or
+ * sign up) with `next` pointing back at the page they were on.
+ */
+export async function signOutAndRedirect(
+  router: { replace: (href: string) => void },
+  to: '/login' | '/signup' = '/login',
+): Promise<void> {
+  try {
+    await api.post('/api/auth/logout');
+  } catch {
+    /* best effort — the redirect below still happens */
+  }
+  const here = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '';
+  router.replace(withNext(to, here));
 }

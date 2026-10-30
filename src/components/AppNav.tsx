@@ -5,7 +5,9 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 const NAV_ITEMS = [
-  { href: '/app/talk', label: 'Talk' },
+  // Buyers don't talk with Dearly from their account (the parent uses their
+  // own link), so this opens the parent profile's talk-link section.
+  { href: '/app/parent-profile#talk-link', label: 'Talk link' },
   { href: '/app/family-summary', label: 'Family Summary' },
   { href: '/app/memories', label: 'Memories' },
   { href: '/app/referrals', label: 'Referrals' },
@@ -53,7 +55,7 @@ export function AppNav() {
       <nav aria-label="Dearly app" className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.href; // the hash item never matches, so Parent Profile stays the active one
             return (
               <Link
                 key={item.href}

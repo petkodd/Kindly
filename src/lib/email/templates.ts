@@ -127,6 +127,25 @@ export function accountExistsEmail(input: { loginUrl: string; resetUrl: string }
   return e;
 }
 
+/**
+ * The buyer asked for their parent's talk link by email ("Email it to me"),
+ * so they can forward it or open it on the parent's tablet. Goes only to the
+ * buyer's own verified-or-not account address, never to anyone else.
+ */
+export function talkLinkEmail(input: { parentFirstName: string; talkUrl: string }): Email {
+  const name = input.parentFirstName;
+  return linkEmail(
+    `${name}'s Dearly talk link`,
+    `Here is ${name}'s private link to talk with Dearly. Open it on the phone, tablet or computer ${name} will use, and bookmark it or add it to the home screen:`,
+    `Open ${name}'s talk link`,
+    input.talkUrl,
+    [
+      `Anyone with this link can talk with Dearly as ${name}, so share it only with ${name}.`,
+      'If it is ever lost or shared by mistake, make a new link on the Parent profile page in Dearly; the old one stops working straight away.',
+    ],
+  );
+}
+
 /** Password reset link: sets a new password without the old one, then signs out every device. */
 export function passwordResetEmail(input: { resetUrl: string }): Email {
   return linkEmail(

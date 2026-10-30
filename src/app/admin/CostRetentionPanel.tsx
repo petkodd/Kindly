@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, ApiError } from '@/lib/apiClient';
+import { api, ApiError, signOutAndRedirect } from '@/lib/apiClient';
 import { formatUsdCents } from '@/lib/pricing';
 import { Metric } from './Metric';
 
@@ -78,7 +78,7 @@ export function CostRetentionPanel() {
       const res = await api.get<MetricsResponse>(`/api/admin/metrics?granularity=${granularity}`);
       setData(res);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) router.replace('/login');
+      if (err instanceof ApiError && err.status === 401) void signOutAndRedirect(router);
       else setError('Could not load cost & retention metrics.');
     }
   }, [granularity, router]);

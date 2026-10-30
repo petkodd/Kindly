@@ -200,6 +200,46 @@ export const consentRepo = {
     return { consent: rows[0], inviteToken };
   },
 
+  /**
+   * What the invite page shows BEFORE anyone clicks (chat 10): who invited
+   * them and whose summary it is. Read-only — opening the link (or an email
+   * scanner fetching it) never accepts. Throws NotFoundError for an unknown,
+   * revoked or deleted-parent invite and ExpiredError after INVITE_TTL_DAYS
+   * (only a holder of the real token can tell the two apart). The recipient's
+   * email and the token hash never leave the repo.
+   */
+  async previewRecipientInvite(
+    q: Querier,
+    rawToken: string,
+  ): Promise<{ inviter_first_name: string | null; parent_first_name: string; status: 'pending' | 'accepted' }> {
+    if (!rawToken) throw new NotFoundError('Invite not found');
+    const { rows } = await q.query<{
+      granted_at: string | Date;
+      status: string | null;
+      parent_first_name: string;
+      inviter_full_name: string | null;
+    }>(
+      `SELECT c.granted_at, c.detail->>'status' AS status,
+              p.first_name AS parent_first_name, u.full_name AS inviter_full_name
+         FROM consents c
+         JOIN parents p ON p.id = c.parent_id AND p.deleted_at IS NULL
+         JOIN users u ON u.id = p.buyer_id AND u.deleted_at IS NULL
+        WHERE c.kind = 'summary_recipient' AND c.revoked_at IS NULL
+          AND c.detail->>'invite_token_hash' = $1`,
+      [hashToken(rawToken)],
+    );
+    const row = rows[0];
+    if (!row || (row.status !== 'pending' && row.status !== 'accepted')) throw new NotFoundError('Invite not found');
+    if (
+      row.status === 'pending' &&
+      Date.now() - new Date(row.granted_at).getTime() > INVITE_TTL_DAYS * 24 * 60 * 60 * 1000
+    ) {
+      throw new ExpiredError('This invitation has expired. Please ask the person who invited you to send a new one.');
+    }
+    const first = (row.inviter_full_name ?? '').trim().split(/\s+/)[0] || null;
+    return { inviter_first_name: first, parent_first_name: row.parent_first_name, status: row.status };
+  },
+
   /** Accept a pending recipient invite by its raw token. Idempotent-ish: an
    *  unknown/used token is a NotFound so the endpoint never reveals validity. */
   async acceptRecipientInvite(q: Querier, rawToken: string): Promise<Consent> {

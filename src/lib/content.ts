@@ -8,7 +8,7 @@ export const HERO = {
   h1: 'For the moments you can’t be there',
   sub:
     'Dearly gives your aging parent a warm, patient companion to talk to — any time of day. You set it up. They simply talk. And every week, you get a gentle summary of how they’re doing.',
-  primaryCta: { label: 'Set up the gift', href: '/app/onboarding' },
+  primaryCta: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
   secondaryCta: { label: 'See how it works', href: '/how-it-works' },
   trustline: 'Private by design · Cancel anytime · Built for older adults',
   disclosure:
@@ -83,7 +83,7 @@ export const PRICING_TEASER = {
 export const FINAL_CTA = {
   h2: 'Give your parent someone kind to talk to',
   body: 'For the moments you can’t be there — Dearly is.',
-  primary: { label: 'Set up the gift', href: '/app/onboarding' },
+  primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
   secondary: { label: 'Join the waitlist', href: '/waitlist' },
 };
 
@@ -137,7 +137,7 @@ export const HOW_IT_WORKS = {
   cta: {
     h2: 'Ready to set it up?',
     body: 'It takes a few minutes, and your parent can be talking to Dearly today.',
-    primary: { label: 'Set up the gift', href: '/app/onboarding' },
+    primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
     secondary: { label: 'See pricing', href: '/pricing' },
   },
 };
@@ -214,7 +214,7 @@ export const PRICING = {
   cta: {
     h2: 'Ready to give your parent someone kind to talk to?',
     body: 'It takes a few minutes to set up, and you can cancel anytime.',
-    primary: { label: 'Set up the gift', href: '/app/onboarding' },
+    primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
     secondary: { label: 'See how it works', href: '/how-it-works' },
   },
 };
@@ -319,7 +319,7 @@ export const GIFT_FOR_AGING_PARENT = {
   cta: {
     h2: 'Give the gift of someone to talk to',
     body: 'Set it up today, and your parent can be talking to Dearly by this afternoon.',
-    primary: { label: 'Set up the gift', href: '/app/onboarding' },
+    primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
     secondary: { label: 'Join the waitlist', href: '/waitlist' },
   },
 };
@@ -388,7 +388,7 @@ export const TRUST_AND_PRIVACY = {
   cta: {
     h2: 'Questions about privacy or safety?',
     body: 'We’re happy to walk through exactly how Dearly handles your family’s information.',
-    primary: { label: 'Set up the gift', href: '/app/onboarding' },
+    primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
     secondary: { label: 'Join the waitlist', href: '/waitlist' },
   },
 };
