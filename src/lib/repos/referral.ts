@@ -3,10 +3,21 @@ import type { Querier } from '../querier';
 import { NotFoundError, PreconditionError, ValidationError } from '../types';
 
 /**
- * Referral codes. A buyer generates a unique code; a new buyer redeems it at
- * signup. Fraud guard: at most one redemption per household (household_hash),
- * and you can't redeem your own code.
+ * Referral codes. A buyer has at most one ACTIVE (unredeemed) code; a new
+ * buyer redeems it at signup or at the onboarding checkout step. Abuse guards
+ * (chat 11): you can't redeem your own code; a user redeems at most one code
+ * ever; the redeemer must never have had a subscription (new customers only);
+ * at most one redemption per household (household_hash). The credit itself is
+ * applied later, after the redeemer's first paid invoice — see
+ * src/lib/billing/referralCredit.ts.
  */
+
+/** What the referrer sees about each redemption of their codes. Never who redeemed it. */
+export type ReferralStatus = 'pending' | 'credited';
+export interface ReferralRedemptionView {
+  redeemed_at: string;
+  status: ReferralStatus;
+}
 
 export interface Referral {
   id: string;
@@ -43,6 +54,53 @@ export const referralRepo = {
       [referrerId],
     );
     return rows[0] ?? null;
+  },
+
+  /** The referrer's newest code that has not been redeemed yet, or null. */
+  async getActiveForBuyer(q: Querier, referrerId: string): Promise<Referral | null> {
+    if (!referrerId) throw new ValidationError('referrerId is required');
+    const { rows } = await q.query<Referral>(
+      `SELECT * FROM referrals WHERE referrer_id = $1 AND redeemed_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+      [referrerId],
+    );
+    return rows[0] ?? null;
+  },
+
+  /**
+   * One active code per user: return the existing unredeemed code, or
+   * generate one if every earlier code has been used. `created` says which.
+   */
+  async getOrCreateActive(q: Querier, referrerId: string): Promise<{ referral: Referral; created: boolean }> {
+    const existing = await referralRepo.getActiveForBuyer(q, referrerId);
+    if (existing) return { referral: existing, created: false };
+    return { referral: await referralRepo.generate(q, referrerId), created: true };
+  },
+
+  /** The referral this user redeemed (at most one — enforced by a unique index), or null. */
+  async getRedeemedBy(q: Querier, userId: string): Promise<Referral | null> {
+    const { rows } = await q.query<Referral>(`SELECT * FROM referrals WHERE redeemed_by = $1`, [userId]);
+    return rows[0] ?? null;
+  },
+
+  /**
+   * Every redemption of this referrer's codes, newest first, with its status:
+   * 'credited' once the referrer's own credit is applied, otherwise 'pending'
+   * (waiting for the new family's first paid invoice). Deliberately carries no
+   * redeemer identity.
+   */
+  async listRedemptionsForReferrer(q: Querier, referrerId: string): Promise<ReferralRedemptionView[]> {
+    const { rows } = await q.query<{ redeemed_at: string | Date; referrer_status: string | null }>(
+      `SELECT r.redeemed_at, rw.referrer_status
+         FROM referrals r
+         LEFT JOIN referral_rewards rw ON rw.referral_id = r.id
+        WHERE r.referrer_id = $1 AND r.redeemed_at IS NOT NULL
+        ORDER BY r.redeemed_at DESC`,
+      [referrerId],
+    );
+    return rows.map((row) => ({
+      redeemed_at: new Date(row.redeemed_at).toISOString(),
+      status: row.referrer_status === 'applied' ? 'credited' : 'pending',
+    }));
   },
 
   /** Generate a unique referral code for a referrer (retries on the rare collision). */
@@ -89,6 +147,18 @@ export const referralRepo = {
     if (referral.referrer_id === input.redeemerId) {
       throw new ValidationError('You cannot redeem your own referral code.');
     }
+    if (await referralRepo.getRedeemedBy(q, input.redeemerId)) {
+      throw new PreconditionError('You have already used a referral code.');
+    }
+    // New customers only: any earlier subscription (paid, trial, canceled or
+    // beta) means this buyer is not a new family.
+    const { rows: subs } = await q.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM subscriptions WHERE buyer_id = $1`,
+      [input.redeemerId],
+    );
+    if ((subs[0]?.n ?? 0) > 0) {
+      throw new PreconditionError('Referral codes are for new families only.');
+    }
     const { rows: prior } = await q.query<{ n: number }>(
       `SELECT COUNT(*)::int AS n FROM referrals
        WHERE household_hash = $1 AND redeemed_at IS NOT NULL`,
@@ -98,13 +168,22 @@ export const referralRepo = {
       throw new PreconditionError('A referral has already been redeemed for this household.');
     }
     // The `redeemed_at IS NULL` guard makes concurrent double-redeem safe.
-    const { rows: updated } = await q.query<Referral>(
-      `UPDATE referrals
-          SET redeemed_by = $2, redeemed_at = now(), household_hash = $3
-        WHERE id = $1 AND redeemed_at IS NULL
-        RETURNING *`,
-      [referral.id, input.redeemerId, input.householdHash],
-    );
+    let updated: Referral[];
+    try {
+      ({ rows: updated } = await q.query<Referral>(
+        `UPDATE referrals
+            SET redeemed_by = $2, redeemed_at = now(), household_hash = $3
+          WHERE id = $1 AND redeemed_at IS NULL
+          RETURNING *`,
+        [referral.id, input.redeemerId, input.householdHash],
+      ));
+    } catch (err) {
+      // referrals_one_redemption_per_user: a concurrent redeem by the same user won.
+      if ((err as { code?: string }).code === '23505') {
+        throw new PreconditionError('You have already used a referral code.');
+      }
+      throw err;
+    }
     if (updated.length === 0) throw new NotFoundError('Referral code not found or already redeemed');
     return updated[0];
   },
