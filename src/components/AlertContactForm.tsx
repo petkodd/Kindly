@@ -34,10 +34,15 @@ export function AlertContactForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  // The number the stored SMS consent belongs to (null when there is no consent).
+  const [savedPhone, setSavedPhone] = useState<string | null>(
+    initial?.sms_alert_consent_at ? (initial.alert_phone ?? null) : null,
+  );
 
   useEffect(() => {
     setPhone(formatUsPhone(initial?.alert_phone));
     setConsent(!!initial?.sms_alert_consent_at);
+    setSavedPhone(initial?.sms_alert_consent_at ? (initial.alert_phone ?? null) : null);
   }, [initial?.alert_phone, initial?.sms_alert_consent_at]);
 
   async function save() {
@@ -55,6 +60,7 @@ export function AlertContactForm({
       });
       setPhone(formatUsPhone(r.alert_contact.alert_phone));
       setConsent(!!r.alert_contact.sms_alert_consent_at);
+      setSavedPhone(r.alert_contact.sms_alert_consent_at ? r.alert_contact.alert_phone : null);
       setStatus(
         r.alert_contact.sms_alert_consent_at
           ? 'Saved. Emergency alerts will come by text and email.'
@@ -81,7 +87,17 @@ export function AlertContactForm({
           inputMode="tel"
           autoComplete="tel-national"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            setPhone(value);
+            // Consent is per number: once the buyer types a different number than
+            // the one they agreed for, untick the box so they must agree again
+            // (otherwise the old tick would silently grant consent for the new one).
+            // A half-typed number can't be saved anyway, so only a complete different
+            // number (or an empty field) clears it.
+            const typed = value.trim();
+            if (savedPhone && (!typed || (toUsE164(typed) ?? savedPhone) !== savedPhone)) setConsent(false);
+          }}
           placeholder="(312) 555-0142"
           aria-describedby={`${ids}-phone-hint`}
           className={`mt-2 ${inputCls}`}

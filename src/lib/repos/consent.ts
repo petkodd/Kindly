@@ -200,8 +200,6 @@ export const consentRepo = {
     return { consent: rows[0], inviteToken };
   },
 
-  /** Accept a pending recipient invite by its raw token. Idempotent-ish: an
-   *  unknown/used token is a NotFound so the endpoint never reveals validity. */
   /**
    * What the invite page shows BEFORE anyone clicks (chat 10): who invited
    * them and whose summary it is. Read-only — opening the link (or an email
@@ -242,6 +240,8 @@ export const consentRepo = {
     return { inviter_first_name: first, parent_first_name: row.parent_first_name, status: row.status };
   },
 
+  /** Accept a pending recipient invite by its raw token. Idempotent-ish: an
+   *  unknown/used token is a NotFound so the endpoint never reveals validity. */
   async acceptRecipientInvite(q: Querier, rawToken: string): Promise<Consent> {
     if (!rawToken) throw new NotFoundError('Invite not found');
     const { rows } = await q.query<Consent>(
