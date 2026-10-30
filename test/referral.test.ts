@@ -6,6 +6,7 @@ import { consentRepo } from '../src/lib/repos/consent';
 import { referralRepo } from '../src/lib/repos/referral';
 import { summaryRepo } from '../src/lib/repos/summary';
 import { NotFoundError, PreconditionError, ValidationError } from '../src/lib/types';
+import { parentSaidYesToSummaries } from './parentConsent';
 
 let q: Querier;
 
@@ -45,8 +46,9 @@ describe('sibling invite (pending → accepted)', () => {
       PreconditionError,
     );
 
-    // Accept the invite.
+    // Accept the invite (and the parent says yes to summary sharing, chat 9).
     await consentRepo.acceptRecipientInvite(q, inviteToken);
+    await parentSaidYesToSummaries(q, parentId);
     expect(await consentRepo.listAcceptedRecipients(q, parentId)).toHaveLength(1);
 
     // Now delivery works.

@@ -14,6 +14,7 @@ vi.mock('@/lib/db', () => ({ db: () => q }));
 import { POST as inviteSiblingPOST } from '../../src/app/api/parents/[id]/invite-sibling/route';
 import { POST as acceptPOST } from '../../src/app/api/invites/accept/route';
 import { POST as summarySendPOST } from '../../src/app/api/parents/[id]/summary/send/route';
+import { parentSaidYesToSummaries } from '../parentConsent';
 
 async function makeBuyer(email: string, opts: { verified?: boolean } = {}): Promise<string> {
   const { rows } = await q.query<{ id: string }>(
@@ -193,6 +194,15 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
       }),
     );
     expect(accepted.status).toBe(200);
+
+    // Accepted, but the parent hasn't said yes to summary sharing yet (chat 9).
+    const noParentYes = await summarySendPOST(
+      buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, buyerId),
+      { params: Promise.resolve({ id: parent.id }) },
+    );
+    expect(noParentYes.status).toBe(409);
+    expect((await noParentYes.json()).error.code).toBe('parent_consent_required');
+    await parentSaidYesToSummaries(q, parent.id);
 
     const sent = await summarySendPOST(
       buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, buyerId),

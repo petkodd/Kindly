@@ -19,6 +19,7 @@ import { POST as activatePOST } from '../src/app/api/parents/[id]/activate/route
 import { POST as accessLinkPOST } from '../src/app/api/parents/[id]/access-link/route';
 import { POST as talkAuthPOST } from '../src/app/api/talk/auth/route';
 import { POST as talkConsentPOST } from '../src/app/api/talk/consent/route';
+import { POST as talkSummaryConsentPOST } from '../src/app/api/talk/consent/summary/route';
 import { POST as sessionPOST } from '../src/app/api/talk/session/route';
 import { POST as messagePOST } from '../src/app/api/talk/message/route';
 import { POST as sessionEndPOST } from '../src/app/api/talk/session/end/route';
@@ -168,8 +169,22 @@ describe('end-to-end golden path', () => {
       }),
     );
     expect(session.status).toBe(201);
-    const { conversation_id: conversationId, greeting } = await session.json();
+    const { conversation_id: conversationId, greeting, summary_notice: notice } = await session.json();
     expect(greeting).toContain('Robert');
+    // First session (D8): the greeting says Dearly remembers and who can see it.
+    expect(greeting).toMatch(/can see what I remember/);
+
+    // 6b. Chat 9: the parent is shown the summary-sharing notice and says yes.
+    expect(notice.text).toMatch(/^Each week, .+ never our conversations word for word\./);
+    expect(notice.text).toMatch(/if you ever seem to be in danger, I’ll let .+ know so they can check on you/);
+    const sharing = await talkSummaryConsentPOST(
+      new NextRequest('http://localhost/api/talk/consent/summary', {
+        method: 'POST',
+        headers: { cookie: `${PARENT_TOKEN_COOKIE}=${talkCookie}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ answer: 'yes', version: notice.version, text: notice.text }),
+      }),
+    );
+    expect(sharing.status).toBe(201);
 
     const message = await messagePOST(
       new NextRequest('http://localhost/api/talk/message', {

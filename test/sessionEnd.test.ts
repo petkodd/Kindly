@@ -188,14 +188,15 @@ describe('session-end jobs', () => {
 });
 
 describe('closes the loop into the weekly summary', () => {
-  it('a summarized low-mood conversation surfaces as a highlight + concern', async () => {
+  it('a summarized low-mood conversation surfaces as a highlight, with no mood concern for family (D3)', async () => {
     const parentId = await makeTalkingParent();
     const convoId = await haveConversation(parentId);
     await runSessionEndJobs(q, convoId);
 
     // The conversation started "now", so summarize for the current week.
     const preview = await summaryRepo.preview(q, parentId, 'Robert', new Date());
-    expect(preview.has_concern).toBe(true); // low mood → respectful heads-up
+    expect(preview.has_concern).toBe(false); // chat 9 (D3): mood is never shared with family
+    expect(preview.body_long).not.toMatch(/heads-up|seemed a little low/);
     expect(preview.body_long).toContain('Robert had a'); // the per-conversation summary text
   });
 });

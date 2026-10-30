@@ -6,6 +6,7 @@ import { consentRepo } from '../src/lib/repos/consent';
 import { summaryRepo } from '../src/lib/repos/summary';
 import { generateWeeklySummaries, lastCompletedWeekRef } from '../src/lib/jobs/weeklySummary';
 import { fakeEmailClient } from '../src/lib/email';
+import { parentSaidYesToSummaries } from './parentConsent';
 
 let q: Querier;
 
@@ -80,6 +81,7 @@ describe('generate_weekly_summary job', () => {
 
   it('does not rewrite a summary that has already been sent', async () => {
     const active = await makeActiveParent('sarah@example.com', 'Robert');
+    await parentSaidYesToSummaries(q, active);
     await consentRepo.record(q, {
       parentId: active,
       kind: 'summary_recipient',

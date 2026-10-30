@@ -167,11 +167,11 @@ export function createAnthropicAiClient(apiKey: string): AiClient {
     },
 
     async extractMemories({ turns }: MemoryExtractionInput): Promise<MemoryExtraction> {
-      const transcript = turns.map((t) => `${t.role}: ${t.content}`).join('\n');
+      // Delimited so the parent's words are read as data, never as instructions (chat 9).
       const { value, usage } = await jsonCall<{ candidates: MemoryCandidate[] }>(
         'extractMemories',
         MEMORY_EXTRACTION_SYSTEM_V3,
-        transcript,
+        renderTranscriptV1({ turns }),
         {
           type: 'object',
           additionalProperties: false,

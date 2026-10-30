@@ -165,7 +165,7 @@ describe('seedDemo', () => {
     expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE provider <> 'anthropic_llm'`)).toBe(17);
     expect(await count(`SELECT COUNT(*)::int AS n FROM weekly_summaries`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM safety_flags`)).toBe(1);
-    expect(await count(`SELECT COUNT(*)::int AS n FROM consents`)).toBe(3);
+    expect(await count(`SELECT COUNT(*)::int AS n FROM consents`)).toBe(4);
     expect(await count(`SELECT COUNT(*)::int AS n FROM subscriptions`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM beta_invites`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM parent_access_tokens`)).toBe(1);
