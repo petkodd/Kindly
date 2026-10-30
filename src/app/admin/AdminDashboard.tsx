@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, ApiError } from '@/lib/apiClient';
+import { api, ApiError, signOutAndRedirect } from '@/lib/apiClient';
 import { CostRetentionPanel } from './CostRetentionPanel';
 import { Metric } from './Metric';
 
@@ -81,7 +81,7 @@ export function AdminDashboard() {
       setOverview(o.overview);
       setFlags(f.flags);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) router.replace('/login');
+      if (err instanceof ApiError && err.status === 401) void signOutAndRedirect(router);
       else setError('Could not load the dashboard.');
     }
   }, [router]);

@@ -58,13 +58,13 @@ describe('/privacy and /terms (chat 9)', () => {
     expect(urls).toContain(`${SITE.url}/terms`);
   });
 
-  it('are linked from the footer and the signup page', () => {
+  it('are linked from the footer and the signup page', async () => {
     const footer = render(<SiteFooter />);
     const f = within(footer.container);
     expect(f.getByRole('link', { name: 'Privacy policy' }).getAttribute('href')).toBe('/privacy');
     expect(f.getByRole('link', { name: 'Terms of use' }).getAttribute('href')).toBe('/terms');
     cleanup();
-    render(<SignupPage />);
+    render(await SignupPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe('/privacy');
     expect(screen.getByRole('link', { name: 'Terms of Use' }).getAttribute('href')).toBe('/terms');
   });

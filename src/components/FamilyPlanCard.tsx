@@ -2,6 +2,7 @@ import { TrackedCtaLink } from './TrackedCtaLink';
 import { PlanFeatureList } from './PlanFeatureList';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import type { BillingInterval } from '@/lib/billing';
+import { signupHref } from '@/lib/nextPath';
 
 interface FamilyPlan {
   id: string;
@@ -48,8 +49,10 @@ export function FamilyPlanCard({ plan, billingInterval }: { plan: FamilyPlan; bi
       <TrackedCtaLink
         // Carries the selected interval into onboarding — otherwise a
         // visitor who picks Monthly here lands back on checkout's own
-        // (Annual) default with no memory of that choice.
-        href={`${plan.cta.href}?interval=${billingInterval}`}
+        // (Annual) default with no memory of that choice. Signup comes
+        // first; `next` brings them back to onboarding afterwards (an
+        // already signed-in buyer is sent straight on by the middleware).
+        href={signupHref(`${plan.cta.href}?interval=${billingInterval}`)}
         ctaId={`plan_${plan.id}`}
         slug="/pricing"
         className="btn-secondary mt-8 w-full"

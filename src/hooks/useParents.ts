@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, ApiError } from '@/lib/apiClient';
+import { api, ApiError, signOutAndRedirect } from '@/lib/apiClient';
 
 export interface Parent {
   id: string;
@@ -26,7 +26,7 @@ export interface UseParents {
  * their content to a chosen parent.
  *
  * - Selects the first parent as soon as the list arrives.
- * - Redirects to /login on a 401 (unauthenticated); any other failure surfaces
+ * - Clears the session and redirects to /login?next=… on a 401 (unauthenticated); any other failure surfaces
  *   through `loadError` so the page can show it.
  */
 export function useParents(): UseParents {
@@ -43,7 +43,7 @@ export function useParents(): UseParents {
         if (r.parents.length > 0) setSelected(r.parents[0].id);
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) router.replace('/login');
+        if (err instanceof ApiError && err.status === 401) void signOutAndRedirect(router);
         else setLoadError('Could not load your family.');
       });
   }, [router]);
