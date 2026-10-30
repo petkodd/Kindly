@@ -12,6 +12,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/senior-living',
     '/waitlist',
     '/blog',
+    '/privacy',
+    '/terms',
   ];
   const now = new Date();
   return routes.map((path) => ({
