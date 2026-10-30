@@ -341,7 +341,7 @@ function SummaryNotice({
           type="button"
           onClick={() => onAnswer('not_now')}
           disabled={busy}
-          className="min-h-[4.5rem] w-full rounded-full border-2 border-sageDeep bg-cloud px-10 text-2xl font-semibold text-ink disabled:opacity-60 sm:w-auto"
+          className="min-h-[4.5rem] w-full rounded-xl border-2 border-sageDeep bg-cloud px-10 text-2xl font-semibold text-ink disabled:opacity-60 sm:w-auto"
         >
           Not now
         </button>
