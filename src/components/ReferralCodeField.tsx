@@ -6,7 +6,7 @@ import { readReferralCookie } from '@/lib/referralCode';
 
 /** Shared copy: what a referral code gets you (chat 11). */
 export const REFERRAL_TERMS =
-  'After your first paid month, you and the family who referred you each get one month free, taken off your next bill.';
+  'After your first payment, you and the family who referred you each get one month free, taken off your next bill.';
 
 /**
  * Optional referral code on the onboarding checkout step (chat 11). Prefilled

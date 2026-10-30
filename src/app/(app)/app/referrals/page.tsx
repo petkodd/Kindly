@@ -265,7 +265,7 @@ function ReferralCodeSection() {
       <h2 className="text-lg font-semibold text-ink">Give a month, get a month</h2>
       <p className="mt-1 text-base text-muted">
         Share your code or link with another family. They enter the code when they create their account
-        or start their trial. After their first paid month, you each get one month free, taken off your
+        or start their trial. After their first payment, you each get one month free, taken off your
         next bill.
       </p>
       <p className="mt-2 text-sm text-muted">

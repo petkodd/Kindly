@@ -139,7 +139,7 @@ export function AuthForm({
             className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg uppercase tracking-widest text-ink focus:border-sage"
           />
           <p id="referral-code-help" className="mt-1 text-sm text-muted">
-            From a friend who uses Dearly? You’ll each get a free month after your first paid month.
+            From a friend who uses Dearly? You’ll each get a free month after your first payment.
           </p>
         </div>
       )}

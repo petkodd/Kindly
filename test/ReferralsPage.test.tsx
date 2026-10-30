@@ -152,7 +152,7 @@ describe('ReferralsPage', () => {
     });
     render(<ReferralsPage />);
     expect(await screen.findByText('ABCDEFGHJK')).toBeTruthy();
-    expect(screen.getByText(/after their first paid month, you each get one month free/i)).toBeTruthy();
+    expect(screen.getByText(/after their first payment, you each get one month free/i)).toBeTruthy();
     expect(screen.getByText('Credited: 1 free month')).toBeTruthy();
     expect(screen.getByText('Pending: waiting for their first payment')).toBeTruthy();
     expect(screen.getByRole('button', { name: /copy link/i })).toBeTruthy();
