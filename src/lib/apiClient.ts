@@ -53,6 +53,7 @@ export const api = {
   get: <T>(path: string, headers?: Extra, signal?: AbortSignal) => request<T>(path, 'GET', undefined, headers, signal),
   post: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'POST', body, headers),
   patch: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PATCH', body, headers),
+  put: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'PUT', body, headers),
   del: <T>(path: string, body?: unknown, headers?: Extra) => request<T>(path, 'DELETE', body, headers),
 };
 

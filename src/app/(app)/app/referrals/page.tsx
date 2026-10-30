@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
+import { useEmailVerified, UNVERIFIED_REASON } from '@/hooks/useEmailVerified';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
@@ -153,6 +154,7 @@ function InviteForm({
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const blockedUnverified = useEmailVerified() === false;
 
   async function invite() {
     setStatus('');
@@ -188,12 +190,18 @@ function InviteForm({
         <button
           type="button"
           onClick={invite}
-          disabled={busy}
+          disabled={busy || blockedUnverified}
+          aria-describedby={blockedUnverified ? 'invite-blocked-reason' : undefined}
           className="btn-primary shrink-0 disabled:opacity-60"
         >
           {busy ? 'Sending…' : 'Send invite'}
         </button>
       </div>
+      {blockedUnverified && (
+        <p id="invite-blocked-reason" className="mt-3 text-base text-clay">
+          {UNVERIFIED_REASON}
+        </p>
+      )}
       {status && <p className="mt-3 text-sm text-muted">{status}</p>}
     </div>
   );

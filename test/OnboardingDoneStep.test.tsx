@@ -51,13 +51,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const ALERT_CONTACT = () => json({ alert_contact: { alert_phone: null, sms_alert_consent_at: null } });
+
+/** Billing is followed by the Emergency alerts step (chat 10); skip it (email-only) to reach DoneStep. */
+async function skipAlertsStep() {
+  expect(await screen.findByRole('heading', { name: 'Emergency alerts' })).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Skip for now' }));
+  expect(screen.getByRole('alert').textContent).toMatch(/by email only/i);
+  fireEvent.click(screen.getByRole('button', { name: /Skip — email alerts only/ }));
+}
+
 async function renderAtDoneStep(routes: Record<string, Handler> = {}) {
   stubFetch({
     'GET /api/parents/p1': () => json({ parent: PARENT }),
     'POST /api/parents/p1/activate': () => json({ parent: { ...PARENT, activated_at: '2026-07-13T00:00:00Z' } }),
+    'GET /api/me/alert-contact': ALERT_CONTACT,
     ...routes,
   });
   render(<OnboardingPage />);
+  await skipAlertsStep();
   expect(await screen.findByText(/all set/i)).toBeTruthy();
 }
 
@@ -137,10 +149,12 @@ describe('OnboardingPage — failed return from Stripe Checkout', () => {
           : json({ parent: PARENT });
       },
       'POST /api/parents/p1/activate': () => json({ parent: { ...PARENT, activated_at: '2026-07-13T00:00:00Z' } }),
+      'GET /api/me/alert-contact': ALERT_CONTACT,
     });
     render(<OnboardingPage />);
 
     fireEvent.click(await screen.findByRole('button', { name: /try again/i }));
+    await skipAlertsStep();
     expect(await screen.findByText(/all set/i)).toBeTruthy();
   });
 });

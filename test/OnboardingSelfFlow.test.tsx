@@ -50,7 +50,7 @@ describe('OnboardingPage — self-use flow ("Me")', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /^me/i }));
     expect(await screen.findByText(/a little about you/i)).toBeTruthy();
-    expect(screen.queryByLabelText(/your relationship/i)).toBeNull(); // no relationship dropdown for self
+    expect(screen.queryByLabelText(/they are your/i)).toBeNull(); // no relationship dropdown for self
 
     fireEvent.change(screen.getByLabelText(/your first name/i), { target: { value: 'Maria' } });
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
@@ -192,6 +192,6 @@ describe('OnboardingPage — "Someone else" path is unaffected', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /someone else/i }));
     expect(await screen.findByText(/a little about them/i)).toBeTruthy();
-    expect(screen.getByLabelText(/your relationship/i)).toBeTruthy();
+    expect(screen.getByLabelText(/they are your/i)).toBeTruthy();
   });
 });

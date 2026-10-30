@@ -7,6 +7,8 @@ import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
 import { inputCls } from '@/lib/formStyles';
+import Link from 'next/link';
+import { ParentTalkLinkSection, TALK_LINK_SECTION_ID } from '@/components/ParentTalkLinkSection';
 
 interface Parent {
   id: string;
@@ -103,6 +105,19 @@ function ProfilePanel({ parentId }: { parentId: string }) {
     <div className="space-y-6">
       <ProfileForm parent={parent} onSaved={setParent} />
       {parent.relationship === 'self' && parent.activated_at && <TalkToDearlySection parentId={parent.id} />}
+      {parent.activated_at ? (
+        <ParentTalkLinkSection parentId={parent.id} firstName={parent.first_name} />
+      ) : (
+        <section id={TALK_LINK_SECTION_ID} className="rounded-xl border border-line bg-cloud p-6">
+          <h2 className="text-lg font-semibold text-ink">{parent.first_name}&rsquo;s talk link</h2>
+          <p className="mt-2 text-base text-muted">
+            Finish setting up {parent.first_name}&rsquo;s profile first, then you can make their talk link here.
+          </p>
+          <Link href="/app/onboarding" className="btn-primary mt-4">
+            Finish setup
+          </Link>
+        </section>
+      )}
       {parent.activated_at && <BillingSection parentId={parent.id} />}
     </div>
   );

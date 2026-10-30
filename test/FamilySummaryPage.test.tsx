@@ -62,7 +62,7 @@ describe('FamilySummaryPage', () => {
 
   it('renders the current-week preview and sends it to consented recipients', async () => {
     stubFetch({
-      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -81,7 +81,7 @@ describe('FamilySummaryPage', () => {
 
   it('says plainly when a send was only simulated (demo mode, no email key)', async () => {
     stubFetch({
-      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -97,7 +97,7 @@ describe('FamilySummaryPage', () => {
 
   it('guides the buyer to invite a recipient when send is gated on consent (409)', async () => {
     stubFetch({
-      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -114,7 +114,7 @@ describe('FamilySummaryPage', () => {
 
   it('says the parent has not agreed yet when the send is gated on the parent’s consent (chat 9)', async () => {
     stubFetch({
-      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
       'GET /api/parents': () => json({ parents: [PARENT] }),
       'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
       'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
@@ -128,9 +128,66 @@ describe('FamilySummaryPage', () => {
     expect(screen.queryByRole('link', { name: /invite a family member/i })).toBeNull();
   });
 
+  it('shows send as disabled with the reason while the email is unverified (chat 7 follow-up)', async () => {
+    stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: null } }),
+      'GET /api/parents': () => json({ parents: [PARENT] }),
+      'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
+      'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW] }),
+    });
+    render(<FamilySummaryPage />);
+    expect(await screen.findByText(/Confirm your email first/i)).toBeTruthy();
+    const btn = screen.getByRole('button', { name: /send last week’s summary/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('guards an empty summary body instead of rendering a blank card', async () => {
+    const empty = { ...PREVIEW, body_long: '', body_short: null };
+    stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
+      'GET /api/parents': () => json({ parents: [PARENT] }),
+      'GET /api/parents/p1/summary/preview': () => json({ summary: empty }),
+      'GET /api/parents/p1/summaries': () => json({ summaries: [empty] }),
+    });
+    render(<FamilySummaryPage />);
+    expect(await screen.findByText(/nothing to share for this week yet/i)).toBeTruthy();
+    expect((screen.getByRole('button', { name: /send last week’s summary/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('past weeks expand to show the full summary', async () => {
+    const past = { ...PREVIEW, id: 's0', period_start: '2026-06-22', period_end: '2026-06-28', status: 'sent' as const,
+      body_long: 'Robert talked about the garden twice.', body_short: 'Two chats.' };
+    stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
+      'GET /api/parents': () => json({ parents: [PARENT] }),
+      'GET /api/parents/p1/summary/preview': () => json({ summary: PREVIEW }),
+      'GET /api/parents/p1/summaries': () => json({ summaries: [PREVIEW, past] }),
+    });
+    const { container } = render(<FamilySummaryPage />);
+    const toggle = await screen.findByText('Show summary');
+    const details = container.querySelector('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    fireEvent.click(toggle.closest('summary') as HTMLElement);
+    expect(details.open).toBe(true);
+    expect(screen.getByText('Robert talked about the garden twice.')).toBeTruthy();
+  });
+
+  it('never points to a "note below" that does not exist', async () => {
+    const concern = { ...PREVIEW, has_concern: true };
+    stubFetch({
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
+      'GET /api/parents': () => json({ parents: [PARENT] }),
+      'GET /api/parents/p1/summary/preview': () => json({ summary: concern }),
+      'GET /api/parents/p1/summaries': () => json({ summaries: [concern] }),
+    });
+    render(<FamilySummaryPage />);
+    expect(await screen.findByText(/includes a gentle heads-up/i)).toBeTruthy();
+    expect(screen.queryByText(/note below/i)).toBeNull();
+  });
+
   it('redirects to login on a 401', async () => {
     stubFetch({
-      'GET /api/me': () => json({ account: { auto_send_summaries: false } }),
+      'GET /api/me': () => json({ account: { auto_send_summaries: false, email_verified_at: '2026-01-01T00:00:00Z' } }),
       'GET /api/parents': () =>
         json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, 401),
     });

@@ -34,11 +34,11 @@ describe('PricingPage', () => {
   it('the Family CTA link carries the selected interval into checkout', () => {
     render(<PricingPage />);
     const cta = screen.getByRole('link', { name: 'Choose Family' }) as HTMLAnchorElement;
-    expect(cta.getAttribute('href')).toBe('/app/onboarding?interval=year');
+    expect(cta.getAttribute('href')).toBe('/signup?next=%2Fapp%2Fonboarding%3Finterval%3Dyear');
 
     fireEvent.click(screen.getByRole('button', { name: 'Monthly' }));
     expect(screen.getByRole('link', { name: 'Choose Family' }).getAttribute('href')).toBe(
-      '/app/onboarding?interval=month',
+      '/signup?next=%2Fapp%2Fonboarding%3Finterval%3Dmonth',
     );
   });
 
