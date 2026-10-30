@@ -60,11 +60,20 @@ async function applySide(
   /** Stripe customer to credit when the caller already knows it (the paying customer of this invoice). */
   knownCustomerId: string | null,
 ): Promise<SideOutcome> {
-  if (!(await referralRewardRepo.claimSide(q, referral.id, side))) return 'skipped';
-
   const userId = side === 'referrer' ? referral.referrer_id : referral.redeemed_by;
   const sub = userId ? await subscriptionRepo.latestStripeSubscriptionForBuyer(q, userId) : null;
   const customerId = knownCustomerId ?? sub?.stripe_customer_id ?? null;
+
+  if (!customerId) {
+    // Already recorded as waiting for a Stripe customer: don't re-claim and
+    // re-audit on every later invoice of the other family (review fix).
+    const reward = await referralRewardRepo.getByReferralId(q, referral.id);
+    const status = side === 'referrer' ? reward?.referrer_status : reward?.referred_status;
+    const reason = side === 'referrer' ? reward?.referrer_failure_reason : reward?.referred_failure_reason;
+    if (status === 'failed' && reason === 'no_stripe_customer') return 'no_customer';
+  }
+
+  if (!(await referralRewardRepo.claimSide(q, referral.id, side))) return 'skipped';
   const audit = (action: string, meta: Record<string, unknown>) =>
     auditRepo.log(q, { actorId: null, action, targetType: 'referral', targetId: referral.id, meta: { side, ...meta } });
 

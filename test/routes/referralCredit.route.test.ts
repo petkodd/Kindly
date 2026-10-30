@@ -216,6 +216,10 @@ describe('referral credit: redeem → first paid invoice → both credits', () =
     expect(reward?.referrer_status).toBe('failed');
     expect(reward?.referrer_failure_reason).toBe('no_stripe_customer');
 
+    // The new family's next invoice does not re-audit the waiting referrer side.
+    expect((await sendInvoicePaid('evt_new_paid_2', { customer: 'cus_new', amount_paid: 2900 })).status).toBe(200);
+    expect((await creditAudits()).filter((a) => a.action === 'referral_credit_failed')).toHaveLength(1);
+
     await stripeSub(referrer, 'cus_ref_later');
     expect((await sendInvoicePaid('evt_ref_paid', { customer: 'cus_ref_later', amount_paid: 2900 })).status).toBe(200);
     reward = await referralRewardRepo.getByReferralId(q, referral.id);
