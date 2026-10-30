@@ -6,11 +6,14 @@
 export class ApiError extends Error {
   code: string;
   status: number;
-  constructor(status: number, code: string, message: string) {
+  /** The parsed error response body, for routes that send more than { error } (e.g. a fresh notice). */
+  body: unknown;
+  constructor(status: number, code: string, message: string, body: unknown = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 }
 
@@ -39,7 +42,7 @@ async function request<T>(path: string, method: string, body?: unknown, headers?
   }
   if (!res.ok) {
     const err = (payload as { error?: { code?: string; message?: string } } | null)?.error;
-    throw new ApiError(res.status, err?.code ?? 'error', err?.message ?? 'Something went wrong.');
+    throw new ApiError(res.status, err?.code ?? 'error', err?.message ?? 'Something went wrong.', payload);
   }
   return payload as T;
 }

@@ -107,4 +107,12 @@ describe('deepgramListenUrl', () => {
       expect(deepgramListenUrl(bad)).toMatch(/&detect_language=true$/);
     }
   });
+
+  it('always opts out of the Deepgram Model Improvement Program (chat 9)', async () => {
+    const { deepgramListenUrl } = await import('../src/lib/speech/providers');
+    for (const lang of ['en-US', null, 'english']) {
+      const url = new URL(deepgramListenUrl(lang));
+      expect(url.searchParams.get('mip_opt_out')).toBe('true');
+    }
+  });
 });

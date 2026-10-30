@@ -169,8 +169,15 @@ function PreviewCard({
       setStatus(parts.join(' ') || 'Sent to 0 recipients.');
       onSent(r.summary);
     } catch (err) {
-      // 409: no consented recipient yet — the send is gated on consent.
-      if (err instanceof ApiError && err.status === 409) {
+      // 409 parent_consent_required: the parent hasn't said yes to sharing
+      // summaries yet (chat 9). Any other 409: no accepted recipient yet.
+      if (err instanceof ApiError && err.status === 409 && err.code === 'parent_consent_required') {
+        setStatus(
+          isSelf
+            ? 'You haven’t agreed to share weekly summaries yet. Dearly will ask you the next time you talk.'
+            : 'Your parent hasn’t agreed to share weekly summaries yet. Dearly asks them, in their own words, the next time they talk — nothing is sent until they say yes.',
+        );
+      } else if (err instanceof ApiError && err.status === 409) {
         setNeedsRecipient(true);
       } else {
         setStatus(err instanceof ApiError ? err.message : 'Could not send the summary.');

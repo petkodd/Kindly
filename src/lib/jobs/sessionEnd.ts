@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 import type { Querier } from '../querier';
 import type { AiClient, ConversationTurn, MoodSignal } from '../ai';
 import { getAiClient } from '../ai';
-import { sanitizeFamilySummary } from '../ai/prompts';
+import { checkFamilySummaryV2 } from '../ai/prompts';
 import { conversationRepo } from '../repos/conversation';
 import { containsSecretDetail, memoryRepo } from '../repos/memory';
 import { parentRepo } from '../repos/parent';
@@ -103,20 +103,26 @@ export async function runSessionEndJobs(
       parentId: convo.parent_id,
       usages: [{ usage: summary.usage, operation: 'summary' }],
     });
-    // Code-level backstop: never surface restricted detail to family, even if
-    // the model ignored the prompt. A redaction firing means
-    // CONVERSATION_SUMMARY_SYSTEM_V1 was NOT followed in production — that's
+    // Code-level backstop: never surface restricted detail, links, phone
+    // numbers, money or long quotes to family, even if the model ignored the
+    // prompt or followed an instruction injected into the transcript (chat 9).
+    // A redaction firing means CONVERSATION_SUMMARY_SYSTEM_V2 was NOT followed in production — that's
     // a prompt-adherence regression worth a human noticing, not just a line
     // in a server log nobody tails (console.error alone is silent in
     // practice — the same reasoning that put Sentry alerting on weekly-summary
     // delivery failures applies here). Never log the summary text itself,
     // only the (non-PII) conversation/parent ids.
-    const safe = sanitizeFamilySummary(summary.summaryText, parent.first_name);
+    const safe = checkFamilySummaryV2(summary.summaryText, parent.first_name);
     if (safe.redacted) {
       console.warn(`session-end: redacted restricted content from summary of ${conversationId}`);
       Sentry.captureMessage('session-end: redacted restricted content from family summary', {
         level: 'warning',
-        tags: { conversation_id: conversationId, parent_id: convo.parent_id, area: 'summary_redaction' },
+        tags: {
+          conversation_id: conversationId,
+          parent_id: convo.parent_id,
+          area: 'summary_redaction',
+          reasons: safe.reasons.join(','),
+        },
       });
       await auditRepo.log(q, {
         actorId: null,
@@ -152,7 +158,7 @@ export async function runSessionEndJobs(
         continue;
       }
       // Never propose a PIN, password or account number for family review,
-      // even if the model ignored MEMORY_EXTRACTION_SYSTEM_V2.
+      // even if the model ignored MEMORY_EXTRACTION_SYSTEM_V3.
       if (containsSecretDetail(`${c.key} ${c.value}`)) {
         dropped += 1;
         continue;

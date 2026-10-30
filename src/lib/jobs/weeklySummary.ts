@@ -121,7 +121,13 @@ export async function generateWeeklySummaries(
         // Decision D5: buyers who opted in get it sent automatically. No
         // accepted recipients yet is not a failure, just nothing to send.
         // Only for confirmed buyer emails (an unverified account can't send in its name).
-        if (p.auto_send_summaries && p.email_verified_at) {
+        // The parent must have said yes to summary sharing (chat 9); until then
+        // there is nothing to send, which is not a failure either.
+        if (
+          p.auto_send_summaries &&
+          p.email_verified_at &&
+          (await consentRepo.has(q, p.id, 'parent_summary_sharing'))
+        ) {
           const recipients = await consentRepo.listAcceptedRecipients(q, p.id);
           if (recipients.length > 0) {
             const { deliveries } = await summaryRepo.send(q, p.id, p.first_name, reference);
