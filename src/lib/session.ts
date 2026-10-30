@@ -7,9 +7,10 @@ import type { NextResponse } from 'next/server';
  * `adm` flag, and an expiry. Verification is a signature + expiry check with no
  * DB round-trip, so the buyer/admin auth helpers stay synchronous.
  *
- * Trade-off: stateless means logout clears the cookie but a leaked token stays
- * valid until it expires — hence the short default TTL. A server-side denylist
- * can be layered later if per-session revocation is needed.
+ * Revocation: every authoritative check (resolveBuyer/resolveAdmin in auth.ts)
+ * compares the token's issue time with users.sessions_valid_from. Logout,
+ * password change and password reset move that watermark to now(), so every
+ * token issued before it — on every device — stops working immediately.
  */
 
 export const SESSION_COOKIE = 'kindly_session';
@@ -18,8 +19,21 @@ const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 export interface SessionClaims {
   uid: string;
   adm: boolean;
-  iat: number; // issued-at, unix seconds — checked against users.sessions_valid_from
+  iat: number; // issued-at, unix seconds
+  /** Issued-at in milliseconds, compared exactly against users.sessions_valid_from (logout, password change). */
+  iam?: number;
   exp: number; // unix seconds
+}
+
+/**
+ * True when the token was issued before the user's revocation watermark
+ * (logout, password change or reset). Millisecond precision, so a token
+ * issued in the same second just before a logout is revoked too. Tokens from
+ * before `iam` existed fall back to whole seconds (rounded down — stricter).
+ */
+export function isRevoked(claims: SessionClaims, sessionsValidFrom: string | Date): boolean {
+  const issuedMs = claims.iam ?? claims.iat * 1000;
+  return issuedMs < new Date(sessionsValidFrom).getTime();
 }
 
 function secret(): string {
@@ -41,9 +55,10 @@ export function signSession(
   uid: string,
   opts: { isAdmin?: boolean; ttlSeconds?: number } = {},
 ): string {
-  const iat = Math.floor(Date.now() / 1000);
+  const iam = Date.now();
+  const iat = Math.floor(iam / 1000);
   const exp = iat + (opts.ttlSeconds ?? DEFAULT_TTL_SECONDS);
-  const claims: SessionClaims = { uid, adm: opts.isAdmin ?? false, iat, exp };
+  const claims: SessionClaims = { uid, adm: opts.isAdmin ?? false, iat, iam, exp };
   const body = b64url(Buffer.from(JSON.stringify(claims)));
   return `${body}.${sign(body)}`;
 }

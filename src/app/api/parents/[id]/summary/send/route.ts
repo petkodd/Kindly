@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
+import { userRepo } from '@/lib/repos/user';
 import { summaryRepo } from '@/lib/repos/summary';
 
 // Next 15: dynamic route params arrive as a Promise.
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try {
     const pool = db();
     const parent = await parentRepo.getOwned(pool, params.id, buyerId); // isolation
+    // Summaries go out in the buyer's name: their own address must be confirmed first.
+    await userRepo.requireVerifiedEmail(pool, buyerId);
     const result = await summaryRepo.send(pool, params.id, parent.first_name);
     return NextResponse.json(result);
   } catch (err) {

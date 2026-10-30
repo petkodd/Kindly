@@ -47,6 +47,7 @@ interface ParentRow {
   id: string;
   first_name: string;
   auto_send_summaries: boolean;
+  email_verified_at: string | Date | null;
 }
 
 
@@ -93,14 +94,14 @@ export async function generateWeeklySummaries(
   for (;;) {
     const { rows: parents } = cursorId
       ? await q.query<ParentRow>(
-          `SELECT p.id, p.first_name, u.auto_send_summaries FROM parents p JOIN users u ON u.id = p.buyer_id
+          `SELECT p.id, p.first_name, u.auto_send_summaries, u.email_verified_at FROM parents p JOIN users u ON u.id = p.buyer_id
             WHERE p.activated_at IS NOT NULL AND p.deleted_at IS NULL AND u.deleted_at IS NULL AND p.id > $2
             ORDER BY p.id ASC
             LIMIT $1`,
           [batchSize, cursorId],
         )
       : await q.query<ParentRow>(
-          `SELECT p.id, p.first_name, u.auto_send_summaries FROM parents p JOIN users u ON u.id = p.buyer_id
+          `SELECT p.id, p.first_name, u.auto_send_summaries, u.email_verified_at FROM parents p JOIN users u ON u.id = p.buyer_id
             WHERE p.activated_at IS NOT NULL AND p.deleted_at IS NULL AND u.deleted_at IS NULL
             ORDER BY p.id ASC
             LIMIT $1`,
@@ -119,7 +120,8 @@ export async function generateWeeklySummaries(
         result.generated.push({ parentId: p.id, summaryId: summary.id });
         // Decision D5: buyers who opted in get it sent automatically. No
         // accepted recipients yet is not a failure, just nothing to send.
-        if (p.auto_send_summaries) {
+        // Only for confirmed buyer emails (an unverified account can't send in its name).
+        if (p.auto_send_summaries && p.email_verified_at) {
           const recipients = await consentRepo.listAcceptedRecipients(q, p.id);
           if (recipients.length > 0) {
             const { deliveries } = await summaryRepo.send(q, p.id, p.first_name, reference);

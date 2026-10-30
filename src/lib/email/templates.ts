@@ -86,6 +86,61 @@ export function magicLinkEmail(input: { verifyUrl: string }): { subject: string;
   return { subject, html, text };
 }
 
+type Email = { subject: string; html: string; text: string };
+
+function linkEmail(subject: string, lead: string, label: string, url: string, notes: string[]): Email {
+  const text = [lead, '', url, '', ...notes].join('\n');
+  const html = `
+    <p>${escapeHtml(lead)}</p>
+    <p><a href="${url}">${escapeHtml(label)}</a></p>
+    ${notes.map((n) => `<p style="color:#666;font-size:14px">${escapeHtml(n)}</p>`).join('\n    ')}
+  `.trim();
+  return { subject, html, text };
+}
+
+/** Sent after signup: confirms the address and signs the new account in. */
+export function verifyEmailEmail(input: { verifyUrl: string }): Email {
+  return linkEmail(
+    'Confirm your email for Dearly',
+    'Welcome to Dearly. Please confirm your email address to finish creating your account:',
+    'Confirm my email',
+    input.verifyUrl,
+    [
+      'This link expires in 24 hours and can only be used once.',
+      "If you didn't create a Dearly account, you can ignore this email.",
+    ],
+  );
+}
+
+/** Sent when someone signs up with an email that already has an account (never revealed on screen). */
+export function accountExistsEmail(input: { loginUrl: string; resetUrl: string }): Email {
+  const e = linkEmail(
+    'You already have a Dearly account',
+    'Someone (hopefully you) tried to create a Dearly account with this email address, but you already have one. You can sign in here:',
+    'Sign in to Dearly',
+    input.loginUrl,
+    [
+      `Forgot your password? Reset it here: ${input.resetUrl}`,
+      "If this wasn't you, you can ignore this email — nothing has changed on your account.",
+    ],
+  );
+  return e;
+}
+
+/** Password reset link: sets a new password without the old one, then signs out every device. */
+export function passwordResetEmail(input: { resetUrl: string }): Email {
+  return linkEmail(
+    'Reset your Dearly password',
+    'Use this link to choose a new password for Dearly:',
+    'Choose a new password',
+    input.resetUrl,
+    [
+      'This link expires in 30 minutes and can only be used once. Setting a new password signs you out on every device.',
+      "If you didn't ask for this, you can ignore this email — your password hasn't changed.",
+    ],
+  );
+}
+
 /**
  * Safety alert to the gift buyer on a P0/P1 flag (decision D2). Deliberately
  * short, with no transcript and no quotes: it says the parent may need help

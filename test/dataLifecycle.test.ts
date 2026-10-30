@@ -358,6 +358,19 @@ describe('7. weekly summaries (D5)', () => {
     expect(result.generated.map((g) => g.parentId).sort()).toEqual([optedIn.parent.id, notOpted.parent.id].sort());
   });
 
+  it('the cron does not auto-send for a buyer whose email is unconfirmed (chat 7), but still builds the preview', async () => {
+    const p = await readyParent();
+    const inv = await consentRepo.recordRecipientInvite(q, { parentId: p.parent.id, grantedBy: p.buyer, recipientEmail: 'r@example.com' });
+    await consentRepo.acceptRecipientInvite(q, inv.inviteToken);
+    await q.query(`UPDATE users SET auto_send_summaries = true, email_verified_at = NULL WHERE id = $1`, [p.buyer]);
+    const send = vi.spyOn(fakeEmailClient, 'send').mockResolvedValue({ id: 'provider-1' });
+
+    const result = await generateWeeklySummaries(q);
+    expect(result.sent).toEqual([]);
+    expect(result.generated.map((g) => g.parentId)).toEqual([p.parent.id]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('auto_send_summaries must be a boolean', async () => {
     const buyer = await makeBuyer(q, 'x@example.com');
     const res = await mePATCH(authedReq('http://localhost/api/me', buyer, { method: 'PATCH', body: JSON.stringify({ auto_send_summaries: 'yes' }) }));

@@ -1,4 +1,5 @@
 import type { Querier } from '../querier';
+import { RateLimitError } from '../types';
 
 /**
  * Fixed-window rate limiter, DB-backed so the count is shared across serverless
@@ -35,6 +36,19 @@ export const rateLimitRepo = {
     );
     const count = Number(rows[0].count);
     return { allowed: count <= opts.limit, count };
+  },
+
+  /**
+   * Count one hit and throw RateLimitError (429) with `message` once `limit`
+   * is passed within `windowMs`. The usual one-liner for a public write route.
+   */
+  async enforce(
+    q: Querier,
+    key: string,
+    opts: { limit: number; windowMs: number; message?: string },
+  ): Promise<void> {
+    const { allowed } = await rateLimitRepo.hit(q, key, opts);
+    if (!allowed) throw new RateLimitError(opts.message ?? 'Too many requests. Please try again in a little while.');
   },
 
   /** Clear a key's counter (e.g. after a successful login). */

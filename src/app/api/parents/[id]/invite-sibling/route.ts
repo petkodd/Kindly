@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { parentRepo } from '@/lib/repos/parent';
+import { userRepo } from '@/lib/repos/user';
 import { consentRepo } from '@/lib/repos/consent';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { RateLimitError } from '@/lib/types';
@@ -34,6 +35,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     });
     if (!rl.allowed) throw new RateLimitError('Too many invitations. Please try again later.');
     const parent = await parentRepo.getOwned(pool, params.id, buyerId); // isolation
+    // Inviting family sends email in the buyer's name: the buyer's own address must be confirmed first.
+    await userRepo.requireVerifiedEmail(pool, buyerId);
     const body = await readJsonBody(req);
     const { consent, inviteToken } = await consentRepo.recordRecipientInvite(pool, {
       parentId: params.id,

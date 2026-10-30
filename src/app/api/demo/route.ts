@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { clientIp, rejectCrossOrigin } from '@/lib/auth';
+import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { waitlistRepo } from '@/lib/repos/waitlist';
 
 /**
@@ -10,6 +12,8 @@ import { waitlistRepo } from '@/lib/repos/waitlist';
  * is a no-op beyond setting wants_demo).
  */
 export async function POST(req: NextRequest) {
+  const blocked = rejectCrossOrigin(req);
+  if (blocked) return blocked;
   let body: { email?: string; source_page?: string; utm?: unknown };
   try {
     body = await req.json();
@@ -30,6 +34,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Public form: throttle per IP so it can't be used to flood the list or our inbox.
+    const { allowed } = await rateLimitRepo.hit(db(), `demo:ip:${clientIp(req)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: { code: 'rate_limited', message: 'Too many requests. Please try again in a little while.' } },
+        { status: 429 },
+      );
+    }
     await waitlistRepo.requestDemo(db(), {
       email,
       sourcePage: body.source_page,

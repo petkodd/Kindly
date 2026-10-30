@@ -11,6 +11,20 @@ import { NotFoundError } from '../types';
 
 const TTL_MS = 15 * 60 * 1000;
 
+/**
+ * What a one-time email link may do. 'login' signs in (and proves the email
+ * address); 'reset' only allows setting a new password. One kind can never be
+ * consumed as the other.
+ */
+export type EmailLinkPurpose = 'login' | 'reset';
+
+/** Lifetimes per use: sign-in links are short; the signup confirmation link lasts a day. */
+export const LINK_TTL_MS = {
+  login: TTL_MS,
+  signupVerify: 24 * 60 * 60 * 1000,
+  reset: 30 * 60 * 1000,
+} as const;
+
 function hashToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
@@ -23,19 +37,24 @@ export const magicLinkRepo = {
    * "email me a link" click can't leave several simultaneously valid tokens
    * outstanding for the same account.
    */
-  async issue(q: Querier, userId: string): Promise<{ token: string; id: string }> {
+  async issue(
+    q: Querier,
+    userId: string,
+    opts: { purpose?: EmailLinkPurpose; ttlMs?: number } = {},
+  ): Promise<{ token: string; id: string }> {
+    const purpose = opts.purpose ?? 'login';
     await q.query(
       `UPDATE magic_link_tokens SET used_at = now()
-       WHERE user_id = $1 AND used_at IS NULL AND expires_at > now()`,
-      [userId],
+       WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()`,
+      [userId, purpose],
     );
     const raw = randomBytes(32).toString('base64url');
-    const expiresAt = new Date(Date.now() + TTL_MS);
+    const expiresAt = new Date(Date.now() + (opts.ttlMs ?? (purpose === 'reset' ? LINK_TTL_MS.reset : TTL_MS)));
     const { rows } = await q.query<{ id: string }>(
-      `INSERT INTO magic_link_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)
+      `INSERT INTO magic_link_tokens (user_id, token_hash, expires_at, purpose)
+       VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [userId, hashToken(raw), expiresAt],
+      [userId, hashToken(raw), expiresAt, purpose],
     );
     return { token: raw, id: rows[0].id };
   },
@@ -46,16 +65,17 @@ export const magicLinkRepo = {
    * Throws NotFoundError when the token is unknown, expired, or already used —
    * the caller maps that to a single generic response (no oracle).
    */
-  async consume(q: Querier, raw: string): Promise<string> {
+  async consume(q: Querier, raw: string, purpose: EmailLinkPurpose = 'login'): Promise<string> {
     if (!raw) throw new NotFoundError('Invalid or expired link');
     const { rows } = await q.query<{ user_id: string }>(
       `UPDATE magic_link_tokens
        SET used_at = now()
        WHERE token_hash = $1
+         AND purpose = $2
          AND used_at IS NULL
          AND expires_at > now()
        RETURNING user_id`,
-      [hashToken(raw)],
+      [hashToken(raw), purpose],
     );
     if (rows.length === 0) throw new NotFoundError('Invalid or expired link');
     return rows[0].user_id;

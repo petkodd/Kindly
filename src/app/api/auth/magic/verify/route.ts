@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readJsonBody, errorToResponse, clientIp } from '@/lib/auth';
+import { readJsonBody, errorToResponse, clientIp, rejectCrossOrigin } from '@/lib/auth';
 import { userRepo } from '@/lib/repos/user';
 import { magicLinkRepo } from '@/lib/repos/magicLink';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
@@ -19,11 +19,14 @@ const VERIFY_LIMIT = 20;
 const VERIFY_WINDOW_MS = 15 * 60 * 1000;
 
 /**
- * Exchange a magic-link token for a session cookie. The token is single-use
+ * Exchange a magic-link (sign-in or signup-confirmation) token for a session
+ * cookie, marking the email verified. The token is single-use
  * (magicLinkRepo.consume marks it used atomically), so a captured email link
  * can't be replayed even if the recipient clicks it twice.
  */
 export async function POST(req: NextRequest) {
+  const blocked = rejectCrossOrigin(req);
+  if (blocked) return blocked;
   try {
     const pool = db();
     const rl = await rateLimitRepo.hit(pool, `magicverify:ip:${clientIp(req)}`, {
@@ -45,6 +48,9 @@ export async function POST(req: NextRequest) {
 
     const info = await userRepo.sessionAuth(pool, userId);
     if (!info || info.deleted_at) return invalid(); // account deleted since the link was sent
+    // The link reached this inbox, so the address is proven (signup confirmation
+    // is a sign-in link too).
+    await userRepo.markEmailVerified(pool, userId);
 
     const sessionToken = signSession(userId, { isAdmin: info.is_admin });
     const res = NextResponse.json({ ok: true });

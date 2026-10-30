@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AppNav } from '@/components/AppNav';
 import { DemoModeBadge } from '@/components/DemoModeBadge';
+import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
 
 // Every private app page is noindex — reinforced here and via X-Robots-Tag header.
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <AppNav />
       </header>
+      <VerifyEmailBanner />
       <main className="container-k py-12">{children}</main>
     </div>
   );

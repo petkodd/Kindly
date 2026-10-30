@@ -82,3 +82,39 @@ describe('POST /api/demo', () => {
     expect(rows[0].wants_demo).toBe(true);
   });
 });
+
+describe('public form throttles (chat 7)', () => {
+  const fromIp = (url: string, body: unknown, ip: string) =>
+    new NextRequest(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+      body: JSON.stringify(body),
+    });
+
+  it('waitlist: 429s an IP after 10 signups in an hour; other IPs unaffected', async () => {
+    process.env.DATABASE_URL = 'postgres://test';
+    for (let i = 0; i < 10; i++) {
+      const res = await waitlistPOST(fromIp('http://localhost/api/waitlist', { email: `w${i}@example.com` }, '4.4.4.4'));
+      expect(res.status).toBeLessThan(400);
+    }
+    expect((await waitlistPOST(fromIp('http://localhost/api/waitlist', { email: 'w99@example.com' }, '4.4.4.4'))).status).toBe(429);
+    expect((await waitlistPOST(fromIp('http://localhost/api/waitlist', { email: 'w99@example.com' }, '4.4.4.5'))).status).toBeLessThan(400);
+  });
+
+  it('demo: 429s an IP after 5 requests in an hour', async () => {
+    process.env.DATABASE_URL = 'postgres://test';
+    for (let i = 0; i < 5; i++) {
+      const res = await demoPOST(fromIp('http://localhost/api/demo', { email: `d${i}@example.com` }, '4.4.4.6'));
+      expect(res.status).toBeLessThan(400);
+    }
+    expect((await demoPOST(fromIp('http://localhost/api/demo', { email: 'd99@example.com' }, '4.4.4.6'))).status).toBe(429);
+  });
+
+  it('both refuse a cross-site POST', async () => {
+    process.env.DATABASE_URL = 'postgres://test';
+    const evil = (url: string) =>
+      new NextRequest(url, { method: 'POST', headers: { origin: 'https://evil.example' }, body: JSON.stringify({ email: 'a@example.com' }) });
+    expect((await waitlistPOST(evil('http://localhost/api/waitlist'))).status).toBe(403);
+    expect((await demoPOST(evil('http://localhost/api/demo'))).status).toBe(403);
+  });
+});

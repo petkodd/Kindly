@@ -15,10 +15,10 @@ import { POST as inviteSiblingPOST } from '../../src/app/api/parents/[id]/invite
 import { POST as acceptPOST } from '../../src/app/api/invites/accept/route';
 import { POST as summarySendPOST } from '../../src/app/api/parents/[id]/summary/send/route';
 
-async function makeBuyer(email: string): Promise<string> {
+async function makeBuyer(email: string, opts: { verified?: boolean } = {}): Promise<string> {
   const { rows } = await q.query<{ id: string }>(
-    `INSERT INTO users (email) VALUES ($1) RETURNING id`,
-    [email],
+    `INSERT INTO users (email, email_verified_at) VALUES ($1, $2) RETURNING id`,
+    [email, opts.verified === false ? null : new Date()],
   );
   return rows[0].id;
 }
@@ -205,5 +205,65 @@ describe('POST /api/parents/:id/summary/send (email delivery, end-to-end)', () =
     // summary is not claimed as sent (see summary.test.ts for the real-provider path).
     expect(body.deliveries[0].status).toBe('simulated');
     expect(body.summary.status).toBe('preview');
+  });
+});
+
+describe('email verification gate (chat 7)', () => {
+  it('403s email_unverified on sibling invites until the buyer verifies their email', async () => {
+    const sendSpy = vi.spyOn(fakeEmailClient, 'send');
+    const buyerId = await makeBuyer('new@example.com', { verified: false });
+    const parent = await parentRepo.create(q, { buyerId, firstName: 'Robert', relationship: 'father' });
+
+    const res = await inviteSiblingPOST(
+      buyerReq(`http://localhost/api/parents/${parent.id}/invite-sibling`, buyerId, { email: 'sib@example.com' }),
+      { params: Promise.resolve({ id: parent.id }) },
+    );
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('email_unverified');
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(await consentRepo.listRecipients(q, parent.id)).toHaveLength(0);
+
+    await q.query(`UPDATE users SET email_verified_at = now() WHERE id = $1`, [buyerId]);
+    const after = await inviteSiblingPOST(
+      buyerReq(`http://localhost/api/parents/${parent.id}/invite-sibling`, buyerId, { email: 'sib@example.com' }),
+      { params: Promise.resolve({ id: parent.id }) },
+    );
+    expect(after.status).toBe(201);
+  });
+
+  it('403s email_unverified on summary send for an unverified buyer', async () => {
+    const buyerId = await makeBuyer('new@example.com', { verified: false });
+    const parent = await parentRepo.create(q, { buyerId, firstName: 'Robert', relationship: 'father' });
+    const res = await summarySendPOST(
+      buyerReq(`http://localhost/api/parents/${parent.id}/summary/send`, buyerId),
+      { params: Promise.resolve({ id: parent.id }) },
+    );
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('email_unverified');
+  });
+});
+
+describe('POST /api/invites/accept rate limit (chat 7)', () => {
+  it('429s an IP that keeps guessing invite tokens', async () => {
+    let last;
+    for (let i = 0; i < 21; i++) {
+      last = await acceptPOST(
+        new NextRequest('http://localhost/api/invites/accept', {
+          method: 'POST',
+          headers: { 'x-forwarded-for': '9.9.9.9' },
+          body: JSON.stringify({ token: `guess-${i}` }),
+        }),
+      );
+    }
+    expect(last!.status).toBe(429);
+    // A different IP is unaffected.
+    const other = await acceptPOST(
+      new NextRequest('http://localhost/api/invites/accept', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '8.8.8.8' },
+        body: JSON.stringify({ token: 'guess' }),
+      }),
+    );
+    expect(other.status).toBe(404);
   });
 });

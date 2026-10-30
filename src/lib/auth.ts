@@ -6,7 +6,7 @@ import { db } from './db';
 import { accessTokenRepo } from './repos/accessToken';
 import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
-import { SESSION_COOKIE, verifySession } from './session';
+import { SESSION_COOKIE, isRevoked, verifySession } from './session';
 import { PARENT_TOKEN_COOKIE } from './parentSession';
 import { describeError } from './sentryScrub';
 
@@ -73,6 +73,59 @@ export async function readJsonBody(req: NextRequest): Promise<Record<string, unk
   }
 }
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function hostOf(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * CSRF defence for state-changing requests, on top of SameSite cookies: a
+ * POST/PATCH/PUT/DELETE whose Origin (or, failing that, Referer) is another
+ * site is refused. Same-host requests and the configured app/site URLs are
+ * allowed. A request with neither header is allowed: browsers always send
+ * Origin on cross-site writes, so its absence means a non-browser client
+ * (server-to-server, curl, tests), which CSRF can't come from.
+ *
+ * Not applied to the Stripe webhook (signature-verified) or cron routes (GET +
+ * bearer secret).
+ */
+export function isCrossOriginWrite(req: NextRequest): boolean {
+  if (SAFE_METHODS.has(req.method.toUpperCase())) return false;
+  if (req.headers.get('sec-fetch-site') === 'cross-site') return true;
+  const source = req.headers.get('origin') ?? req.headers.get('referer');
+  if (!source) return false;
+  if (source === 'null') return true; // sandboxed iframe, file://, data: …
+  const from = hostOf(source);
+  if (!from) return true;
+  const allowed = new Set(
+    [
+      req.headers.get('x-forwarded-host'),
+      req.headers.get('host'),
+      req.nextUrl?.host,
+      hostOf(process.env.APP_BASE_URL),
+      hostOf(process.env.NEXT_PUBLIC_SITE_URL),
+    ]
+      .filter(Boolean)
+      .map((h) => (h as string).split(',')[0].trim().toLowerCase()),
+  );
+  return !allowed.has(from);
+}
+
+/** For public (unauthenticated) write routes: a 403 response for a cross-origin write, else null. */
+export function rejectCrossOrigin(req: NextRequest): NextResponse | null {
+  if (!isCrossOriginWrite(req)) return null;
+  return NextResponse.json(
+    { error: { code: 'bad_origin', message: 'This request came from another website and was refused.' } },
+    { status: 403 },
+  );
+}
+
 /**
  * Resolve the current buyer's user id from the verified session cookie. The
  * cookie is HMAC-signed (see session.ts), so a client cannot forge it — this
@@ -98,21 +151,24 @@ export function getAdminId(req: NextRequest): string | null {
  * checks the signature and can't see a revoked/deleted account.
  */
 export async function resolveBuyer(req: NextRequest, q?: Querier): Promise<string | null> {
+  // A cross-site write is treated as unauthenticated (CSRF), whatever cookie it carries.
+  if (isCrossOriginWrite(req)) return null;
   const claims = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (!claims) return null; // no valid cookie → never touch the DB (keeps build-time render db-free)
   const info = await userRepo.sessionAuth(q ?? db(), claims.uid);
   if (!info || info.deleted_at) return null;
-  if (claims.iat < Math.floor(new Date(info.sessions_valid_from).getTime() / 1000)) return null;
+  if (isRevoked(claims, info.sessions_valid_from)) return null;
   return claims.uid;
 }
 
 /** Authoritative admin auth: resolveBuyer + the admin claim + live is_admin. */
 export async function resolveAdmin(req: NextRequest, q?: Querier): Promise<string | null> {
+  if (isCrossOriginWrite(req)) return null;
   const claims = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (!claims || !claims.adm) return null;
   const info = await userRepo.sessionAuth(q ?? db(), claims.uid);
   if (!info || info.deleted_at || !info.is_admin) return null;
-  if (claims.iat < Math.floor(new Date(info.sessions_valid_from).getTime() / 1000)) return null;
+  if (isRevoked(claims, info.sessions_valid_from)) return null;
   return claims.uid;
 }
 
@@ -141,6 +197,7 @@ export async function resolveParentFromRequest(
   req: NextRequest,
   q: Querier,
 ): Promise<string | null> {
+  if (isCrossOriginWrite(req)) return null;
   const token = getParentToken(req);
   if (!token) return null;
   try {
@@ -170,6 +227,8 @@ export function errorToResponse(err: unknown): { status: number; body: { error: 
       };
     case 'BillingUnavailableError':
       return { status: 503, body: { error: { code: 'billing_unavailable', message: (err as Error).message } } };
+    case 'EmailNotVerifiedError':
+      return { status: 403, body: { error: { code: 'email_unverified', message: (err as Error).message } } };
     case 'ExpiredError':
       return { status: 410, body: { error: { code: 'expired', message: (err as Error).message } } };
     case 'PayloadTooLargeError':
