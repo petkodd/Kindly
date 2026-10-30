@@ -69,6 +69,30 @@ export const subscriptionRepo = {
   },
 
   /**
+   * The buyer's newest Stripe-backed subscription row (one with a customer),
+   * or null. Referral credit (chat 11) uses it to find which Stripe customer
+   * to credit and whether they pay monthly or yearly.
+   */
+  async latestStripeSubscriptionForBuyer(q: Querier, buyerId: string): Promise<Subscription | null> {
+    const { rows } = await q.query<Subscription>(
+      `SELECT * FROM subscriptions
+        WHERE buyer_id = $1 AND stripe_customer_id IS NOT NULL
+        ORDER BY created_at DESC LIMIT 1`,
+      [buyerId],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** The buyer a Stripe customer id belongs to (from our own subscription rows), or null. */
+  async buyerForStripeCustomer(q: Querier, customerId: string): Promise<string | null> {
+    const { rows } = await q.query<{ buyer_id: string }>(
+      `SELECT buyer_id FROM subscriptions WHERE stripe_customer_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [customerId],
+    );
+    return rows[0]?.buyer_id ?? null;
+  },
+
+  /**
    * The single gate other code should call to decide whether a specific
    * parent's talk access is currently paid for: true while trialing/active,
    * true for a past_due subscription still within the grace window, false
