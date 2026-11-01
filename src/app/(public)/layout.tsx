@@ -7,7 +7,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
     <>
       <AnalyticsPageView />
       <SiteHeader />
-      <main>{children}</main>
+      <main id="main" tabIndex={-1}>{children}</main>
       <SiteFooter />
     </>
   );

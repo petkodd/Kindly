@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { buildMetadata, organizationJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { CtaBand } from '@/components/CtaBand';
 import { Testimonials } from '@/components/Testimonials';
 import { signupHref } from '@/lib/nextPath';
 import {
@@ -244,30 +245,7 @@ export default function HomePage() {
       </section>
 
       {/* FINAL CTA */}
-      <section className="bg-sageDeep py-20 text-center text-cloud">
-        <div className="container-k">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">{FINAL_CTA.h2}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{FINAL_CTA.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <TrackedCtaLink
-              href={FINAL_CTA.primary.href}
-              ctaId="final_cta_primary"
-              slug="/"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
-            >
-              {FINAL_CTA.primary.label}
-            </TrackedCtaLink>
-            <TrackedCtaLink
-              href={FINAL_CTA.secondary.href}
-              ctaId="final_cta_secondary"
-              slug="/"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
-            >
-              {FINAL_CTA.secondary.label}
-            </TrackedCtaLink>
-          </div>
-        </div>
-      </section>
+      <CtaBand cta={FINAL_CTA} slug="/" />
     </>
   );
 }

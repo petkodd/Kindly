@@ -9,7 +9,7 @@ type Props = { searchParams: Promise<{ next?: string | string[]; ref?: string | 
 export default async function SignupPage({ searchParams }: Props) {
   const { next, ref } = await searchParams;
   return (
-    <main className="min-h-screen bg-mist px-4 py-20">
+    <main id="main" tabIndex={-1} className="min-h-screen bg-mist px-4 py-20">
       <AuthForm
         mode="signup"
         next={typeof next === 'string' ? next : null}

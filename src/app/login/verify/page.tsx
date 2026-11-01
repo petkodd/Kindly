@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Signing in — Dearly', robots: { in
 
 export default function MagicLinkVerifyPage() {
   return (
-    <main className="min-h-screen bg-mist px-4 py-20">
+    <main id="main" tabIndex={-1} className="min-h-screen bg-mist px-4 py-20">
       <div className="mx-auto max-w-sm">
         <MagicLinkVerify />
       </div>

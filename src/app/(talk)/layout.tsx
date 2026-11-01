@@ -31,7 +31,7 @@ export default function TalkLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
       </header>
-      <main className="container-k py-8 sm:py-12">{children}</main>
+      <main id="main" tabIndex={-1} className="container-k py-8 sm:py-12">{children}</main>
     </div>
   );
 }

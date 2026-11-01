@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { buildMetadata, pricingJsonLd } from '@/lib/seo';
 import { PRICING, getFamilyPlan } from '@/lib/content';
 import { formatUsdCents } from '@/lib/pricing';
-import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { CtaBand } from '@/components/CtaBand';
 import { PricingCards } from '@/components/PricingCards';
 
 export const metadata: Metadata = buildMetadata({
@@ -60,30 +60,7 @@ export default function Page() {
         </dl>
       </section>
 
-      <section className="bg-sageDeep py-20 text-center text-cloud">
-        <div className="container-k">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">{cta.h2}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{cta.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <TrackedCtaLink
-              href={cta.primary.href}
-              ctaId="final_cta_primary"
-              slug="/pricing"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
-            >
-              {cta.primary.label}
-            </TrackedCtaLink>
-            <TrackedCtaLink
-              href={cta.secondary.href}
-              ctaId="final_cta_secondary"
-              slug="/pricing"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
-            >
-              {cta.secondary.label}
-            </TrackedCtaLink>
-          </div>
-        </div>
-      </section>
+      <CtaBand cta={cta} slug="/pricing" />
     </>
   );
 }

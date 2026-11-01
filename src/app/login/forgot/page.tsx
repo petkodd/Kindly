@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: 'Reset your password — Dearly', rob
 
 export default function ForgotPasswordPage() {
   return (
-    <main className="min-h-screen bg-mist px-4 py-20">
+    <main id="main" tabIndex={-1} className="min-h-screen bg-mist px-4 py-20">
       <ForgotPasswordForm />
     </main>
   );

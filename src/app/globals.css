@@ -21,6 +21,9 @@ body {
   border-radius: 4px;
 }
 
+/* The skip link focuses <main id="main" tabindex="-1">; no ring around the whole page. */
+#main:focus { outline: none; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
@@ -34,5 +37,12 @@ body {
   .btn-secondary {
     @apply inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-sage px-8 text-lg font-semibold text-sageDeep transition-colors hover:bg-sage hover:text-cloud;
   }
-  .eyebrow { @apply text-sm font-semibold uppercase tracking-[0.18em] text-clay; }
+  .eyebrow { @apply text-sm font-semibold uppercase tracking-[0.18em] text-sageDeep; }
+  /* Skip link: hidden until focused (keyboard users jump past the header). */
+  .skip-link {
+    @apply sr-only;
+  }
+  .skip-link:focus {
+    @apply not-sr-only fixed left-4 top-4 z-50 inline-flex min-h-[3.5rem] items-center rounded-xl bg-ink px-6 text-lg font-semibold text-cloud;
+  }
 }

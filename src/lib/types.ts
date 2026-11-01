@@ -27,6 +27,8 @@ export const EPISODIC_DECAY_DAYS = 30;
 export const PARENT_LANGUAGES = ['en-US', 'en-GB', 'es-US', 'fr-FR', 'de-DE'] as const;
 export const SPEECH_RATES = ['slow', 'normal'] as const;
 export const PARENT_SHORT_FIELD_MAX = 40;
+/** Server cap on a parent's first name (parentRepo.create); the onboarding field mirrors it. */
+export const PARENT_FIRST_NAME_MAX = 80;
 
 export type ConsentKind = 'buyer_attestation' | 'parent_conversation' | 'summary_recipient' | 'parent_summary_sharing';
 
