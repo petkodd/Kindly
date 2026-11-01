@@ -714,7 +714,7 @@ function Conversation({
             }}
             rows={3}
             placeholder="Type here…"
-            className={`w-full resize-none rounded-xl border-2 border-muted bg-cloud px-4 py-3 text-ink focus:border-sageDeep focus:outline-none ${textSize}`}
+            className={`w-full resize-none rounded-xl border-2 border-field bg-cloud px-4 py-3 text-ink focus:border-sageDeep ${textSize}`}
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             {voiceSupported && (

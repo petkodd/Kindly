@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError, grantSelfTalkAccess, signOutAndRedirect, takeCachedParentsForOnboarding } from '@/lib/apiClient';
 import { AlertContactForm, type AlertContact } from '@/components/AlertContactForm';
-import { inputOnPageCls } from '@/lib/formStyles';
+import { checkCls, inputOnPageCls, labelCls } from '@/lib/formStyles';
+import { MEMORY_VALUE_MAX, PARENT_FIRST_NAME_MAX, PARENT_SHORT_FIELD_MAX, type Parent } from '@/lib/types';
 import { getFamilyPlan } from '@/lib/content';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import { BillingIntervalToggle } from '@/components/BillingIntervalToggle';
@@ -12,12 +13,6 @@ import type { BillingInterval } from '@/lib/billing';
 import { ReferralCodeField } from '@/components/ReferralCodeField';
 import { FormStatus } from '@/components/FormStatus';
 
-interface Parent {
-  id: string;
-  first_name: string;
-  activated_at?: string | null;
-  relationship?: string;
-}
 
 const RELATIONSHIPS = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other'] as const;
 const RELATIONSHIP_LABELS: Record<(typeof RELATIONSHIPS)[number], string> = {
@@ -361,43 +356,53 @@ function ProfileStep({
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void next();
+      }}
+      noValidate
+      className="mt-6 space-y-5"
+    >
       <h1 className="font-display text-3xl font-semibold text-ink">
         {forSelf ? 'A little about you' : 'A little about them'}
       </h1>
       <div>
-        <label htmlFor="ob-name" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-name" className={labelCls}>
           {forSelf ? 'Your first name' : 'Their first name'}
         </label>
         <input
           id="ob-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+          maxLength={PARENT_FIRST_NAME_MAX} autoComplete="off"
+          aria-invalid={error && !firstName.trim() ? true : undefined}
+          aria-describedby={error && !firstName.trim() ? 'ob-profile-error' : undefined}
           className={fieldCls} placeholder={forSelf ? 'e.g. Maria' : 'e.g. Robert'}
         />
       </div>
       {!forSelf && (
         <div>
-          <label htmlFor="ob-rel" className="block text-base font-semibold text-ink">They are your…</label>
+          <label htmlFor="ob-rel" className={labelCls}>They are your…</label>
           <select id="ob-rel" value={relationship} onChange={(e) => setRelationship(e.target.value as typeof relationship)} className={fieldCls}>
             {RELATIONSHIPS.map((r) => <option key={r} value={r}>{RELATIONSHIP_LABELS[r]}</option>)}
           </select>
         </div>
       )}
       <div>
-        <label htmlFor="ob-pron" className="block text-base font-semibold text-ink">Pronouns (optional)</label>
-        <input id="ob-pron" value={pronouns} onChange={(e) => setPronouns(e.target.value)} className={fieldCls} placeholder="she/her, he/him…" />
+        <label htmlFor="ob-pron" className={labelCls}>Pronouns (optional)</label>
+        <input id="ob-pron" value={pronouns} maxLength={PARENT_SHORT_FIELD_MAX} onChange={(e) => setPronouns(e.target.value)} className={fieldCls} placeholder="she/her, he/him…" />
       </div>
       <div>
-        <label htmlFor="ob-city" className="block text-base font-semibold text-ink">City (optional)</label>
+        <label htmlFor="ob-city" className={labelCls}>City (optional)</label>
         <input
-          id="ob-city" value={city} onChange={(e) => setCity(e.target.value)}
+          id="ob-city" value={city} maxLength={PARENT_SHORT_FIELD_MAX} onChange={(e) => setCity(e.target.value)}
           className={fieldCls} placeholder={forSelf ? 'Where you live' : 'Where they live'}
         />
       </div>
-      <FormStatus kind="error" message={error} />
-      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      <FormStatus kind="error" id="ob-profile-error" message={error} />
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -434,7 +439,14 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void next();
+      }}
+      noValidate
+      className="mt-6 space-y-5"
+    >
       <h1 className="font-display text-3xl font-semibold text-ink">
         {forSelf ? 'A few things about you' : `A few things about ${parent.first_name}`}
       </h1>
@@ -449,28 +461,28 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
         </p>
       </div>
       <div>
-        <label htmlFor="ob-person" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-person" className={labelCls}>
           {forSelf ? 'Someone who matters to you' : 'Someone who matters to them'}
         </label>
-        <input id="ob-person" value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder={forSelf ? 'e.g. your spouse, Margaret' : 'e.g. their late wife, Margaret'} />
+        <input id="ob-person" maxLength={MEMORY_VALUE_MAX} value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder={forSelf ? 'e.g. your spouse, Margaret' : 'e.g. their late wife, Margaret'} />
       </div>
       <div>
-        <label htmlFor="ob-home" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-home" className={labelCls}>
           {forSelf ? 'Where you’re from' : 'Where they’re from'}
         </label>
-        <input id="ob-home" value={hometown} onChange={(e) => setHometown(e.target.value)} className={fieldCls} placeholder="e.g. Detroit" />
+        <input id="ob-home" maxLength={MEMORY_VALUE_MAX} value={hometown} onChange={(e) => setHometown(e.target.value)} className={fieldCls} placeholder="e.g. Detroit" />
       </div>
       <div>
-        <label htmlFor="ob-enjoys" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-enjoys" className={labelCls}>
           {forSelf ? 'Something you love' : 'Something they love'}
         </label>
-        <input id="ob-enjoys" value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
+        <input id="ob-enjoys" maxLength={MEMORY_VALUE_MAX} value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
       </div>
       <FormStatus kind="error" message={error} />
-      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -495,20 +507,27 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void next();
+      }}
+      noValidate
+      className="mt-6 space-y-5"
+    >
       <h1 className="font-display text-3xl font-semibold text-ink">One important step</h1>
       <p className="text-lg text-muted">
         Dearly is only for people who want it. Please confirm {parent.first_name} is happy to talk with an AI companion.
       </p>
       <label className="flex items-start gap-3 rounded-xl border border-line bg-cloud p-4 text-base text-ink">
-        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-5 w-5 rounded border-line" />
+        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className={`mt-1 ${checkCls}`} />
         I confirm I have {parent.first_name}’s permission to set up Dearly for them.
       </label>
       <FormStatus kind="error" message={error} />
-      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
-    </div>
+    </form>
   );
 }
 

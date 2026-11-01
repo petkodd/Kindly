@@ -1,4 +1,4 @@
-import type { Parent } from '@/hooks/useParents';
+import type { Parent } from '@/lib/types';
 
 /** Pill row for choosing which parent the surrounding page is scoped to. */
 export function ParentPicker({
@@ -6,7 +6,8 @@ export function ParentPicker({
   selected,
   onSelect,
 }: {
-  parents: Parent[];
+  /** Only the id and name are needed, so callers can pass any Parent-shaped rows. */
+  parents: Pick<Parent, 'id' | 'first_name'>[];
   selected: string;
   onSelect: (id: string) => void;
 }) {
@@ -21,10 +22,10 @@ export function ParentPicker({
           type="button"
           onClick={() => onSelect(p.id)}
           aria-pressed={p.id === selected}
-          className={`rounded-full border px-4 py-2 text-base ${
+          className={`min-h-[2.75rem] rounded-full border-2 px-5 py-2 text-base font-semibold ${
             p.id === selected
-              ? 'border-sage bg-sage text-cloud'
-              : 'border-line bg-cloud text-ink hover:border-sage'
+              ? 'border-sageDeep bg-sageDeep text-cloud'
+              : 'border-field bg-cloud text-ink hover:border-sageDeep'
           }`}
         >
           {p.first_name}
