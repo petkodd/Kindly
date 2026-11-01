@@ -439,7 +439,10 @@ function MemoryRow({
           <p className="text-base font-semibold text-ink">{topicLabel(memory.mem_key)}</p>
           <p className="text-base text-ink">{memory.mem_value}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-base text-muted">{LAYER_LABEL[memory.layer]}</span>
+            {/* A sensitive-layer memory already says so in its badge; don't print it twice. */}
+            {!(memory.layer === 'sensitive' && memory.sensitivity === 'sensitive') && (
+              <span className="text-base text-muted">{LAYER_LABEL[memory.layer]}</span>
+            )}
             {memory.sensitivity === 'sensitive' && <StatusBadge tone="warning">Sensitive</StatusBadge>}
           </div>
         </div>
