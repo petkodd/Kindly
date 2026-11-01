@@ -4,6 +4,7 @@ import ParentProfilePage from '../src/app/(app)/app/parent-profile/page';
 import { AuthForm } from '../src/components/AuthForm';
 import { WaitlistForm } from '../src/components/WaitlistForm';
 import { useUnsavedChangesWarning, UNSAVED_CHANGES_MESSAGE } from '../src/hooks/useUnsavedChangesWarning';
+import { ParentPicker } from '../src/components/ParentPicker';
 import { validateProfile } from '../src/lib/profileValidation';
 import { PARENT_SHORT_FIELD_MAX } from '../src/lib/types';
 import NotFound from '../src/app/not-found';
@@ -149,6 +150,7 @@ describe('parent profile form (chat 12)', () => {
   });
 });
 
+const onSelect = vi.fn();
 function Dirty({ dirty }: { dirty: boolean }) {
   useUnsavedChangesWarning(dirty);
   return (
@@ -156,6 +158,14 @@ function Dirty({ dirty }: { dirty: boolean }) {
       <a href="/app/memories">Memories</a>
       <a href="#section">Jump</a>
       <a href="https://example.com/">Elsewhere</a>
+      <ParentPicker
+        parents={[
+          { id: 'p1', first_name: 'Mom' },
+          { id: 'p2', first_name: 'Dad' },
+        ]}
+        selected="p1"
+        onSelect={onSelect}
+      />
     </>
   );
 }
@@ -187,6 +197,27 @@ describe('useUnsavedChangesWarning (chat 12)', () => {
     render(<Dirty dirty />);
     clickLink('Jump');
     clickLink('Elsewhere');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('asks before switching parent (which discards the form), and keeps the parent if cancelled', () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+    onSelect.mockClear();
+    render(<Dirty dirty />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dad' }));
+    expect(confirm).toHaveBeenCalledWith(UNSAVED_CHANGES_MESSAGE);
+    expect(onSelect).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Dad' }));
+    expect(onSelect).toHaveBeenCalledWith('p2');
+  });
+
+  it('does not ask when re-clicking the selected parent', () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+    render(<Dirty dirty />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mom' }));
     expect(confirm).not.toHaveBeenCalled();
   });
 

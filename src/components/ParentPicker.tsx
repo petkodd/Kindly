@@ -22,6 +22,8 @@ export function ParentPicker({
           type="button"
           onClick={() => onSelect(p.id)}
           aria-pressed={p.id === selected}
+          // Switching parent re-mounts the page's form: useUnsavedChangesWarning asks first.
+          data-unsaved-guard={p.id === selected ? undefined : ''}
           className={`min-h-[2.75rem] rounded-full border-2 px-5 py-2 text-base font-semibold ${
             p.id === selected
               ? 'border-sageDeep bg-sageDeep text-cloud'
