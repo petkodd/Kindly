@@ -15,7 +15,7 @@ export function DemoModeBadge({ env }: { env?: Record<string, string | undefined
     <span
       role="status"
       data-testid="demo-mode-badge"
-      className="inline-flex items-center rounded-full border-2 border-clay bg-cloud px-3 py-1 text-sm font-semibold text-ink"
+      className="inline-flex items-center rounded-full border-2 border-error bg-cloud px-3 py-1 text-base font-semibold text-ink"
     >
       {DEMO_BADGE_TEXT}
     </span>

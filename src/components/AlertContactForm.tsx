@@ -102,7 +102,7 @@ export function AlertContactForm({
           aria-describedby={`${ids}-phone-hint`}
           className={`mt-2 ${inputCls}`}
         />
-        <p id={`${ids}-phone-hint`} className="mt-1 text-sm text-muted">
+        <p id={`${ids}-phone-hint`} className="mt-1 text-base text-muted">
           US numbers only for now. Leave it empty to get alerts by email only.
         </p>
       </div>
@@ -116,7 +116,7 @@ export function AlertContactForm({
         <span>{SMS_CONSENT_TEXT}</span>
       </label>
       {error && (
-        <p role="alert" className="text-base text-clay">
+        <p role="alert" className="text-base text-error">
           {error}
         </p>
       )}

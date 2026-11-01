@@ -7,6 +7,7 @@ import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
 import { useEmailVerified, UNVERIFIED_REASON } from '@/hooks/useEmailVerified';
+import { FormStatus } from '@/components/FormStatus';
 
 interface WeeklySummary {
   id: string;
@@ -101,7 +102,7 @@ function SummaryPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean 
     void load();
   }, [load]);
 
-  if (error) return <p className="text-base text-clay">{error}</p>;
+  if (error) return <FormStatus kind="error" message={error} />;
   if (!preview || !history) return <p className="text-base text-muted">Loading summary…</p>;
 
   // The current-week preview is also the newest history row — don't list it twice.
@@ -127,7 +128,7 @@ function StatusBadge({ status }: { status: WeeklySummary['status'] }) {
   const sent = status === 'sent';
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+      className={`rounded-full px-3 py-1 text-base font-semibold uppercase tracking-wide ${
         sent ? 'bg-sage text-cloud' : 'border border-line bg-mist text-muted'
       }`}
     >
@@ -204,7 +205,7 @@ function PreviewCard({
           older rows may still carry it. The old copy pointed to a "note
           below" that never existed, so the badge now stands on its own. */}
       {summary.has_concern && (
-        <p className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3 text-sm font-semibold text-ink">
+        <p className="mt-4 rounded-lg border border-error bg-mist px-4 py-3 text-base font-semibold text-ink">
           This week&rsquo;s summary includes a gentle heads-up.
         </p>
       )}
@@ -233,7 +234,7 @@ function PreviewCard({
         )}
 
         {needsRecipient ? (
-          <div className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3">
+          <div className="mt-4 rounded-lg border border-error bg-mist px-4 py-3">
             <p className="text-base text-ink">
               No one has accepted an invitation to receive summaries yet.
             </p>
@@ -253,14 +254,14 @@ function PreviewCard({
               {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
             </button>
             {blockedUnverified && (
-              <p id="send-blocked-reason" className="mt-2 text-base text-clay">
+              <p id="send-blocked-reason" className="mt-2 text-base text-error">
                 {UNVERIFIED_REASON}
               </p>
             )}
           </>
         )}
 
-        {status && <p className="mt-3 text-sm text-muted">{status}</p>}
+        {status && <p className="mt-3 text-base text-muted">{status}</p>}
 
         <AutoSendToggle />
       </div>
@@ -347,8 +348,8 @@ function PastSummaries({ summaries }: { summaries: WeeklySummary[] }) {
                 <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
                   <span>
                     <span className="block text-base text-ink">{fmtRange(s.period_start, s.period_end)}</span>
-                    <span className="block text-sm text-sageDeep underline group-open:hidden">Show summary</span>
-                    <span className="hidden text-sm text-sageDeep underline group-open:block">Hide summary</span>
+                    <span className="block text-base text-sageDeep underline group-open:hidden">Show summary</span>
+                    <span className="hidden text-base text-sageDeep underline group-open:block">Hide summary</span>
                   </span>
                   <StatusBadge status={s.status} />
                 </summary>

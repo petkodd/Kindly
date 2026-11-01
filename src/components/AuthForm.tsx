@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, ApiError, resolvePostLoginPath } from '@/lib/apiClient';
 import { safeNextPath, withNext } from '@/lib/nextPath';
 import { normalizeReferralCode, readReferralCookie } from '@/lib/referralCode';
+import { FormStatus } from '@/components/FormStatus';
 
 type Mode = 'login' | 'signup';
 
@@ -138,12 +139,12 @@ export function AuthForm({
             aria-describedby="referral-code-help"
             className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg uppercase tracking-widest text-ink focus:border-sage"
           />
-          <p id="referral-code-help" className="mt-1 text-sm text-muted">
+          <p id="referral-code-help" className="mt-1 text-base text-muted">
             From a friend who uses Dearly? You’ll each get a free month after your first payment.
           </p>
         </div>
       )}
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={submit} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}
       </button>
@@ -156,19 +157,19 @@ export function AuthForm({
       )}
       {!isSignup && (
         magicSent ? (
-          <p className="text-sm text-muted">Check your email for a sign-in link. It expires in 15 minutes.</p>
+          <p className="text-base text-muted">Check your email for a sign-in link. It expires in 15 minutes.</p>
         ) : (
           <button
             type="button"
             onClick={sendMagicLink}
             disabled={busy}
-            className="w-full text-sm text-sage underline disabled:opacity-60"
+            className="w-full text-base text-sage underline disabled:opacity-60"
           >
             Email me a sign-in link instead
           </button>
         )
       )}
-      <p className="text-sm text-muted">
+      <p className="text-base text-muted">
         {isSignup ? (
           <>Already have an account? <Link href={withNext('/login', next)} className="text-sage underline">Sign in</Link></>
         ) : (

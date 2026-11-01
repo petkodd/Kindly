@@ -7,6 +7,7 @@ import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
 import { EMAIL_RE } from '@/lib/validation';
+import { FormStatus } from '@/components/FormStatus';
 
 interface Recipient {
   id: string;
@@ -74,7 +75,7 @@ function RecipientsPanel({ parentId, isSelf }: { parentId: string; isSelf: boole
     void load();
   }, [load]);
 
-  if (error) return <p className="text-base text-clay">{error}</p>;
+  if (error) return <FormStatus kind="error" message={error} />;
   if (!recipients) return <p className="text-base text-muted">Loading recipients…</p>;
 
   return (
@@ -92,7 +93,7 @@ function RecipientsPanel({ parentId, isSelf }: { parentId: string; isSelf: boole
               <span className="text-base text-ink">{r.email}</span>
               <div className="flex items-center gap-3">
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                  className={`rounded-full px-3 py-1 text-base font-semibold uppercase tracking-wide ${
                     r.status === 'accepted'
                       ? 'bg-sage text-cloud'
                       : 'border border-line bg-mist text-muted'
@@ -129,12 +130,12 @@ function RevokeButton({ consentId, onRevoked }: { consentId: string; onRevoked: 
   }
   return (
     <span className="flex items-center gap-2">
-      {failed && <span className="text-xs text-clay">Couldn’t remove</span>}
+      {failed && <span className="text-base text-error">Couldn’t remove</span>}
       <button
         type="button"
         onClick={revoke}
         disabled={busy}
-        className="text-sm text-clay underline disabled:opacity-60"
+        className="text-base text-error underline disabled:opacity-60"
       >
         Remove
       </button>
@@ -198,11 +199,11 @@ function InviteForm({
         </button>
       </div>
       {blockedUnverified && (
-        <p id="invite-blocked-reason" className="mt-3 text-base text-clay">
+        <p id="invite-blocked-reason" className="mt-3 text-base text-error">
           {UNVERIFIED_REASON}
         </p>
       )}
-      {status && <p className="mt-3 text-sm text-muted">{status}</p>}
+      {status && <p className="mt-3 text-base text-muted">{status}</p>}
     </div>
   );
 }
@@ -268,7 +269,7 @@ function ReferralCodeSection() {
         or start their trial. After their first payment, you each get one month free, taken off your
         next bill.
       </p>
-      <p className="mt-2 text-sm text-muted">
+      <p className="mt-2 text-base text-muted">
         Each code works once, for a family new to Dearly. Once it’s used, you can get a new one here.
       </p>
       {!loaded ? (
@@ -299,7 +300,7 @@ function ReferralCodeSection() {
           {busy ? 'Getting your code…' : redemptions.length > 0 ? 'Get a new code' : 'Get my code'}
         </button>
       )}
-      {error && <p className="mt-3 text-sm text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} className="mt-3" />
 
       {redemptions.length > 0 && (
         <div className="mt-6 border-t border-line pt-6">
@@ -311,7 +312,7 @@ function ReferralCodeSection() {
                   Joined {new Date(r.redeemed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </span>
                 <span
-                  className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                  className={`rounded-full px-3 py-1 text-base font-semibold ${
                     r.status === 'credited' ? 'bg-sage text-cloud' : 'border border-line bg-mist text-muted'
                   }`}
                 >

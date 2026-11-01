@@ -34,10 +34,10 @@ export function FamilyPlanCard({ plan, billingInterval }: { plan: FamilyPlan; bi
         <p className="mt-4">
           <span className="font-display text-3xl font-semibold text-ink">{formatUsdCents(plan.priceAnnualCents)}</span>{' '}
           <span className="text-base text-muted">/year</span>
-          <span className="mt-1 flex items-center gap-2 text-sm text-muted">
+          <span className="mt-1 flex items-center gap-2 text-base text-muted">
             {formatUsdCents(perMonthEquivalentCents(plan.priceAnnualCents))}/mo equivalent
             {savingsPercent > 0 && (
-              <span className="rounded-full bg-sageDeep/15 px-2 py-0.5 text-xs font-semibold text-sageDeep">
+              <span className="rounded-full bg-sageDeep/15 px-2 py-0.5 text-base font-semibold text-sageDeep">
                 Save {savingsPercent}%
               </span>
             )}

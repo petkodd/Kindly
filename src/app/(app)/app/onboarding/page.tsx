@@ -10,6 +10,7 @@ import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } 
 import { BillingIntervalToggle } from '@/components/BillingIntervalToggle';
 import type { BillingInterval } from '@/lib/billing';
 import { ReferralCodeField } from '@/components/ReferralCodeField';
+import { FormStatus } from '@/components/FormStatus';
 
 interface Parent {
   id: string;
@@ -392,7 +393,7 @@ function ProfileStep({
           className={fieldCls} placeholder={forSelf ? 'Where you live' : 'Where they live'}
         />
       </div>
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
@@ -465,7 +466,7 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
         </label>
         <input id="ob-enjoys" value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
       </div>
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
@@ -503,7 +504,7 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-5 w-5 rounded border-line" />
         I confirm I have {parent.first_name}’s permission to set up Dearly for them.
       </label>
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
@@ -640,9 +641,9 @@ function BillingStep({
       </p>
       <ReferralCodeField />
       {billingResult === 'cancel' && (
-        <p className="text-base text-clay">Checkout was canceled — no charge was made. You can try again below.</p>
+        <p className="text-base text-error">Checkout was canceled — no charge was made. You can try again below.</p>
       )}
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={startTrial} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Redirecting…' : 'Start 7-day free trial'}
       </button>
@@ -690,11 +691,11 @@ function FoundingBetaBillingStep({
         Try Dearly free for 14 days. No card required. Your family will receive personal
         onboarding and direct support while helping us improve the experience.
       </p>
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={activate} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Setting things up…' : 'Continue with free beta'}
       </button>
-      <p className="text-sm text-muted">You will not be charged automatically when the beta ends.</p>
+      <p className="text-base text-muted">You will not be charged automatically when the beta ends.</p>
     </div>
   );
 }
@@ -747,7 +748,7 @@ function AlertsStep({ parent, onDone }: { parent: Parent; onDone: () => void }) 
         />
       )}
       {confirmSkip ? (
-        <div className="space-y-3 rounded-xl border border-clay bg-cloud p-4" role="alert">
+        <div className="space-y-3 rounded-xl border border-error bg-cloud p-4" role="alert">
           <p className="text-base text-ink">
             Without a mobile number, emergency alerts will reach you <strong>by email only</strong>, which you might not
             see for a while. You can add a number later on your Account page.
@@ -803,7 +804,7 @@ function SelfDoneStep({ parent }: { parent: Parent }) {
       <h1 className="font-display text-3xl font-semibold text-ink">You’re all set 🎉</h1>
       {error ? (
         <>
-          <p className="text-base text-clay">{error}</p>
+          <p className="text-base text-error">{error}</p>
           <button type="button" onClick={() => setRetryCount((n) => n + 1)} className="btn-primary w-full">
             Try again
           </button>
@@ -881,7 +882,7 @@ function GiftDoneStep({
       {talkToken ? (
         <div className="space-y-3 rounded-xl border border-line bg-cloud p-6">
           <p className="text-base font-semibold text-ink">Talk link (shown once — save it now):</p>
-          <code className="block break-all rounded-lg bg-mist px-3 py-2 text-sm text-ink">{talkUrl}</code>
+          <code className="block break-all rounded-lg bg-mist px-3 py-2 text-base text-ink">{talkUrl}</code>
           <div className="flex gap-3">
             <button type="button" onClick={copyLink} className="btn-secondary flex-1">
               {copied ? 'Copied' : 'Copy link'}
@@ -892,14 +893,14 @@ function GiftDoneStep({
               </button>
             )}
           </div>
-          <p className="text-sm text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Dearly.</p>
+          <p className="text-base text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Dearly.</p>
         </div>
       ) : (
         <button type="button" onClick={issueLink} disabled={busy} className="btn-primary w-full disabled:opacity-60">
           {busy ? 'Creating…' : 'Create talk link'}
         </button>
       )}
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <p className="text-base text-muted">
         You can make a new link, turn it off, email it to yourself or print a large-type card for {parent.first_name}{' '}
         any time from their Parent profile.

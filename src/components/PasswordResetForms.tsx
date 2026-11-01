@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
+import { FormStatus } from '@/components/FormStatus';
 
 const inputCls =
   'mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage';
@@ -52,7 +53,7 @@ export function ForgotPasswordForm() {
         <input id="forgot-email" type="email" autoComplete="email" value={email}
           onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="you@example.com" />
       </div>
-      {error && <p role="alert" className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : 'Send reset link'}
       </button>
@@ -140,7 +141,7 @@ function ResetEntry() {
         <input id="reset-confirm" type="password" autoComplete="new-password" value={confirm}
           onChange={(e) => setConfirm(e.target.value)} className={inputCls} />
       </div>
-      {error && <p role="alert" className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Save new password'}
       </button>

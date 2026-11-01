@@ -71,8 +71,8 @@ export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string
       >
         {status === 'submitting' ? 'Joining…' : 'Join the waitlist'}
       </button>
-      {status === 'error' && <p className="text-base text-clay">{message}</p>}
-      <p className="text-sm text-muted">
+      {status === 'error' && <p className="text-base text-error">{message}</p>}
+      <p className="text-base text-muted">
         We’ll only use your email to contact you about Dearly. No spam, ever.
       </p>
     </div>

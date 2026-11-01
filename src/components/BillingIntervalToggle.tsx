@@ -26,7 +26,7 @@ export function BillingIntervalToggle({ value, onChange, label = 'Billing interv
             type="button"
             aria-pressed={active}
             onClick={() => onChange(opt.value)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-base font-semibold transition-colors ${
               active ? 'bg-sageDeep text-cloud' : 'text-muted hover:text-ink'
             }`}
           >

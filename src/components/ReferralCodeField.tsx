@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
 import { readReferralCookie } from '@/lib/referralCode';
+import { FormStatus } from '@/components/FormStatus';
 
 /** Shared copy: what a referral code gets you (chat 11). */
 export const REFERRAL_TERMS =
@@ -83,7 +84,7 @@ export function ReferralCodeField() {
           {busy ? 'Applying…' : 'Apply code'}
         </button>
       </div>
-      {error && <p className="mt-3 text-base text-clay" role="alert">{error}</p>}
+      <FormStatus kind="error" message={error} className="mt-3" />
     </div>
   );
 }

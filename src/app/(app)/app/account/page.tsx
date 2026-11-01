@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError, signOutAndRedirect } from '@/lib/apiClient';
 import { inputCls } from '@/lib/formStyles';
 import { AlertContactForm, type AlertContact } from '@/components/AlertContactForm';
+import { FormStatus } from '@/components/FormStatus';
 
 interface Account {
   id: string;
@@ -54,7 +55,7 @@ export default function AccountPage() {
       });
   }, [router]);
 
-  if (loadError) return <p className="text-base text-clay">{loadError}</p>;
+  if (loadError) return <FormStatus kind="error" message={loadError} />;
   if (!account) return <p className="text-base text-muted">Loading…</p>;
 
   return (
@@ -87,7 +88,7 @@ function Card({ title, id, children }: { title: string; id?: string; children: R
 function Status({ text, error }: { text: string; error?: boolean }) {
   if (!text) return null;
   return error ? (
-    <p role="alert" className="text-base text-clay">{text}</p>
+    <p role="alert" className="text-base text-error">{text}</p>
   ) : (
     <p role="status" className="text-base text-muted">{text}</p>
   );
@@ -116,7 +117,7 @@ function EmailSection({ account }: { account: Account }) {
     <Card title="Email">
       <p className="text-base text-ink">
         {account.email} ·{' '}
-        <strong className={verified ? 'text-sageDeep' : 'text-clay'}>{verified ? 'Confirmed' : 'Not confirmed yet'}</strong>
+        <strong className={verified ? 'text-sageDeep' : 'text-error'}>{verified ? 'Confirmed' : 'Not confirmed yet'}</strong>
       </p>
       {!verified && (
         <>
@@ -344,7 +345,7 @@ function ParentsSection() {
         {parents.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-base text-ink">{p.relationship === 'self' ? `${p.first_name} (you)` : p.first_name}</span>
-            <button type="button" onClick={() => setConfirming(p)} className="text-base text-clay underline">
+            <button type="button" onClick={() => setConfirming(p)} className="text-base text-error underline">
               Delete {p.first_name}&rsquo;s profile
             </button>
           </li>
@@ -373,7 +374,7 @@ function ConfirmDelete({
   onConfirm: () => void; onCancel: () => void;
 }) {
   return (
-    <div role="alertdialog" aria-label={title} className="space-y-3 rounded-xl border-2 border-clay bg-mist p-4">
+    <div role="alertdialog" aria-label={title} className="space-y-3 rounded-xl border-2 border-error bg-mist p-4">
       <p className="text-base font-semibold text-ink">{title}</p>
       <p className="text-base text-ink">This deletes:</p>
       <ul className="list-disc space-y-1 pl-6 text-base text-ink">
@@ -384,7 +385,7 @@ function ConfirmDelete({
         It disappears from Dearly now and is permanently erased within 30 days. This can&rsquo;t be undone.
       </p>
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button type="button" onClick={onConfirm} disabled={busy} className="btn-primary !bg-clay disabled:opacity-60">
+        <button type="button" onClick={onConfirm} disabled={busy} className="btn-primary !bg-error hover:!bg-ink disabled:opacity-60">
           {busy ? 'Deleting…' : confirmLabel}
         </button>
         <button type="button" onClick={onCancel} disabled={busy} className="btn-secondary">
@@ -431,7 +432,7 @@ function DangerSection() {
       <button type="button" onClick={logout} disabled={busy !== ''} className="btn-secondary disabled:opacity-60">
         {busy === 'logout' ? 'Signing out…' : 'Sign out'}
       </button>
-      <p className="text-sm text-muted">Signing out signs you out on every device.</p>
+      <p className="text-base text-muted">Signing out signs you out on every device.</p>
       {confirming ? (
         <ConfirmDelete
           title="Delete your account?"
@@ -443,7 +444,7 @@ function DangerSection() {
           onCancel={() => setConfirming(false)}
         />
       ) : (
-        <button type="button" onClick={() => setConfirming(true)} className="text-base text-clay underline">
+        <button type="button" onClick={() => setConfirming(true)} className="text-base text-error underline">
           Delete my account
         </button>
       )}
