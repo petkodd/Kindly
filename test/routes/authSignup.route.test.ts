@@ -118,3 +118,48 @@ describe('POST /api/auth/signup', () => {
     expect(await userRepo.findByEmail(q, 'sarah@example.com')).toBeNull();
   });
 });
+
+describe('POST /api/auth/signup — referral code (chat 11)', () => {
+  async function referrerCode(): Promise<{ referrer: string; code: string }> {
+    const { referralRepo } = await import('../../src/lib/repos/referral');
+    const { rows } = await q.query<{ id: string }>(`INSERT INTO users (email) VALUES ('ref@example.com') RETURNING id`);
+    const { referral } = await referralRepo.getOrCreateActive(q, rows[0].id);
+    return { referrer: rows[0].id, code: referral.code };
+  }
+  async function redeemedBy(code: string): Promise<string | null> {
+    const { rows } = await q.query<{ redeemed_by: string | null }>(`SELECT redeemed_by FROM referrals WHERE code = $1`, [code]);
+    return rows[0]?.redeemed_by ?? null;
+  }
+
+  it('redeems a referral_code for the newly created account, with the unchanged 202 response', async () => {
+    const { code } = await referrerCode();
+    const res = await signupPOST(signupReq({ email: 'new@example.com', password: 'correct-horse', referral_code: code.toLowerCase() }));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, next: 'check_email' });
+    const user = await userRepo.findByEmail(q, 'new@example.com');
+    expect(await redeemedBy(code)).toBe(user!.id);
+  });
+
+  it('falls back to the ?ref= cookie when the field is empty', async () => {
+    const { code } = await referrerCode();
+    await signupPOST(signupReq({ email: 'new@example.com', password: 'correct-horse' }, { cookie: `dearly_ref=${code}` }));
+    const user = await userRepo.findByEmail(q, 'new@example.com');
+    expect(await redeemedBy(code)).toBe(user!.id);
+  });
+
+  it('an invalid code gives exactly the same response, and still creates the account', async () => {
+    const res = await signupPOST(signupReq({ email: 'new@example.com', password: 'correct-horse', referral_code: 'ZZZZZZZZZZ' }));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, next: 'check_email' });
+    expect(await userRepo.findByEmail(q, 'new@example.com')).not.toBeNull();
+  });
+
+  it('never redeems for an existing account (no enumeration, no repeat)', async () => {
+    await signupPOST(signupReq({ email: 'old@example.com', password: 'correct-horse' }));
+    const { code } = await referrerCode();
+    const res = await signupPOST(signupReq({ email: 'old@example.com', password: 'other-password', referral_code: code }));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, next: 'check_email' });
+    expect(await redeemedBy(code)).toBeNull();
+  });
+});

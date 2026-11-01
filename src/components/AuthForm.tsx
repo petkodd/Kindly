@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError, resolvePostLoginPath } from '@/lib/apiClient';
 import { safeNextPath, withNext } from '@/lib/nextPath';
+import { normalizeReferralCode, readReferralCookie } from '@/lib/referralCode';
 
 type Mode = 'login' | 'signup';
 
@@ -13,7 +14,16 @@ type Mode = 'login' | 'signup';
  * It is re-validated here and on the server, and carried through signup's
  * confirmation link so the buyer lands where they were going.
  */
-export function AuthForm({ mode, next: rawNext }: { mode: Mode; next?: string | null }) {
+export function AuthForm({
+  mode,
+  next: rawNext,
+  referralCode: initialReferralCode,
+}: {
+  mode: Mode;
+  next?: string | null;
+  /** Signup only: a ?ref= code from the page URL (chat 11); falls back to the ref cookie. */
+  referralCode?: string | null;
+}) {
   const router = useRouter();
   const next = safeNextPath(rawNext);
   const [email, setEmail] = useState('');
@@ -24,6 +34,12 @@ export function AuthForm({ mode, next: rawNext }: { mode: Mode; next?: string | 
   // Signup never signs in directly (no account enumeration): it ends here, and
   // the emailed link confirms the address and signs the new account in.
   const [checkEmail, setCheckEmail] = useState(false);
+  const [referralCode, setReferralCode] = useState(normalizeReferralCode(initialReferralCode) ?? '');
+  useEffect(() => {
+    if (mode !== 'signup') return;
+    const fromCookie = readReferralCookie(document.cookie);
+    if (fromCookie) setReferralCode((c) => c || fromCookie);
+  }, [mode]);
 
   const isSignup = mode === 'signup';
 
@@ -34,7 +50,13 @@ export function AuthForm({ mode, next: rawNext }: { mode: Mode; next?: string | 
     setBusy(true);
     try {
       if (isSignup) {
-        await api.post('/api/auth/signup', next ? { email, password, next } : { email, password });
+        const code = referralCode.trim();
+        await api.post('/api/auth/signup', {
+          email,
+          password,
+          ...(next ? { next } : {}),
+          ...(code ? { referral_code: code } : {}),
+        });
         setCheckEmail(true);
         setBusy(false);
         return;
@@ -105,6 +127,22 @@ export function AuthForm({ mode, next: rawNext }: { mode: Mode; next?: string | 
           placeholder="At least 8 characters"
         />
       </div>
+      {isSignup && (
+        <div>
+          <label htmlFor="referral-code" className="block text-base font-semibold text-ink">
+            Referral code <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <input
+            id="referral-code" type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false}
+            value={referralCode} onChange={(e) => setReferralCode(e.target.value)}
+            aria-describedby="referral-code-help"
+            className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg uppercase tracking-widest text-ink focus:border-sage"
+          />
+          <p id="referral-code-help" className="mt-1 text-sm text-muted">
+            From a friend who uses Dearly? You’ll each get a free month after your first payment.
+          </p>
+        </div>
+      )}
       {error && <p className="text-base text-clay">{error}</p>}
       <button type="button" onClick={submit} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}

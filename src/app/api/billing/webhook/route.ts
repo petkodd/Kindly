@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getStripeClient } from '@/lib/billing';
 import { subscriptionRepo, type StripeSubscriptionLike } from '@/lib/repos/subscription';
+import { applyReferralCreditsForPaidInvoice } from '@/lib/billing/referralCredit';
 
 function toSubscriptionLike(sub: Stripe.Subscription): StripeSubscriptionLike {
   // current_period_end lives per line item as of the current Stripe API
@@ -77,6 +78,21 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         await subscriptionRepo.upsertFromStripeSubscription(pool, toSubscriptionLike(subscription), eventAt);
+        break;
+      }
+      case 'invoice.paid': {
+        // Referral credit (chat 11): only a real payment counts — the $0
+        // invoice at the start of the free trial does not.
+        const invoice = event.data.object as Stripe.Invoice;
+        if (!(invoice.amount_paid > 0)) break;
+        const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+        if (!customerId) break;
+        const buyerId =
+          invoice.parent?.subscription_details?.metadata?.buyer_id ??
+          (await subscriptionRepo.buyerForStripeCustomer(pool, customerId));
+        if (!buyerId) break; // not one of ours (e.g. created in the Stripe dashboard)
+        // Throws if a Stripe credit call failed → 500 below → Stripe redelivers.
+        await applyReferralCreditsForPaidInvoice(pool, { buyerId, customerId });
         break;
       }
       default:

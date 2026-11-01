@@ -67,6 +67,8 @@ const USER_REF_NULLIFICATIONS: { table: string; column: string }[] = [
   { table: 'audit_log', column: 'actor_id' },
   { table: 'beta_invites', column: 'redeemed_by_user_id' },
   { table: 'beta_invites', column: 'created_by_user_id' },
+  { table: 'referral_rewards', column: 'referrer_user_id' },
+  { table: 'referral_rewards', column: 'referred_user_id' },
 ];
 
 export async function purgeHardDeletes(

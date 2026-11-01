@@ -9,6 +9,7 @@ import { getFamilyPlan } from '@/lib/content';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import { BillingIntervalToggle } from '@/components/BillingIntervalToggle';
 import type { BillingInterval } from '@/lib/billing';
+import { ReferralCodeField } from '@/components/ReferralCodeField';
 
 interface Parent {
   id: string;
@@ -637,6 +638,7 @@ function BillingStep({
           </>
         )}
       </p>
+      <ReferralCodeField />
       {billingResult === 'cancel' && (
         <p className="text-base text-clay">Checkout was canceled — no charge was made. You can try again below.</p>
       )}

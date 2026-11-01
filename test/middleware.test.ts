@@ -87,7 +87,34 @@ describe('middleware (chat 10)', () => {
   });
 
   it('matches only pages (API routes authenticate themselves)', () => {
-    expect(config.matcher).toEqual(['/app', '/app/:path*', '/admin', '/admin/:path*', '/login', '/signup']);
+    expect(config.matcher).toEqual([
+      '/app', '/app/:path*', '/admin', '/admin/:path*', '/login', '/signup',
+      { source: '/((?!api|_next|.*\\..*).*)', has: [{ type: 'query', key: 'ref' }] },
+    ]);
+  });
+});
+
+describe('middleware referral capture (chat 11)', () => {
+  it('stores a valid ?ref= code in a 30-day cookie on any page', async () => {
+    const res = await middleware(req('/?ref=abcdefghjk'));
+    const c = res.cookies.get('dearly_ref');
+    expect(c?.value).toBe('ABCDEFGHJK');
+    expect(c?.maxAge).toBe(30 * 24 * 60 * 60);
+    expect(c?.path).toBe('/');
+    expect(c?.sameSite).toBe('lax');
+    expect(location(res)).toBeNull();
+  });
+
+  it('keeps the cookie on redirects (signed-out /app link with ?ref)', async () => {
+    const res = await middleware(req('/app/onboarding?ref=ABCDEFGHJK'));
+    expect(res.status).toBe(307);
+    expect(res.cookies.get('dearly_ref')?.value).toBe('ABCDEFGHJK');
+  });
+
+  it('ignores a malformed ref (wrong length or characters)', async () => {
+    for (const p of ['/?ref=short', '/?ref=ABCDEFGHJ0', '/?ref=<script>', '/pricing']) {
+      expect((await middleware(req(p))).cookies.get('dearly_ref')).toBeUndefined();
+    }
   });
 });
 

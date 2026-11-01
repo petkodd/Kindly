@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifySessionEdge } from '@/lib/sessionEdge';
 import { safeNextPath } from '@/lib/nextPath';
+import { normalizeReferralCode, REF_COOKIE, REF_COOKIE_MAX_AGE_S } from '@/lib/referralCode';
 
 // Must match SESSION_COOKIE in src/lib/session.ts (not imported: that module
 // pulls in node:crypto, which the edge runtime doesn't have).
@@ -24,6 +25,21 @@ const SESSION_COOKIE = 'kindly_session';
  * API routes are not matched here; they authenticate with resolveBuyer.
  */
 export async function middleware(req: NextRequest) {
+  const res = await route(req);
+  // Chat 11: remember a ?ref=CODE referral code for 30 days (any page).
+  const ref = normalizeReferralCode(req.nextUrl.searchParams.get('ref'));
+  if (ref) {
+    res.cookies.set(REF_COOKIE, ref, {
+      maxAge: REF_COOKIE_MAX_AGE_S,
+      path: '/',
+      sameSite: 'lax',
+      secure: req.nextUrl.protocol === 'https:',
+    });
+  }
+  return res;
+}
+
+async function route(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
   const claims = await verifySessionEdge(req.cookies.get(SESSION_COOKIE)?.value);
 
@@ -56,5 +72,9 @@ function redirect(req: NextRequest, to: string): NextResponse {
 }
 
 export const config = {
-  matcher: ['/app', '/app/:path*', '/admin', '/admin/:path*', '/login', '/signup'],
+  matcher: [
+    '/app', '/app/:path*', '/admin', '/admin/:path*', '/login', '/signup',
+    // Any other page carrying ?ref= (chat 11 referral capture); never API or static files.
+    { source: '/((?!api|_next|.*\\..*).*)', has: [{ type: 'query', key: 'ref' }] },
+  ],
 };
