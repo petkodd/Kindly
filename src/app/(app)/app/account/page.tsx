@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError, signOutAndRedirect } from '@/lib/apiClient';
-import { inputCls } from '@/lib/formStyles';
+import { inputCls, labelCls } from '@/lib/formStyles';
 import { AlertContactForm, type AlertContact } from '@/components/AlertContactForm';
 import { FormStatus } from '@/components/FormStatus';
+import { Card } from '@/components/Card';
 
 interface Account {
   id: string;
@@ -76,22 +77,44 @@ export default function AccountPage() {
   );
 }
 
-function Card({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
+/**
+ * One account section on the shared Card surface. With onSubmit, the body is a
+ * <form> so Enter submits (chat 12).
+ */
+function Section({
+  title,
+  id,
+  onSubmit,
+  children,
+}: {
+  title: string;
+  id?: string;
+  onSubmit?: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <section id={id} className="rounded-xl border border-line bg-cloud p-6">
+    <Card id={id}>
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
-      <div className="mt-4 space-y-4">{children}</div>
-    </section>
+      {onSubmit ? (
+        <form
+          noValidate
+          className="mt-4 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
+        >
+          {children}
+        </form>
+      ) : (
+        <div className="mt-4 space-y-4">{children}</div>
+      )}
+    </Card>
   );
 }
 
-function Status({ text, error }: { text: string; error?: boolean }) {
-  if (!text) return null;
-  return error ? (
-    <p role="alert" className="text-base text-error">{text}</p>
-  ) : (
-    <p role="status" className="text-base text-muted">{text}</p>
-  );
+function Status({ text, error, id }: { text: string; error?: boolean; id?: string }) {
+  return <FormStatus kind={error ? 'error' : 'success'} message={text} id={id} />;
 }
 
 /** Chat 7 follow-up: show whether the email is confirmed, with a resend button. */
@@ -114,7 +137,7 @@ function EmailSection({ account }: { account: Account }) {
   }
 
   return (
-    <Card title="Email">
+    <Section title="Email">
       <p className="text-base text-ink">
         {account.email} ·{' '}
         <strong className={verified ? 'text-sageDeep' : 'text-error'}>{verified ? 'Confirmed' : 'Not confirmed yet'}</strong>
@@ -130,7 +153,7 @@ function EmailSection({ account }: { account: Account }) {
         </>
       )}
       <Status {...status} />
-    </Card>
+    </Section>
   );
 }
 
@@ -152,18 +175,20 @@ function NameSection({ account, onUpdated }: { account: Account; onUpdated: (a: 
     }
   }
   return (
-    <Card title="Display name">
-      <label htmlFor="acc-name" className="block text-base font-semibold text-ink">Your name</label>
+    <Section title="Display name" onSubmit={save}>
+      <label htmlFor="acc-name" className={labelCls}>Your name</label>
       <input
         id="acc-name" value={name} onChange={(e) => setName(e.target.value)}
+        aria-invalid={status.error ? true : undefined}
+        aria-describedby={status.error ? 'acc-name-status' : undefined}
         className={inputCls}
         placeholder="Your name"
       />
-      <button type="button" onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">
+      <button type="submit" disabled={busy} className="btn-primary disabled:opacity-60">
         {busy ? 'Saving…' : 'Save name'}
       </button>
-      <Status {...status} />
-    </Card>
+      <Status {...status} id="acc-name-status" />
+    </Section>
   );
 }
 
@@ -184,13 +209,13 @@ function AlertsSection() {
     };
   }, []);
   return (
-    <Card title="Emergency alerts" id="alerts">
+    <Section title="Emergency alerts" id="alerts">
       <p className="text-base text-muted">
         If your family member says something that sounds like an emergency, we email you right away — and text you too if
         you add a mobile number and agree below.
       </p>
       {error ? <Status text={error} error /> : loaded ? <AlertContactForm initial={initial} /> : <p className="text-base text-muted">Loading…</p>}
-    </Card>
+    </Section>
   );
 }
 
@@ -213,24 +238,26 @@ function PasswordSection() {
     }
   }
   return (
-    <Card title="Change password">
-      <label htmlFor="acc-current-pw" className="block text-base font-semibold text-ink">Current password</label>
+    <Section title="Change password" onSubmit={change}>
+      <label htmlFor="acc-current-pw" className={labelCls}>Current password</label>
       <input
         id="acc-current-pw" type="password" autoComplete="current-password" value={current}
         onChange={(e) => setCurrent(e.target.value)} placeholder="Current password"
         className={inputCls}
       />
-      <label htmlFor="acc-new-pw" className="block text-base font-semibold text-ink">New password</label>
+      <label htmlFor="acc-new-pw" className={labelCls}>New password</label>
       <input
         id="acc-new-pw" type="password" autoComplete="new-password" value={next}
         onChange={(e) => setNext(e.target.value)} placeholder="At least 8 characters"
+        aria-invalid={status.error ? true : undefined}
+        aria-describedby={status.error ? 'acc-pw-status' : undefined}
         className={inputCls}
       />
-      <button type="button" onClick={change} disabled={busy} className="btn-primary disabled:opacity-60">
+      <button type="submit" disabled={busy} className="btn-primary disabled:opacity-60">
         {busy ? 'Changing…' : 'Change password'}
       </button>
-      <Status {...status} />
-    </Card>
+      <Status {...status} id="acc-pw-status" />
+    </Section>
   );
 }
 
@@ -250,13 +277,13 @@ function BillingSection() {
     }
   }
   return (
-    <Card title="Billing">
+    <Section title="Billing">
       <p className="text-base text-muted">Update your card, download invoices or cancel a plan on our payment provider&rsquo;s secure page.</p>
       <button type="button" onClick={open} disabled={busy} className="btn-secondary disabled:opacity-60">
         {busy ? 'Opening…' : 'Manage billing'}
       </button>
       <Status {...status} />
-    </Card>
+    </Section>
   );
 }
 
@@ -296,7 +323,7 @@ function DataSection() {
     }
   }
   return (
-    <Card title="Your data">
+    <Section title="Your data">
       <p className="text-base text-muted">
         Download a copy of your account, your family profiles, their memories, weekly summaries and recent conversations as a file. Available once an hour.
       </p>
@@ -304,7 +331,7 @@ function DataSection() {
         {busy ? 'Preparing…' : 'Download my data'}
       </button>
       <Status {...status} />
-    </Card>
+    </Section>
   );
 }
 
@@ -322,7 +349,7 @@ function ParentsSection() {
       .catch(() => setStatus({ text: 'Could not load your family profiles.', error: true }));
   }, []);
 
-  if (!parents || parents.length === 0) return status.text ? <Card title="Family profiles"><Status {...status} /></Card> : null;
+  if (!parents || parents.length === 0) return status.text ? <Section title="Family profiles"><Status {...status} /></Section> : null;
 
   async function remove(p: ParentSummary) {
     setBusy(true);
@@ -340,12 +367,12 @@ function ParentsSection() {
   }
 
   return (
-    <Card title="Family profiles">
+    <Section title="Family profiles">
       <ul className="space-y-3">
         {parents.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-base text-ink">{p.relationship === 'self' ? `${p.first_name} (you)` : p.first_name}</span>
-            <button type="button" onClick={() => setConfirming(p)} className="text-base text-error underline">
+            <button type="button" onClick={() => setConfirming(p)} className="inline-flex min-h-[2.75rem] items-center text-base font-semibold text-error underline underline-offset-4">
               Delete {p.first_name}&rsquo;s profile
             </button>
           </li>
@@ -363,7 +390,7 @@ function ParentsSection() {
         />
       )}
       <Status {...status} />
-    </Card>
+    </Section>
   );
 }
 
@@ -428,7 +455,7 @@ function DangerSection() {
     }
   }
   return (
-    <Card title="Session & account">
+    <Section title="Session & account">
       <button type="button" onClick={logout} disabled={busy !== ''} className="btn-secondary disabled:opacity-60">
         {busy === 'logout' ? 'Signing out…' : 'Sign out'}
       </button>
@@ -444,11 +471,11 @@ function DangerSection() {
           onCancel={() => setConfirming(false)}
         />
       ) : (
-        <button type="button" onClick={() => setConfirming(true)} className="text-base text-error underline">
+        <button type="button" onClick={() => setConfirming(true)} className="inline-flex min-h-[2.75rem] items-center text-base font-semibold text-error underline underline-offset-4">
           Delete my account
         </button>
       )}
       <Status {...status} />
-    </Card>
+    </Section>
   );
 }

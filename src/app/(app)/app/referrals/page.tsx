@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
 import { useEmailVerified, UNVERIFIED_REASON } from '@/hooks/useEmailVerified';
 import { ParentPicker } from '@/components/ParentPicker';
@@ -8,6 +8,8 @@ import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
 import { EMAIL_RE } from '@/lib/validation';
 import { FormStatus } from '@/components/FormStatus';
+import { StatusBadge } from '@/components/StatusBadge';
+import { inputCls, labelCls } from '@/lib/formStyles';
 
 interface Recipient {
   id: string;
@@ -89,19 +91,13 @@ function RecipientsPanel({ parentId, isSelf }: { parentId: string; isSelf: boole
       ) : (
         <ul className="space-y-3">
           {recipients.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-4">
-              <span className="text-base text-ink">{r.email}</span>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`rounded-full px-3 py-1 text-base font-semibold uppercase tracking-wide ${
-                    r.status === 'accepted'
-                      ? 'bg-sage text-cloud'
-                      : 'border border-line bg-mist text-muted'
-                  }`}
-                >
-                  {r.status}
-                </span>
-                <RevokeButton consentId={r.id} onRevoked={load} />
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <span className="break-all text-base text-ink">{r.email}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusBadge tone={r.status === 'accepted' ? 'positive' : 'neutral'}>
+                  {r.status === 'accepted' ? 'Accepted' : 'Pending'}
+                </StatusBadge>
+                <RevokeButton consentId={r.id} email={r.email} onRevoked={load} />
               </div>
             </li>
           ))}
@@ -112,7 +108,7 @@ function RecipientsPanel({ parentId, isSelf }: { parentId: string; isSelf: boole
   );
 }
 
-function RevokeButton({ consentId, onRevoked }: { consentId: string; onRevoked: () => void }) {
+function RevokeButton({ consentId, email, onRevoked }: { consentId: string; email: string; onRevoked: () => void }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   async function revoke() {
@@ -130,12 +126,17 @@ function RevokeButton({ consentId, onRevoked }: { consentId: string; onRevoked: 
   }
   return (
     <span className="flex items-center gap-2">
-      {failed && <span className="text-base text-error">Couldn’t remove</span>}
+      {failed && (
+        <span role="alert" className="text-base font-semibold text-error">
+          Couldn’t remove
+        </span>
+      )}
       <button
         type="button"
         onClick={revoke}
         disabled={busy}
-        className="text-base text-error underline disabled:opacity-60"
+        aria-label={`Remove ${email}`}
+        className="inline-flex min-h-[2.75rem] items-center rounded-xl px-3 text-base font-semibold text-error underline underline-offset-4 disabled:opacity-60"
       >
         Remove
       </button>
@@ -155,11 +156,20 @@ function InviteForm({
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [invalid, setInvalid] = useState(false);
   const blockedUnverified = useEmailVerified() === false;
 
-  async function invite() {
+  async function invite(e?: FormEvent) {
+    e?.preventDefault();
     setStatus('');
-    if (!EMAIL_RE.test(email.trim())) return setStatus('Please enter a valid email.');
+    setError('');
+    setInvalid(false);
+    if (blockedUnverified) return;
+    if (!EMAIL_RE.test(email.trim())) {
+      setInvalid(true);
+      return setError('Please enter a valid email.');
+    }
     setBusy(true);
     try {
       await api.post(`/api/parents/${parentId}/invite-sibling`, { email: email.trim() });
@@ -167,15 +177,15 @@ function InviteForm({
       setStatus('Invitation sent. They’ll appear as “pending” until they accept.');
       onInvited();
     } catch (err) {
-      setStatus(err instanceof ApiError ? err.message : 'Could not send the invitation.');
+      setError(err instanceof ApiError ? err.message : 'Could not send the invitation.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="mt-6 border-t border-line pt-6">
-      <label htmlFor="invite-email" className="block text-base font-semibold text-ink">
+    <form onSubmit={invite} noValidate className="mt-6 border-t border-line pt-6">
+      <label htmlFor="invite-email" className={labelCls}>
         {isSelf ? 'Invite someone to follow along' : 'Invite a family member'}
       </label>
       <div className="mt-2 flex flex-col gap-3 sm:flex-row">
@@ -186,11 +196,12 @@ function InviteForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="their@email.com"
-          className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg text-ink focus:border-sage"
+          aria-invalid={invalid ? true : undefined}
+          aria-describedby={invalid ? 'invite-error' : undefined}
+          className={inputCls}
         />
         <button
-          type="button"
-          onClick={invite}
+          type="submit"
           disabled={busy || blockedUnverified}
           aria-describedby={blockedUnverified ? 'invite-blocked-reason' : undefined}
           className="btn-primary shrink-0 disabled:opacity-60"
@@ -203,8 +214,9 @@ function InviteForm({
           {UNVERIFIED_REASON}
         </p>
       )}
-      {status && <p className="mt-3 text-base text-muted">{status}</p>}
-    </div>
+      <FormStatus kind="error" id="invite-error" message={error} className="mt-3" />
+      <FormStatus kind="success" message={status} className="mt-3" />
+    </form>
   );
 }
 
@@ -311,13 +323,9 @@ function ReferralCodeSection() {
                 <span className="text-base text-ink">
                   Joined {new Date(r.redeemed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </span>
-                <span
-                  className={`rounded-full px-3 py-1 text-base font-semibold ${
-                    r.status === 'credited' ? 'bg-sage text-cloud' : 'border border-line bg-mist text-muted'
-                  }`}
-                >
+                <StatusBadge tone={r.status === 'credited' ? 'positive' : 'neutral'}>
                   {r.status === 'credited' ? 'Credited: 1 free month' : 'Pending: waiting for their first payment'}
-                </span>
+                </StatusBadge>
               </li>
             ))}
           </ul>

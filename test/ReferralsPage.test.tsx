@@ -83,7 +83,7 @@ describe('ReferralsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
 
     expect(await screen.findByText('mike@example.com')).toBeTruthy();
-    expect(screen.getByText('pending')).toBeTruthy();
+    expect(screen.getByText('Pending')).toBeTruthy();
   });
 
   it('validates the email client-side before hitting the API', async () => {
