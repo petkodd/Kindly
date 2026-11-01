@@ -90,7 +90,7 @@ export function AdminDashboard() {
     void load();
   }, [load]);
 
-  if (error) return <p className="mt-4 text-base text-clay">{error}</p>;
+  if (error) return <p className="mt-4 text-base text-error">{error}</p>;
   if (!overview || !flags) return <p className="mt-4 text-base text-muted">Loading…</p>;
 
   return (
@@ -161,7 +161,7 @@ function FlagRow({ flag, onChanged }: { flag: SafetyFlag; onChanged: () => void 
           <div className="flex items-center gap-2">
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                sev.crisis ? 'bg-clay text-cloud' : 'border border-line bg-mist text-muted'
+                sev.crisis ? 'bg-error text-cloud' : 'border border-line bg-mist text-muted'
               }`}
             >
               {sev.label}
@@ -173,7 +173,7 @@ function FlagRow({ flag, onChanged }: { flag: SafetyFlag; onChanged: () => void 
             <p
               className={`mt-1 text-sm ${
                 [flag.alert_email_status, flag.alert_sms_status, flag.alert_admin_status].includes('failed')
-                  ? 'font-semibold text-clay'
+                  ? 'font-semibold text-error'
                   : 'text-muted'
               }`}
             >
@@ -214,7 +214,7 @@ function FlagRow({ flag, onChanged }: { flag: SafetyFlag; onChanged: () => void 
           </button>
         </div>
       </div>
-      {failed && <p className="mt-2 text-xs text-clay">Couldn’t update. Please try again.</p>}
+      {failed && <p className="mt-2 text-xs text-error">Couldn’t update. Please try again.</p>}
     </li>
   );
 }

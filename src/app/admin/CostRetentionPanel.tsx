@@ -114,7 +114,7 @@ export function CostRetentionPanel() {
         </div>
       </div>
 
-      {error && <p className="mt-4 text-base text-clay">{error}</p>}
+      {error && <p className="mt-4 text-base text-error">{error}</p>}
       {!error && !data && <p className="mt-4 text-base text-muted">Loading…</p>}
 
       {data && (
