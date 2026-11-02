@@ -74,7 +74,7 @@ export const TRUST = {
 };
 
 export const PRICING_TEASER = {
-  h2: 'Simple plans for staying close',
+  h2: 'One simple plan for staying close',
   body:
     'Start with a 7-day free trial, then $29/month or $278.40/year — voice conversation, memory, and your weekly family summary. Cancel anytime from your account.',
   cta: { label: 'See pricing', href: '/pricing' },
@@ -160,7 +160,7 @@ export const HOW_IT_WORKS = {
  */
 export const PRICING = {
   hero: {
-    h1: 'Simple plans for staying close',
+    h1: 'One simple plan for staying close',
     sub:
       'One plan, billed monthly or yearly, with a 7-day free trial. It includes daily voice conversation, memory, and a respectful weekly family summary. Cancel anytime from your account.',
   },

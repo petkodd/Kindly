@@ -38,7 +38,7 @@ export function PricingCards({ familyPlan }: { familyPlan: FamilyPlan }) {
     <div>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} label="Family plan billing" />
-        {savingsPercent > 0 && <span className="text-sm font-semibold text-sageDeep">Save up to {savingsPercent}% on the annual plan</span>}
+        {savingsPercent > 0 && <span className="text-sm font-semibold text-sageDeep">Annual billing saves {savingsPercent}%</span>}
       </div>
 
       <div className="mx-auto mt-10 max-w-md">
