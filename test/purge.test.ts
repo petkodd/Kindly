@@ -223,6 +223,19 @@ describe('purgeHardDeletes', () => {
     expect(await count('waitlist_signups')).toBe(0);
   });
 
+  it('purges facility demo requests on the same 365-day clock (chat 13)', async () => {
+    await q.query(
+      `INSERT INTO facility_demo_requests (facility_name, residents, contact_role, contact_name, email, created_at)
+       VALUES ('Old Oaks', 30, 'administrator', 'Ann', 'ann@example.com', $1),
+              ('New Elms', 30, 'administrator', 'Ben', 'ben@example.com', $2)`,
+      [daysAgo(366), daysAgo(30)],
+    );
+    const result = await purgeHardDeletes(q, { now: NOW });
+    expect(result.purgedDemoRequests).toBe(1);
+    const { rows } = await q.query<{ facility_name: string }>(`SELECT facility_name FROM facility_demo_requests`);
+    expect(rows.map((r) => r.facility_name)).toEqual(['New Elms']);
+  });
+
   it('is a no-op on a clean database', async () => {
     const result = await purgeHardDeletes(q, { now: NOW });
     expect(result).toMatchObject({
@@ -230,6 +243,7 @@ describe('purgeHardDeletes', () => {
       purgedParents: 0,
       purgedTurns: 0,
       purgedWaitlistSignups: 0,
+      purgedDemoRequests: 0,
     });
   });
 });

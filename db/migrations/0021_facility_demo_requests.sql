@@ -13,12 +13,12 @@
 
 CREATE TABLE facility_demo_requests (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  facility_name   TEXT NOT NULL CHECK (char_length(facility_name) BETWEEN 1 AND 200),
+  facility_name   TEXT NOT NULL,        -- 1–200 chars, enforced in src/lib/demoRequest.ts
   residents       INTEGER NOT NULL CHECK (residents BETWEEN 1 AND 5000),
   contact_role    TEXT NOT NULL CHECK (contact_role IN (
                     'executive_director', 'administrator', 'life_enrichment',
                     'nursing', 'sales_marketing', 'owner_operator', 'other')),
-  contact_name    TEXT NOT NULL CHECK (char_length(contact_name) BETWEEN 1 AND 120),
+  contact_name    TEXT NOT NULL,        -- 1–120 chars, enforced in src/lib/demoRequest.ts
   email           CITEXT NOT NULL,
   phone           TEXT,                 -- E.164 (+1…) when given
   source_page     TEXT,

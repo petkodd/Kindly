@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { buildMetadata, isBlogIndexable } from '@/lib/seo';
 import { BLOG } from '@/lib/content';
 import { WaitlistForm } from '@/components/WaitlistForm';
@@ -27,6 +28,18 @@ export default function Page() {
           <WaitlistForm sourcePage="/blog" submitLabel="Email me new posts" doneMessage="Thank you. We’ll email you when the first posts are published." />
         </div>
       </div>
+
+      <p className="mt-10 max-w-2xl text-lg text-muted">
+        In the meantime, read{' '}
+        <Link href="/how-it-works" className="font-semibold text-sageDeep underline underline-offset-4">
+          how Dearly works
+        </Link>{' '}
+        or{' '}
+        <Link href="/trust-and-privacy" className="font-semibold text-sageDeep underline underline-offset-4">
+          how we protect your family’s privacy
+        </Link>
+        .
+      </p>
     </section>
   );
 }
