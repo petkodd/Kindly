@@ -3,12 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError, signOutAndRedirect } from '@/lib/apiClient';
+import type { Parent } from '@/lib/types';
 
-export interface Parent {
-  id: string;
-  first_name: string;
-  relationship?: string;
-}
+// One Parent type for the whole app (chat 12): the shape GET /api/parents returns.
+export type { Parent };
 
 export interface UseParents {
   /** The buyer's parents, or null while the initial load is in flight. */

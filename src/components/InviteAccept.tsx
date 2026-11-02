@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
+import { FormStatus } from '@/components/FormStatus';
 
 // useSearchParams() opts this out of static prerendering unless it sits under a
 // Suspense boundary (Next.js CSR-bailout rule) — same pattern as /app/talk's
@@ -125,7 +126,7 @@ function AcceptEntry() {
         <li>No account or password needed.</li>
         <li>{inviter === 'A family member' ? 'They' : inviter} can remove you from the list at any time — just ask.</li>
       </ul>
-      {error && <p className="mt-4 text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} className="mt-4" />
       <button
         type="button"
         onClick={accept}

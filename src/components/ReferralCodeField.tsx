@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
 import { readReferralCookie } from '@/lib/referralCode';
+import { FormStatus } from '@/components/FormStatus';
+import { inputCls, labelCls } from '@/lib/formStyles';
 
 /** Shared copy: what a referral code gets you (chat 11). */
 export const REFERRAL_TERMS =
@@ -62,8 +64,15 @@ export function ReferralCodeField() {
   }
 
   return (
-    <div className="rounded-xl border border-line bg-cloud p-4">
-      <label htmlFor="referral-code" className="block text-base font-semibold text-ink">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void apply();
+      }}
+      noValidate
+      className="rounded-xl border border-line bg-cloud p-4"
+    >
+      <label htmlFor="referral-code" className={labelCls}>
         Referral code <span className="font-normal text-muted">(optional)</span>
       </label>
       <p id="referral-code-help" className="mt-1 text-base text-muted">{REFERRAL_TERMS}</p>
@@ -76,14 +85,15 @@ export function ReferralCodeField() {
           spellCheck={false}
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          aria-describedby="referral-code-help"
-          className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-lg uppercase tracking-widest text-ink focus:border-sage"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? 'referral-code-help referral-code-error' : 'referral-code-help'}
+          className={`uppercase tracking-widest ${inputCls}`}
         />
-        <button type="button" onClick={apply} disabled={busy} className="btn-secondary shrink-0 disabled:opacity-60">
+        <button type="submit" disabled={busy} className="btn-secondary shrink-0 disabled:opacity-60">
           {busy ? 'Applying…' : 'Apply code'}
         </button>
       </div>
-      {error && <p className="mt-3 text-base text-clay" role="alert">{error}</p>}
-    </div>
+      <FormStatus kind="error" message={error} id="referral-code-error" className="mt-3" />
+    </form>
   );
 }

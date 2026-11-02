@@ -20,13 +20,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {/* Shown on every app page, including the parent's talk screen. */}
             <DemoModeBadge />
-            <span className="text-sm text-muted">Private — Alpha v0.1</span>
+            <span className="text-base text-muted">Private — Alpha v0.1</span>
           </div>
         </div>
         <AppNav />
       </header>
       <VerifyEmailBanner />
-      <main className="container-k py-12">{children}</main>
+      <main id="main" tabIndex={-1} className="container-k py-12">{children}</main>
     </div>
   );
 }

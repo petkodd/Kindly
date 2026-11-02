@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { buildMetadata, organizationJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { CtaBand } from '@/components/CtaBand';
 import { Testimonials } from '@/components/Testimonials';
 import { signupHref } from '@/lib/nextPath';
 import {
@@ -146,7 +147,7 @@ export default function HomePage() {
           <ol className="mt-10 grid gap-8 md:grid-cols-3">
             {STEPS.items.map((step, i) => (
               <li key={step.title} className="rounded-2xl border border-line bg-mist p-8">
-                <span className="font-display text-2xl text-clay">{i + 1}</span>
+                <span className="font-display text-2xl text-sageDeep">{i + 1}</span>
                 <h3 className="mt-3 text-xl font-semibold text-ink">{step.title}</h3>
                 <p className="mt-3 text-base text-muted">{step.body}</p>
               </li>
@@ -244,30 +245,7 @@ export default function HomePage() {
       </section>
 
       {/* FINAL CTA */}
-      <section className="bg-sageDeep py-20 text-center text-cloud">
-        <div className="container-k">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">{FINAL_CTA.h2}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{FINAL_CTA.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <TrackedCtaLink
-              href={FINAL_CTA.primary.href}
-              ctaId="final_cta_primary"
-              slug="/"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
-            >
-              {FINAL_CTA.primary.label}
-            </TrackedCtaLink>
-            <TrackedCtaLink
-              href={FINAL_CTA.secondary.href}
-              ctaId="final_cta_secondary"
-              slug="/"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
-            >
-              {FINAL_CTA.secondary.label}
-            </TrackedCtaLink>
-          </div>
-        </div>
-      </section>
+      <CtaBand cta={FINAL_CTA} slug="/" />
     </>
   );
 }

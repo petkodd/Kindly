@@ -198,7 +198,7 @@ export function ParentTalkLinkSection({ parentId, firstName }: { parentId: strin
       {talkUrl ? (
         <div className="mt-4 space-y-3 rounded-lg border border-line bg-mist p-4">
           <p className="text-base font-semibold text-ink">Save or share it now — for privacy we can&rsquo;t show it again:</p>
-          <code data-testid="talk-url" className="block break-all rounded-lg bg-cloud px-3 py-2 text-sm text-ink">
+          <code data-testid="talk-url" className="block break-all rounded-lg bg-cloud px-3 py-2 text-base text-ink">
             {talkUrl}
           </code>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -238,7 +238,7 @@ export function ParentTalkLinkSection({ parentId, firstName }: { parentId: strin
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-3 text-base text-clay">
+        <p role="alert" className="mt-3 text-base text-error">
           {error}
         </p>
       )}

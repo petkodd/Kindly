@@ -3,7 +3,8 @@
 import { useEffect, useId, useState } from 'react';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatUsPhone, SMS_CONSENT_TEXT, toUsE164 } from '@/lib/phone';
-import { inputCls } from '@/lib/formStyles';
+import { checkCls, inputCls, labelCls } from '@/lib/formStyles';
+import { FormStatus } from '@/components/FormStatus';
 
 export interface AlertContact {
   alert_phone: string | null;
@@ -76,9 +77,16 @@ export function AlertContactForm({
   }
 
   return (
-    <div className="space-y-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      noValidate
+      className="space-y-4"
+    >
       <div>
-        <label htmlFor={`${ids}-phone`} className="block text-base font-semibold text-ink">
+        <label htmlFor={`${ids}-phone`} className={labelCls}>
           Your mobile number (US)
         </label>
         <input
@@ -99,10 +107,11 @@ export function AlertContactForm({
             if (savedPhone && (!typed || (toUsE164(typed) ?? savedPhone) !== savedPhone)) setConsent(false);
           }}
           placeholder="(312) 555-0142"
-          aria-describedby={`${ids}-phone-hint`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${ids}-phone-hint ${ids}-error` : `${ids}-phone-hint`}
           className={`mt-2 ${inputCls}`}
         />
-        <p id={`${ids}-phone-hint`} className="mt-1 text-sm text-muted">
+        <p id={`${ids}-phone-hint`} className="mt-1 text-base text-muted">
           US numbers only for now. Leave it empty to get alerts by email only.
         </p>
       </div>
@@ -111,23 +120,15 @@ export function AlertContactForm({
           type="checkbox"
           checked={consent}
           onChange={(e) => setConsent(e.target.checked)}
-          className="mt-1 h-6 w-6 shrink-0 rounded border-line"
+          className={`mt-1 ${checkCls}`}
         />
         <span>{SMS_CONSENT_TEXT}</span>
       </label>
-      {error && (
-        <p role="alert" className="text-base text-clay">
-          {error}
-        </p>
-      )}
-      <button type="button" onClick={save} disabled={busy} className="btn-primary w-full sm:w-auto disabled:opacity-60">
+      <FormStatus kind="error" id={`${ids}-error`} message={error} />
+      <button type="submit" disabled={busy} className="btn-primary w-full sm:w-auto disabled:opacity-60">
         {busy ? 'Saving…' : saveLabel}
       </button>
-      {status && (
-        <p role="status" className="text-base text-muted">
-          {status}
-        </p>
-      )}
-    </div>
+      <FormStatus kind="success" message={status} />
+    </form>
   );
 }

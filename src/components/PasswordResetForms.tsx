@@ -4,9 +4,11 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/apiClient';
+import { FormStatus } from '@/components/FormStatus';
+import { inputOnPageCls, labelCls } from '@/lib/formStyles';
 
-const inputCls =
-  'mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage';
+const inputCls = `mt-2 ${inputOnPageCls}`;
+
 
 /** /login/forgot — ask for a reset link. Same answer whether or not the email has an account. */
 export function ForgotPasswordForm() {
@@ -48,11 +50,11 @@ export function ForgotPasswordForm() {
       <h1 className="font-display text-3xl font-semibold text-ink">Forgot your password?</h1>
       <p className="text-lg text-muted">Enter your email and we&rsquo;ll send you a link to choose a new one.</p>
       <div>
-        <label htmlFor="forgot-email" className="block text-base font-semibold text-ink">Email</label>
+        <label htmlFor="forgot-email" className={labelCls}>Email</label>
         <input id="forgot-email" type="email" autoComplete="email" value={email}
           onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="you@example.com" />
       </div>
-      {error && <p role="alert" className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : 'Send reset link'}
       </button>
@@ -131,16 +133,16 @@ function ResetEntry() {
     <form onSubmit={submit} className="mx-auto max-w-sm space-y-5" noValidate>
       <h1 className="font-display text-3xl font-semibold text-ink">Choose a new password</h1>
       <div>
-        <label htmlFor="reset-password" className="block text-base font-semibold text-ink">New password</label>
+        <label htmlFor="reset-password" className={labelCls}>New password</label>
         <input id="reset-password" type="password" autoComplete="new-password" value={password}
           onChange={(e) => setPassword(e.target.value)} className={inputCls} placeholder="At least 8 characters" />
       </div>
       <div>
-        <label htmlFor="reset-confirm" className="block text-base font-semibold text-ink">Type it again</label>
+        <label htmlFor="reset-confirm" className={labelCls}>Type it again</label>
         <input id="reset-confirm" type="password" autoComplete="new-password" value={confirm}
           onChange={(e) => setConfirm(e.target.value)} className={inputCls} />
       </div>
-      {error && <p role="alert" className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Save new password'}
       </button>

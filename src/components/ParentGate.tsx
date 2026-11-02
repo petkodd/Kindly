@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useParents, type Parent } from '@/hooks/useParents';
+import { FormStatus } from '@/components/FormStatus';
 
 interface ParentGateChildProps {
   /** The buyer's parents — guaranteed non-null (may be empty). */
@@ -20,7 +21,7 @@ interface ParentGateChildProps {
  */
 export function ParentGate({ children }: { children: (props: ParentGateChildProps) => ReactNode }) {
   const { parents, selected, setSelected, loadError } = useParents();
-  if (loadError) return <p className="text-base text-clay">{loadError}</p>;
+  if (loadError) return <FormStatus kind="error" message={loadError} />;
   if (!parents) return <p className="text-base text-muted">Loading…</p>;
   return <>{children({ parents, selected, setSelected })}</>;
 }

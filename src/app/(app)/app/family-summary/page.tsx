@@ -7,6 +7,8 @@ import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
 import { useEmailVerified, UNVERIFIED_REASON } from '@/hooks/useEmailVerified';
+import { FormStatus } from '@/components/FormStatus';
+import { StatusBadge } from '@/components/StatusBadge';
 
 interface WeeklySummary {
   id: string;
@@ -101,7 +103,7 @@ function SummaryPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean 
     void load();
   }, [load]);
 
-  if (error) return <p className="text-base text-clay">{error}</p>;
+  if (error) return <FormStatus kind="error" message={error} />;
   if (!preview || !history) return <p className="text-base text-muted">Loading summary…</p>;
 
   // The current-week preview is also the newest history row — don't list it twice.
@@ -123,17 +125,8 @@ function SummaryPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean 
   );
 }
 
-function StatusBadge({ status }: { status: WeeklySummary['status'] }) {
-  const sent = status === 'sent';
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-        sent ? 'bg-sage text-cloud' : 'border border-line bg-mist text-muted'
-      }`}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  );
+function SummaryStatusBadge({ status }: { status: WeeklySummary['status'] }) {
+  return <StatusBadge tone={status === 'sent' ? 'positive' : 'neutral'}>{STATUS_LABEL[status]}</StatusBadge>;
 }
 
 function PreviewCard({
@@ -149,6 +142,7 @@ function PreviewCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [statusKind, setStatusKind] = useState<'success' | 'info' | 'error'>('success');
   const [needsRecipient, setNeedsRecipient] = useState(false);
   const sent = summary.status === 'sent';
   const emailVerified = useEmailVerified();
@@ -170,12 +164,14 @@ function PreviewCard({
       if (count > 0) parts.push(`Sent to ${recipients(count)}.`);
       // Demo mode / no email key: say plainly that nothing actually went out.
       if (simulated > 0) parts.push(`Simulated for ${recipients(simulated)} — demo mode, no email was sent.`);
+      setStatusKind('success');
       setStatus(parts.join(' ') || 'Sent to 0 recipients.');
       onSent(r.summary);
     } catch (err) {
       // 409 parent_consent_required: the parent hasn't said yes to sharing
       // summaries yet (chat 9). Any other 409: no accepted recipient yet.
       if (err instanceof ApiError && err.status === 409 && err.code === 'parent_consent_required') {
+        setStatusKind('info');
         setStatus(
           isSelf
             ? 'You haven’t agreed to share weekly summaries yet. Dearly will ask you the next time you talk.'
@@ -184,6 +180,7 @@ function PreviewCard({
       } else if (err instanceof ApiError && err.status === 409) {
         setNeedsRecipient(true);
       } else {
+        setStatusKind('error');
         setStatus(err instanceof ApiError ? err.message : 'Could not send the summary.');
       }
     } finally {
@@ -193,18 +190,18 @@ function PreviewCard({
 
   return (
     <section className="rounded-xl border border-line bg-cloud p-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-ink">
           {fmtRange(summary.period_start, summary.period_end)}
         </h2>
-        <StatusBadge status={summary.status} />
+        <SummaryStatusBadge status={summary.status} />
       </div>
 
       {/* has_concern is always false for new summaries (D3 default, chat 9);
           older rows may still carry it. The old copy pointed to a "note
           below" that never existed, so the badge now stands on its own. */}
       {summary.has_concern && (
-        <p className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3 text-sm font-semibold text-ink">
+        <p className="mt-4 rounded-lg border border-error bg-mist px-4 py-3 text-base font-semibold text-ink">
           This week&rsquo;s summary includes a gentle heads-up.
         </p>
       )}
@@ -233,11 +230,11 @@ function PreviewCard({
         )}
 
         {needsRecipient ? (
-          <div className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3">
+          <div className="mt-4 rounded-lg border border-error bg-mist px-4 py-3">
             <p className="text-base text-ink">
               No one has accepted an invitation to receive summaries yet.
             </p>
-            <Link href="/app/referrals" className="mt-2 inline-block text-base text-sage underline">
+            <Link href="/app/referrals" className="mt-2 inline-flex min-h-[2.75rem] items-center text-base font-semibold text-sageDeep underline">
               {isSelf ? 'Invite someone to follow along' : 'Invite a family member'}
             </Link>
           </div>
@@ -253,14 +250,18 @@ function PreviewCard({
               {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
             </button>
             {blockedUnverified && (
-              <p id="send-blocked-reason" className="mt-2 text-base text-clay">
+              <p id="send-blocked-reason" className="mt-2 text-base text-error">
                 {UNVERIFIED_REASON}
               </p>
             )}
           </>
         )}
 
-        {status && <p className="mt-3 text-sm text-muted">{status}</p>}
+        {statusKind === 'error' ? (
+          <FormStatus kind="error" message={status} className="mt-3" />
+        ) : (
+          <FormStatus kind={statusKind} message={status} className="mt-3" />
+        )}
 
         <AutoSendToggle />
       </div>
@@ -347,10 +348,10 @@ function PastSummaries({ summaries }: { summaries: WeeklySummary[] }) {
                 <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
                   <span>
                     <span className="block text-base text-ink">{fmtRange(s.period_start, s.period_end)}</span>
-                    <span className="block text-sm text-sageDeep underline group-open:hidden">Show summary</span>
-                    <span className="hidden text-sm text-sageDeep underline group-open:block">Hide summary</span>
+                    <span className="block text-base text-sageDeep underline group-open:hidden">Show summary</span>
+                    <span className="hidden text-base text-sageDeep underline group-open:block">Hide summary</span>
                   </span>
-                  <StatusBadge status={s.status} />
+                  <SummaryStatusBadge status={s.status} />
                 </summary>
                 <div className="border-t border-line px-4 py-3">
                   {body ? (

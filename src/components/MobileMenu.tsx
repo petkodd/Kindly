@@ -65,7 +65,7 @@ export function MobileMenu({ items, ctaHref, ctaLabel }: { items: MobileMenuItem
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg border-2 border-line px-3 text-base font-semibold text-ink hover:border-sage"
+        className="inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg border-2 border-field px-3 text-base font-semibold text-ink hover:border-sageDeep"
       >
         <span aria-hidden="true" className="text-lg leading-none">{open ? '✕' : '☰'}</span>
         {open ? 'Close' : 'Menu'}

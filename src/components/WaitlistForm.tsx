@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { FormStatus } from '@/components/FormStatus';
+import { checkCls, inputOnPageCls, labelCls } from '@/lib/formStyles';
 
 type Status = 'idle' | 'submitting' | 'done' | 'error';
 
@@ -10,7 +12,8 @@ export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
 
-  async function handleSubmit() {
+  async function handleSubmit(e?: FormEvent) {
+    e?.preventDefault();
     if (!email.includes('@')) {
       setStatus('error');
       setMessage('Please enter a valid email address.');
@@ -34,14 +37,16 @@ export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string
 
   if (status === 'done') {
     return (
-      <div className="rounded-xl border border-line bg-cloud p-6 text-lg text-ink">{message}</div>
+      <div role="status" aria-live="polite" className="rounded-xl border border-line bg-cloud p-6 text-lg text-ink">
+        {message}
+      </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
       <div>
-        <label htmlFor="wl-email" className="block text-base font-semibold text-ink">
+        <label htmlFor="wl-email" className={labelCls}>
           Your email
         </label>
         <input
@@ -50,31 +55,32 @@ export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage"
+          aria-invalid={status === 'error' ? true : undefined}
+          aria-describedby={status === 'error' ? 'wl-error' : undefined}
+          className={`mt-2 ${inputOnPageCls}`}
           placeholder="you@example.com"
         />
       </div>
-      <label className="flex items-center gap-3 text-base text-ink">
+      <label className="flex min-h-[2.75rem] items-center gap-3 text-base text-ink">
         <input
           type="checkbox"
           checked={wantsDemo}
           onChange={(e) => setWantsDemo(e.target.checked)}
-          className="h-5 w-5 rounded border-line"
+          className={checkCls}
         />
         I’d also like a quick demo
       </label>
       <button
-        type="button"
-        onClick={handleSubmit}
+        type="submit"
         disabled={status === 'submitting'}
         className="btn-primary w-full disabled:opacity-60"
       >
         {status === 'submitting' ? 'Joining…' : 'Join the waitlist'}
       </button>
-      {status === 'error' && <p className="text-base text-clay">{message}</p>}
-      <p className="text-sm text-muted">
+      <FormStatus kind="error" id="wl-error" message={status === 'error' ? message : ''} />
+      <p className="text-base text-muted">
         We’ll only use your email to contact you about Dearly. No spam, ever.
       </p>
-    </div>
+    </form>
   );
 }
