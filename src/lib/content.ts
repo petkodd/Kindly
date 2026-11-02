@@ -63,9 +63,9 @@ export const TESTIMONIALS = {
 export const TRUST = {
   h2: 'Private and safe, by design',
   body:
-    'Trust is the whole point. Dearly is built on consent, data minimization, and clear boundaries. Family never sees transcripts — only a short summary of topics, and only after your parent says yes.',
+    'Trust is the whole point. Dearly is built on consent, data minimization, and clear boundaries. Family never sees transcripts. The weekly summary covers topics only, and it’s sent only after your parent says yes.',
   bullets: [
-    'Consent-based — Dearly tells your parent who receives the weekly summary and asks before anything is shared',
+    'Consent-based — Dearly tells your parent who receives the weekly summary and asks before it’s sent',
     'Dearly never pretends to be human',
     'Never a replacement for family, caregivers, doctors, or 911',
     'You control the data, and can delete it anytime',
@@ -126,7 +126,7 @@ export const HOW_IT_WORKS = {
       'A short, plain-language summary — not a transcript',
       'An urgent alert to you only if a conversation raises a serious safety concern',
       'Siblings can be invited to receive the same weekly summary',
-      'Your parent is told who receives the summary, and asked before anything is shared',
+      'Your parent is told who receives the summary, and asked before it’s sent',
     ],
   },
   boundaries: {

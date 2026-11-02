@@ -217,6 +217,10 @@ describe('every public claim has product backing (chat 13)', () => {
     /many parents/i,
     /founding-family offer/i,
     /how they’re doing/i,
+    // Memories proposed in conversation and D2 safety alerts reach family
+    // without a separate yes; only the weekly summary waits for consent.
+    /before anything is shared/i,
+    /only a short summary/i,
   ];
 
   it.each(RETIRED.map((r) => [r.source, r]))('no copy says %s', (_s, re) => {
