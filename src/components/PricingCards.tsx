@@ -14,6 +14,8 @@ interface FamilyPlan {
   cta: { label: string; href: string };
   priceMonthlyCents: number;
   priceAnnualCents: number;
+  /** Free-trial length checkout grants (shown on the card). */
+  trialDays: number;
 }
 
 /**

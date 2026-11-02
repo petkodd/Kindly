@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { clientIp, rejectCrossOrigin } from '@/lib/auth';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
 import { waitlistRepo } from '@/lib/repos/waitlist';
+import { EMAIL_RE } from '@/lib/validation';
 
 /**
  * POST /api/waitlist
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   }
 
   const email = (body.email ?? '').trim().toLowerCase();
-  if (!email.includes('@') || email.length > 320) {
+  if (email.length > 320 || !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: { code: 'invalid_email', message: 'A valid email is required.' } },
       { status: 400 },

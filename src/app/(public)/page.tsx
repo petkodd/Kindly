@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { buildMetadata, organizationJsonLd } from '@/lib/seo';
+import { buildMetadata, homeJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { CtaBand } from '@/components/CtaBand';
 import { Testimonials } from '@/components/Testimonials';
@@ -18,7 +18,7 @@ import {
 export const metadata: Metadata = buildMetadata({
   title: 'Dearly — Warm AI Companion for Aging Parents',
   description:
-    'For the moments you can’t be there. Give your aging parent a warm AI companion to talk to, with a gentle weekly summary for family.',
+    'For the moments you can’t be there. Give your aging parent a warm AI companion to talk to, and get a short weekly summary once they agree.',
   path: '/',
 });
 
@@ -42,7 +42,7 @@ export default function HomePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd()) }}
       />
 
       {/* HERO — the thesis: warmth and presence, not a tech demo. */}
@@ -53,7 +53,7 @@ export default function HomePage() {
         />
         <div className="container-k relative grid items-center gap-12 py-20 md:grid-cols-[1.1fr_0.9fr] md:py-28">
           <div>
-            <p className="eyebrow">A gift for an aging parent</p>
+            <p className="eyebrow">An AI companion for aging parents</p>
             <h1 className="mt-4 font-display text-3xl font-semibold leading-tight text-ink md:text-4xl">
               {HERO.h1}
             </h1>

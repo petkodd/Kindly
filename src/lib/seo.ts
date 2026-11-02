@@ -54,17 +54,70 @@ export function buildMetadata({
   };
 }
 
-/** Organization + WebSite JSON-LD for the home page. */
+/** Organization JSON-LD (used on its own and inside homeJsonLd). */
 export function organizationJsonLd() {
   return {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': `${SITE.url}/#organization`,
     name: SITE.name,
     url: SITE.url,
     logo: `${SITE.url}/apple-touch-icon.png`,
     description: SITE.description,
     slogan: SITE.tagline,
   };
+}
+
+/**
+ * WebSite JSON-LD. No SearchAction: the site has no search page, and
+ * schema.org/Google only want one when a real search URL exists.
+ */
+export function websiteJsonLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': `${SITE.url}/#website`,
+    name: SITE.name,
+    url: SITE.url,
+    description: SITE.description,
+    inLanguage: 'en-US',
+    publisher: { '@id': `${SITE.url}/#organization` },
+  };
+}
+
+/** The home page's structured data: Organization + WebSite in one @graph. */
+export function homeJsonLd() {
+  const strip = <T extends Record<string, unknown>>({ ['@context']: _ctx, ...rest }: T) => rest;
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [strip(organizationJsonLd()), strip(websiteJsonLd())],
+  };
+}
+
+/** FAQPage JSON-LD built from the same Q&A list the page renders. */
+export function faqPageJsonLd(items: { q: string; a: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  };
+}
+
+/**
+ * Published blog articles (slug + date). Empty until the first posts ship.
+ * The blog index stays noindex and out of the sitemap until there are at
+ * least BLOG_INDEX_MIN_ARTICLES, so a thin "coming soon" page is never
+ * indexed.
+ */
+export const BLOG_ARTICLES: ReadonlyArray<{ slug: string; published: string }> = [];
+export const BLOG_INDEX_MIN_ARTICLES = 3;
+
+export function isBlogIndexable(articles: ReadonlyArray<unknown> = BLOG_ARTICLES): boolean {
+  return articles.length >= BLOG_INDEX_MIN_ARTICLES;
 }
 
 interface PricingPlanForJsonLd {
