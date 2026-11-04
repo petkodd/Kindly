@@ -92,3 +92,35 @@ describe('createEmailClient retry/backoff', () => {
     expect((err as Error).message).toBe('Email provider request failed: 422');
   });
 });
+
+describe('createEmailClient timeout (release check NEW-3)', () => {
+  it('passes an abort signal to fetch, and a hung request fails with a timeout instead of hanging', async () => {
+    const fetchMock = vi.fn((_url: string, init: { signal: AbortSignal }) => {
+      return new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(init.signal.reason));
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createEmailClient({ apiKey: 'k', from: 'a@b.com', sleep: vi.fn(), timeoutMs: 20 });
+
+    await expect(client.send(INPUT)).rejects.toThrow('Email provider request timed out');
+    await expect(client.send(INPUT)).rejects.toBeInstanceOf(EmailError);
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('defaults to a 10 second timeout', async () => {
+    const { EMAIL_REQUEST_TIMEOUT_MS } = await import('../src/lib/email/providers');
+    expect(EMAIL_REQUEST_TIMEOUT_MS).toBe(10_000);
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { id: 'em_t' })));
+    await createEmailClient({ apiKey: 'k', from: 'a@b.com' }).send(INPUT);
+    expect(timeout).toHaveBeenCalledWith(10_000);
+  });
+
+  it('a network error is an EmailError without the provider body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+    await expect(createEmailClient({ apiKey: 'k', from: 'a@b.com' }).send(INPUT)).rejects.toThrow(
+      'Email provider request failed: network error',
+    );
+  });
+});

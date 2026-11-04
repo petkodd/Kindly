@@ -27,7 +27,7 @@ import { rateLimitRepo } from '@/lib/repos/rateLimit';
  * speech-to-text, so it has its own small per-parent allowance: a leaked link
  * that is already rate-limited can't use it to run up unlimited STT spend.
  */
-const CRISIS_STT_LIMIT = { limit: 10, windowMs: 10 * 60 * 1000 };
+export const CRISIS_STT_LIMIT = { limit: 20, windowMs: 24 * 60 * 60 * 1000 };
 
 // STT + model + TTS normally finish in a few seconds; never let one request run (and bill) for minutes.
 export const maxDuration = 30;

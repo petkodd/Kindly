@@ -132,23 +132,91 @@ describe('runCompanionTurn', () => {
     expect(result.flag?.severity).toBe('p2_welfare');
   });
 
-  it('records the flag and sends the alert even when the reply fails', async () => {
+  it('a crisis turn whose reply fails still gets the crisis copy + safe fallback, flag and alert (NEW-2)', async () => {
     const companionReply = vi.fn().mockRejectedValue(new Error('model down'));
     const parent = await makeParent();
-    await expect(
-      runCompanionTurn(q, {
-        parent,
-        conversationId: await convo(parent.id),
-        message: "I don't want to live anymore",
-        history: [],
-        memories: [],
-        channel: 'text',
-        ai: client({ companionReply }),
-      }),
-    ).rejects.toThrow('model down');
+    const result = await runCompanionTurn(q, {
+      parent,
+      conversationId: await convo(parent.id),
+      message: "I don't want to live anymore",
+      history: [],
+      memories: [],
+      channel: 'text',
+      ai: client({ companionReply }),
+    });
+    expect(result.scan.severity).toBe('p0');
+    expect(result.replyText).toMatch(/988/);
+    expect(result.replyText).toMatch(/I'm going to let Sarah know/);
+    expect(result.replyText.endsWith(SAFE_FALLBACK_REPLY)).toBe(true);
+    expect(result.redacted).toBe(true);
     const { rows } = await q.query(`SELECT severity, notified_at FROM safety_flags WHERE parent_id = $1`, [parent.id]);
     expect(rows).toHaveLength(1);
     expect(rows[0].notified_at).not.toBeNull();
     expect(fakeEmailClient.send).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['p1', 'I have chest pain', /Please call 911 right now/],
+    ['p3', 'My son takes my pension card', /1-800-677-1116/],
+  ] as const)('a %s turn whose reply fails gets its crisis copy instead of an error', async (_sev, message, copy) => {
+    const companionReply = vi.fn().mockRejectedValue(new Error('model down'));
+    const { result } = await turn(message, client({ companionReply }));
+    expect(result.replyText).toMatch(copy);
+    expect(result.replyText.endsWith(SAFE_FALLBACK_REPLY)).toBe(true);
+  });
+
+  it('a non-crisis turn whose reply fails still throws (the route says "something went wrong")', async () => {
+    const companionReply = vi.fn().mockRejectedValue(new Error('model down'));
+    await expect(turn('I made soup today', client({ companionReply }))).rejects.toThrow('model down');
+  });
+});
+
+describe('runCompanionTurn: the "I\'m going to let … know" clause follows the alert outcome (NEW-6)', () => {
+  it('says it when the family alert was delivered', async () => {
+    const { result } = await turn("I don't want to live anymore");
+    expect(result.alert?.familyTold).toBe(true);
+    expect(result.replyText).toMatch(/I'm going to let Sarah know so they can check on you/);
+  });
+
+  it('does not say it when the family alert failed; keeps 988/911', async () => {
+    vi.mocked(fakeEmailClient.send).mockRejectedValue(new Error('provider down'));
+    const { result } = await turn("I don't want to live anymore");
+    expect(result.alert?.familyTold).toBe(false);
+    expect(result.replyText).toMatch(/988/);
+    expect(result.replyText).toMatch(/911/);
+    expect(result.replyText).not.toMatch(/let .* know/);
+  });
+
+  it('does not say it when the send was only simulated outside DEMO_MODE', async () => {
+    vi.mocked(fakeEmailClient.send).mockResolvedValue({ id: 'fake', simulated: true } as never);
+    const { result } = await turn('I have chest pain');
+    expect(result.replyText).toMatch(/Please call 911 right now/);
+    expect(result.replyText).not.toMatch(/let .* know/);
+  });
+
+  it('says it for a simulated send in DEMO_MODE', async () => {
+    vi.stubEnv('DEMO_MODE', 'true');
+    try {
+      vi.mocked(fakeEmailClient.send).mockResolvedValue({ id: 'fake', simulated: true } as never);
+      const { result } = await turn('I have chest pain');
+      expect(result.replyText).toMatch(/I'm going to let Sarah know/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('says it when throttled because an alert already reached the family in the window', async () => {
+    const parent = await makeParent();
+    const first = await runCompanionTurn(q, {
+      parent, conversationId: await convo(parent.id), message: "I don't want to live anymore",
+      history: [], memories: [], channel: 'text', ai: fakeAiClient,
+    });
+    expect(first.alert?.familyTold).toBe(true);
+    const second = await runCompanionTurn(q, {
+      parent, conversationId: await convo(parent.id), message: 'I have chest pain',
+      history: [], memories: [], channel: 'text', ai: fakeAiClient,
+    });
+    expect(second.alert?.throttled).toBe(true);
+    expect(second.replyText).toMatch(/I'm going to let Sarah know/);
   });
 });

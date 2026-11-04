@@ -97,7 +97,7 @@ describe('TalkPage', () => {
     });
     render(<TalkPage />);
     fireEvent.click(await startButton());
-    expect(await screen.findByText('Please ask Sarah to send you a new link.')).toBeTruthy();
+    expect(await screen.findByText('Please ask Sarah to send you a new link. If this is an emergency, call 911, or call or text 988.')).toBeTruthy();
   });
 
   it('starts a conversation (consent + session), shows the greeting and speaks it', async () => {
