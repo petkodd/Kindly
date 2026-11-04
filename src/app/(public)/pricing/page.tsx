@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { buildMetadata, pricingJsonLd } from '@/lib/seo';
+import { buildMetadata, faqPageJsonLd, pricingJsonLd } from '@/lib/seo';
 import { PRICING, getFamilyPlan } from '@/lib/content';
 import { formatUsdCents } from '@/lib/pricing';
 import { CtaBand } from '@/components/CtaBand';
@@ -7,7 +7,8 @@ import { PricingCards } from '@/components/PricingCards';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Dearly Pricing — AI Companion Plans for Families',
-  description: 'One simple monthly plan for your parent’s AI companion — voice, memory, and weekly summaries.',
+  description:
+    'Try Dearly free for 7 days, then $29/month or $278.40/year. One plan with voice conversation, memory, and a weekly family summary.',
   path: '/pricing',
 });
 
@@ -35,9 +36,13 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingJsonLd(jsonLdPlans)) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageJsonLd(faq.items)) }}
+      />
 
       <section className="container-k py-20">
-        <p className="eyebrow">senior companion app pricing</p>
+        <p className="eyebrow">Pricing</p>
         <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
         <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
       </section>

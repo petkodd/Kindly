@@ -7,7 +7,7 @@
 export const HERO = {
   h1: 'For the moments you can’t be there',
   sub:
-    'Dearly gives your aging parent a warm, patient companion to talk to — any time of day. You set it up. They simply talk. And every week, you get a gentle summary of how they’re doing.',
+    'Dearly gives your aging parent a warm, patient companion to talk to — any time of day. You set it up. They simply talk. And once your parent says yes, you get a short weekly note about what they’ve been talking about.',
   primaryCta: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
   secondaryCta: { label: 'See how it works', href: '/how-it-works' },
   trustline: 'Private by design · Cancel anytime · Built for older adults',
@@ -37,7 +37,7 @@ export const STEPS = {
     {
       title: 'You stay close',
       body:
-        'Each week, you receive a respectful summary of how your parent has been — warm moments, things they mentioned, and a gentle heads-up if something seems off.',
+        'Once your parent agrees to share, you receive a short weekly summary of the topics they enjoyed talking about — never a transcript. If a conversation ever raises a serious safety concern, you’re alerted right away.',
     },
   ],
 };
@@ -45,11 +45,11 @@ export const STEPS = {
 export const SENIORS = {
   h2: 'Made for your parent, not just for you',
   body:
-    'Most apps aren’t built for a 78-year-old’s hands or eyes. Dearly is. Large text. Big buttons. Voice-first, so they can just speak. No logins to remember.',
+    'Most apps aren’t built for a 78-year-old’s hands or eyes. Dearly is. Large text. Big buttons. Voice-first, so they can just speak. No passwords to remember — just their own private link.',
   bullets: [
     'Voice-first — your parent talks, Dearly listens',
     'One big button to start, nothing to figure out',
-    'Large, high-contrast text that’s easy to read',
+    'Large text, on by default, in colors chosen for strong contrast',
     'Works on the tablet or computer they already have',
   ],
 };
@@ -57,15 +57,15 @@ export const SENIORS = {
 export const TESTIMONIALS = {
   h2: 'A familiar voice, whenever they want to talk',
   body:
-    'Many parents settle into an easy rhythm with Dearly — an afternoon check-in, a story about the grandkids, a few quiet minutes of company. Every conversation is theirs alone, and every week your family gets a gentle glimpse into how they’re doing.',
+    'Your parent can settle into whatever rhythm suits them — an afternoon check-in, a story about the grandkids, a few quiet minutes of company. Conversations are never shared word for word. If your parent agrees, your family gets a short weekly note about what they enjoyed talking about.',
 };
 
 export const TRUST = {
   h2: 'Private and safe, by design',
   body:
-    'Trust is the whole point. Dearly is built on consent, data minimization, and clear boundaries. Your parent’s conversations are theirs. Family summaries are respectful — never raw transcripts.',
+    'Trust is the whole point. Dearly is built on consent, data minimization, and clear boundaries. Family never sees transcripts. The weekly summary covers topics only, and it’s sent only after your parent says yes.',
   bullets: [
-    'Consent-based — your parent always knows what’s shared, and with whom',
+    'Consent-based — Dearly tells your parent who receives the weekly summary and asks before it’s sent',
     'Dearly never pretends to be human',
     'Never a replacement for family, caregivers, doctors, or 911',
     'You control the data, and can delete it anytime',
@@ -74,9 +74,9 @@ export const TRUST = {
 };
 
 export const PRICING_TEASER = {
-  h2: 'Simple plans for staying close',
+  h2: 'One simple plan for staying close',
   body:
-    'Dearly is $29/month — voice conversation, memory, and your weekly family summary. Cancel anytime.',
+    'Start with a 7-day free trial, then $29/month or $278.40/year — voice conversation, memory, and your weekly family summary. Cancel anytime from your account.',
   cta: { label: 'See pricing', href: '/pricing' },
 };
 
@@ -84,7 +84,7 @@ export const FINAL_CTA = {
   h2: 'Give your parent someone kind to talk to',
   body: 'For the moments you can’t be there — Dearly is.',
   primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
-  secondary: { label: 'Join the waitlist', href: '/waitlist' },
+  secondary: { label: 'See pricing', href: '/pricing' },
 };
 
 export const FOOTER_LEGAL =
@@ -110,23 +110,23 @@ export const HOW_IT_WORKS = {
     {
       title: '3. You get a gentle weekly summary',
       body:
-        'Once a week, you receive a short, warm summary of how your parent has been — never a raw transcript, never clinical language. If something seems off, you get a gentle heads-up so you can check in, not a diagnosis.',
+        'The first time your parent talks to Dearly, it explains who will receive a weekly summary and asks if that’s okay. Once they say yes, you receive a short, warm note each week about the topics they enjoyed — never a raw transcript, never clinical language, and nothing about their health or mood.',
     },
   ],
   voice: {
     h2: 'Built to be easy for a 78-year-old, not just for you',
     body:
-      'Dearly is voice-first: your parent speaks, and Dearly listens and replies in a warm, clear voice paced for easier listening. Large text and high contrast are on by default. There is nothing to install and nothing to remember.',
+      'Dearly is voice-first: your parent speaks, and Dearly listens and replies in a warm, clear voice paced for easier listening. Large text and a slower speaking pace are on by default, and every screen uses strong color contrast. There is nothing to install and nothing to remember.',
   },
   family: {
     h2: 'What your family actually sees',
     body:
-      'Family summaries are written for people, not charts: a few warm sentences about the week, occasional highlights your parent mentioned, and a coarse note if the tone of a conversation seemed low. Raw conversations stay private to your parent unless they choose otherwise.',
+      'Family summaries are written for people, not charts: a few warm sentences about the topics your parent enjoyed that week. They never include quotes, transcripts, or anything about health, mood, or money. Nothing is sent until your parent agrees.',
     bullets: [
       'A short, plain-language summary — not a transcript',
-      'A gentle heads-up only when something seems worth a check-in',
+      'An urgent alert to you only if a conversation raises a serious safety concern',
       'Siblings can be invited to receive the same weekly summary',
-      'Your parent knows what’s shared, and with whom',
+      'Your parent is told who receives the summary, and asked before it’s sent',
     ],
   },
   boundaries: {
@@ -160,9 +160,9 @@ export const HOW_IT_WORKS = {
  */
 export const PRICING = {
   hero: {
-    h1: 'Simple plans for staying close',
+    h1: 'One simple plan for staying close',
     sub:
-      'One simple plan includes daily voice conversation, memory, and a respectful weekly family summary. Cancel anytime.',
+      'One plan, billed monthly or yearly, with a 7-day free trial. It includes daily voice conversation, memory, and a respectful weekly family summary. Cancel anytime from your account.',
   },
   plans: [
     {
@@ -180,12 +180,15 @@ export const PRICING = {
       // actual $29/mo Stripe price to a stale $59/mo figure.
       priceMonthlyCents: 2900,
       priceAnnualCents: 27840,
+      // Must match TRIAL_DAYS in src/app/api/billing/checkout/route.ts (a test
+      // checks they agree) — the card advertises the trial checkout grants.
+      trialDays: 7,
       tagline: 'Our standard plan for one parent and their family',
       bullets: [
         'Daily voice conversation with Dearly',
         'A memory built from the people and things your parent cares about',
-        'Weekly summary for up to 3 family recipients',
-        'A gentle heads-up if something seems worth a check-in',
+        'A weekly summary for you and the family members you invite',
+        'An urgent alert to you if a conversation raises a serious safety concern',
       ],
       cta: { label: 'Choose Family', href: '/app/onboarding' },
     },
@@ -194,12 +197,16 @@ export const PRICING = {
     h2: 'Questions about pricing',
     items: [
       {
-        q: 'Can I cancel anytime?',
-        a: 'Yes. Monthly plans can be canceled anytime from your account, and you won’t be charged for the next cycle. Prepaid gifts don’t renew automatically.',
+        q: 'Is there a free trial?',
+        a: 'Yes. Every plan starts with a 7-day free trial. You add a card at checkout, and nothing is charged until the trial ends.',
       },
       {
         q: 'What happens after the free trial?',
-        a: 'Your plan continues at the price shown above unless you cancel. We’ll always email you before a price change takes effect.',
+        a: 'Your plan continues at the price you chose — $29 a month, or $278.40 a year — unless you cancel before the trial ends.',
+      },
+      {
+        q: 'Can I cancel anytime?',
+        a: 'Yes. Open your account, choose Manage billing, and cancel on our payment provider’s secure page. You won’t be charged for the next billing period. You can also delete your parent’s profile from your account, which cancels its subscription.',
       },
       {
         q: 'Does my parent need a credit card?',
@@ -207,13 +214,13 @@ export const PRICING = {
       },
       {
         q: 'Can I add a sibling to the weekly summary later?',
-        a: 'Yes, anytime. Invite a sibling from your account and they’ll start receiving the same respectful weekly summary once they accept.',
+        a: 'Yes, anytime. Invite a sibling from the Family Summary or Referrals page and they’ll start receiving the same respectful weekly summary once they accept.',
       },
     ],
   },
   cta: {
     h2: 'Ready to give your parent someone kind to talk to?',
-    body: 'It takes a few minutes to set up, and you can cancel anytime.',
+    body: 'It takes a few minutes to set up, starts with a 7-day free trial, and you can cancel anytime.',
     primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
     secondary: { label: 'See how it works', href: '/how-it-works' },
   },
@@ -230,14 +237,15 @@ export function getFamilyPlan() {
     ...raw,
     priceMonthlyCents: raw.priceMonthlyCents!,
     priceAnnualCents: raw.priceAnnualCents!,
+    trialDays: raw.trialDays!,
   };
 }
 
 export const SENIOR_LIVING = {
   hero: {
-    h1: 'Resident engagement, reimagined',
+    h1: 'Resident engagement for senior living, reimagined',
     sub:
-      'A warm AI companion your residents can talk to any time, with respectful family updates your staff doesn’t have to write by hand.',
+      'A warm AI companion your residents can talk to any time, with respectful weekly family updates your staff doesn’t have to write by hand. We’re now planning small founding pilots with US communities.',
   },
   problem: {
     h2: 'Your team can’t be everywhere either',
@@ -258,12 +266,12 @@ export const SENIOR_LIVING = {
   forCommunities: {
     h2: 'What it means for your community',
     body:
-      'Families get a respectful weekly update without your staff spending hours on the phone or writing recaps. You get a lightweight way to show that connection is happening every week, for every resident.',
+      'Families get a respectful weekly update without your staff spending hours on the phone or writing recaps. Each resident has their own companion and their own private link, so you can start with a few residents and grow from there.',
     bullets: [
       'Automated, respectful weekly summaries — never raw transcripts',
-      'A gentle flag to staff and family if a resident’s tone seems off',
+      'Serious safety concerns are flagged right away for human review',
       'Rolls out resident by resident — no facility-wide integration required',
-      'Consent-based from day one, with clear boundaries around health topics',
+      'Residents are asked before any summary is shared, and summaries never cover health or mood',
     ],
   },
   boundaries: {
@@ -271,10 +279,20 @@ export const SENIOR_LIVING = {
     body:
       'Dearly is not a medical device and doesn’t diagnose, monitor vitals, or replace your clinical staff. It’s a warm conversational layer that keeps residents connected and gives families a window in — care decisions stay with your team.',
   },
+  demo: {
+    h2: 'Request a demo',
+    body:
+      'Tell us a little about your community and we’ll set up a short call to show Dearly and talk through a founding pilot for a small group of residents.',
+    bullets: [
+      'A short walkthrough with our team',
+      'See the resident’s talk screen and the family summary',
+      'No commitment, and no integration with your systems',
+    ],
+  },
   cta: {
     h2: 'Curious how Dearly could fit your community?',
     body: 'We’re happy to walk through a pilot for a small group of residents.',
-    primary: { label: 'Join the waitlist', href: '/waitlist' },
+    primary: { label: 'Request a demo', href: '/senior-living#demo' },
     secondary: { label: 'See how it works', href: '/how-it-works' },
   },
 };
@@ -288,7 +306,7 @@ export const GIFT_FOR_AGING_PARENT = {
   why: {
     h2: 'A different kind of gift',
     body:
-      'Flowers fade. A gadget your parent won’t use ends up in a drawer. Dearly shows up every day — someone patient to talk to about their morning, an old memory, or nothing in particular — and sends a weekly note that lets you know how they’re really doing.',
+      'Flowers fade. A gadget your parent won’t use ends up in a drawer. Dearly shows up every day — someone patient to talk to about their morning, an old memory, or nothing in particular — and, once your parent agrees, sends you a weekly note about what they’ve enjoyed talking about.',
   },
   occasions: {
     h2: 'A thoughtful choice for any occasion',
@@ -313,15 +331,24 @@ export const GIFT_FOR_AGING_PARENT = {
   whatsIncluded: {
     h2: 'What’s inside the gift',
     body:
-      'Every plan includes daily voice conversation, a memory of the people and things your parent cares about, and a respectful weekly summary for your family — never a raw transcript.',
+      'The Family plan starts with a 7-day free trial and includes daily voice conversation, a memory of the people and things your parent cares about, and a respectful weekly summary for your family — never a raw transcript.',
     cta: { label: 'See pricing', href: '/pricing' },
   },
   cta: {
     h2: 'Give the gift of someone to talk to',
     body: 'Set it up today, and your parent can be talking to Dearly by this afternoon.',
     primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
-    secondary: { label: 'Join the waitlist', href: '/waitlist' },
+    secondary: { label: 'See pricing', href: '/pricing' },
   },
+};
+
+export const WAITLIST = {
+  eyebrow: 'Stay in touch',
+  h1: 'Not quite ready? Get Dearly updates',
+  sub:
+    'Dearly is available now in the US, and you can set it up for your parent today with a 7-day free trial. If you’d rather wait, leave your email and we’ll keep you posted.',
+  formH2: 'Get occasional updates',
+  formBody: 'We’ll only use your email to send news about Dearly, and you can ask us to remove it at any time.',
 };
 
 export const BLOG = {
@@ -333,7 +360,7 @@ export const BLOG = {
   comingSoon: {
     h2: 'Our first posts are coming soon',
     body:
-      'We’re writing about the things adult children ask us most: how to bring up a companion app with a parent who’s skeptical of technology, what a respectful weekly summary should (and shouldn’t) include, and how families split the load of long-distance caregiving. Leave your email and we’ll send new posts as they publish — no spam, just the occasional useful thing.',
+      'We’re writing about the things adult children ask us most: how to bring up a companion app with a parent who’s skeptical of technology, what a respectful weekly summary should (and shouldn’t) include, and how families split the load of long-distance caregiving. Leave your email and we’ll send new posts as they publish.',
   },
 };
 
@@ -346,10 +373,11 @@ export const TRUST_AND_PRIVACY = {
   consent: {
     h2: 'Consent comes first',
     body:
-      'Before Dearly ever talks with your parent, the adult child setting it up confirms they have permission to do so. Before any weekly summary is delivered to a family member, that family member must accept an invitation — no one receives updates about your parent without an explicit yes.',
+      'Before Dearly ever talks with your parent, the adult child setting it up confirms they have permission to do so. Then your parent is asked directly: Dearly tells them who would receive a weekly summary, and nothing is sent until they say yes. Each family member must also accept an invitation before receiving anything.',
     bullets: [
       'A buyer attestation is required before a parent profile is activated',
       'A conversation consent is required before Dearly’s first message',
+      'Your parent’s own yes is required before any weekly summary is sent',
       'Each family recipient must individually accept before receiving summaries',
       'Any recipient can be removed at any time',
     ],
@@ -357,12 +385,12 @@ export const TRUST_AND_PRIVACY = {
   minimization: {
     h2: 'We collect less, on purpose',
     body:
-      'Dearly only stores what helps the companion be useful — confirmed memories your parent has shared, and short conversation summaries. Sensitive details about health, mood, or risk are marked private and are never included in anything shared with family.',
+      'Dearly only stores what helps the companion be useful: the memories you and your parent have shared, short conversation summaries, and transcripts that are deleted after 30 days. Weekly summaries describe topics, not specifics, and leave out health, mood, money, and other private details.',
     bullets: [
       'Family summaries are written in plain language — never raw transcripts',
-      'Sensitive topics (health, mood, risk) are excluded from anything shareable',
-      'Conversation recordings/transcripts are automatically deleted on a retention schedule',
-      'You can delete your account and your parent’s data at any time',
+      'Health, mood, and money are left out of summaries, and every summary is checked before it’s sent',
+      'Conversation transcripts are automatically deleted after 30 days',
+      'You can delete your parent’s profile, or your whole account, at any time from your account page',
     ],
   },
   disclosure: {
@@ -378,17 +406,17 @@ export const TRUST_AND_PRIVACY = {
   safety: {
     h2: 'How we handle a real concern',
     body:
-      'If a conversation suggests a possible crisis or safety concern, Dearly shares the relevant emergency resource (like 911 or the 988 Suicide & Crisis Lifeline) and the situation is flagged for human review by our team. Dearly never claims to have contacted emergency services on your behalf — only a real person or service can do that.',
+      'If a conversation suggests a possible crisis or safety concern, Dearly shares the relevant emergency resource (like 911 or the 988 Suicide & Crisis Lifeline) and the situation is flagged for human review by our team. For an urgent concern, the family member who set up Dearly gets an alert — without any transcript or quotes — and Dearly tells your parent honestly that it’s letting them know. Dearly never claims to have contacted emergency services — only a real person or service can do that.',
   },
   data: {
     h2: 'You stay in control of the data',
     body:
-      'You can review, edit, or delete any memory Dearly has stored. You can revoke a family member’s access to summaries at any time. Deleting an account removes the underlying data on a fixed retention schedule, honored automatically.',
+      'You can review, edit, or delete any memory Dearly has stored. You can revoke a family member’s access to summaries at any time. Deleting a profile or an account removes it from Dearly right away and permanently erases the underlying data within 30 days, automatically.',
   },
   cta: {
     h2: 'Questions about privacy or safety?',
     body: 'We’re happy to walk through exactly how Dearly handles your family’s information.',
     primary: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
-    secondary: { label: 'Join the waitlist', href: '/waitlist' },
+    secondary: { label: 'See how it works', href: '/how-it-works' },
   },
 };

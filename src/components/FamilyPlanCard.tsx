@@ -12,6 +12,8 @@ interface FamilyPlan {
   cta: { label: string; href: string };
   priceMonthlyCents: number;
   priceAnnualCents: number;
+  /** Free-trial length checkout grants (shown on the card). */
+  trialDays: number;
 }
 
 /**
@@ -44,6 +46,14 @@ export function FamilyPlanCard({ plan, billingInterval }: { plan: FamilyPlan; bi
           </span>
         </p>
       )}
+      <p className="mt-3 inline-flex w-fit rounded-full bg-sageDeep/15 px-3 py-1 text-base font-semibold text-sageDeep">
+        {plan.trialDays}-day free trial
+      </p>
+      <p className="mt-2 text-base text-muted">
+        {billingInterval === 'month'
+          ? `Free for ${plan.trialDays} days, then ${formatUsdCents(plan.priceMonthlyCents)} a month. Cancel anytime.`
+          : `Free for ${plan.trialDays} days, then ${formatUsdCents(plan.priceAnnualCents)} a year. Cancel anytime.`}
+      </p>
       <p className="mt-3 text-base text-muted">{plan.tagline}</p>
       <PlanFeatureList bullets={plan.bullets} />
       <TrackedCtaLink

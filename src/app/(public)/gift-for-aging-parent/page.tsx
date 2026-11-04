@@ -33,7 +33,7 @@ export default function Page() {
       <section className="container-k py-20">
         <div className="grid items-center gap-12 md:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <p className="eyebrow">gift for elderly parent</p>
+            <p className="eyebrow">The gift of company</p>
             <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
             <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
           </div>

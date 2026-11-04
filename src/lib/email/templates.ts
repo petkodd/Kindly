@@ -228,3 +228,38 @@ export function adminSafetyAlertEmail(input: {
   `.trim();
   return { subject, html, text };
 }
+
+/**
+ * Internal sales alert for a facility demo request (senior-living page, chat
+ * 13). Goes only to SALES_ALERT_EMAIL. Every field is visitor-supplied, so
+ * every field is escaped in the HTML part.
+ */
+export function salesDemoRequestEmail(input: {
+  facilityName: string;
+  residents: number;
+  roleLabel: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  sourcePage: string | null;
+}): { subject: string; html: string; text: string } {
+  // Subject is a header: strip line breaks so a field can't inject headers.
+  const oneLine = (v: string) => v.replace(/[\r\n]+/g, ' ').slice(0, 120);
+  const subject = `[Dearly sales] Demo request: ${oneLine(input.facilityName)} (${input.residents} residents)`;
+  const rows: [string, string][] = [
+    ['Community', input.facilityName],
+    ['Residents', String(input.residents)],
+    ['Role', input.roleLabel],
+    ['Name', input.name],
+    ['Email', input.email],
+    ['Phone', input.phone ?? 'not given'],
+    ['Page', input.sourcePage ?? '/senior-living'],
+  ];
+  const text = ['A senior living community asked for a Dearly demo.', '', ...rows.map(([k, v]) => `${k}: ${v}`), '', 'Reply to the contact within one business day.'].join('\n');
+  const html = `
+    <p>A senior living community asked for a Dearly demo.</p>
+    <table>${rows.map(([k, v]) => `<tr><td><strong>${escapeHtml(k)}</strong></td><td>${escapeHtml(v)}</td></tr>`).join('')}</table>
+    <p>Reply to the contact within one business day.</p>
+  `.trim();
+  return { subject, html, text };
+}
