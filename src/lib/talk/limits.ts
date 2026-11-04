@@ -40,6 +40,14 @@ export const MAX_PARENT_TURNS = 100;
 const TEN_MIN = 10 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
 
+/**
+ * A refused voice turn (rate limit, voice-minute cap, full conversation) is
+ * still transcribed so crisis words get help (release check NEW-2). That costs
+ * speech-to-text, so it has its own small per-parent allowance: a leaked link
+ * that is already rate-limited can't use it to run up unlimited STT spend.
+ */
+export const CRISIS_STT_LIMIT = { limit: 20, windowMs: DAY };
+
 /** Every refusal message ends with the emergency numbers (release check NEW-2). */
 const EMERGENCY = ' If this is an emergency, call 911, or call or text 988.';
 export const SLOW_DOWN_MESSAGE = 'Let’s take a short break. Please try again in a few minutes.' + EMERGENCY;

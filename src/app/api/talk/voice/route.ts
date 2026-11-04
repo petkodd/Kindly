@@ -10,6 +10,7 @@ import { runCompanionTurn } from '@/lib/ai/turn';
 import { HISTORY_MAX_TURNS, trimHistory } from '@/lib/ai/history';
 import {
   AUDIO_MAX_BYTES,
+  CRISIS_STT_LIMIT,
   enforceAudioCap,
   enforceTalkRate,
   enforceTurnCap,
@@ -21,13 +22,6 @@ import { ConversationFullError, PayloadTooLargeError, RateLimitError, Validation
 import { crisisShortcut } from '@/lib/talk/crisisShortcut';
 import { rateLimitRepo } from '@/lib/repos/rateLimit';
 
-/**
- * A refused voice turn (rate limit, voice-minute cap, full conversation) is
- * still transcribed so crisis words get help (release check NEW-2). That costs
- * speech-to-text, so it has its own small per-parent allowance: a leaked link
- * that is already rate-limited can't use it to run up unlimited STT spend.
- */
-export const CRISIS_STT_LIMIT = { limit: 20, windowMs: 24 * 60 * 60 * 1000 };
 
 // STT + model + TTS normally finish in a few seconds; never let one request run (and bill) for minutes.
 export const maxDuration = 30;

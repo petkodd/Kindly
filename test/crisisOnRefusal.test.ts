@@ -25,7 +25,8 @@ let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
 
 import { POST as messagePOST } from '../src/app/api/talk/message/route';
-import { POST as voicePOST, CRISIS_STT_LIMIT } from '../src/app/api/talk/voice/route';
+import { POST as voicePOST } from '../src/app/api/talk/voice/route';
+import { CRISIS_STT_LIMIT } from '../src/lib/talk/limits';
 
 const BUYER = 'sarah@example.com';
 
