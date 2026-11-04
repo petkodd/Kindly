@@ -48,6 +48,14 @@ const DAY = 24 * 60 * 60 * 1000;
  */
 export const CRISIS_STT_LIMIT = { limit: 20, windowMs: DAY };
 
+/**
+ * Refused turns (either route) that may record a crisis flag, send an alert
+ * and synthesise speech, per parent per day. Past it the crisis copy is still
+ * returned as text, without a new flag, alert or TTS call (reviewer, chat 15:
+ * the shortcut bypasses the talk rate limit, so it needs its own bound).
+ */
+export const CRISIS_REFUSED_LIMIT = { limit: 20, windowMs: DAY };
+
 /** Every refusal message ends with the emergency numbers (release check NEW-2). */
 const EMERGENCY = ' If this is an emergency, call 911, or call or text 988.';
 export const SLOW_DOWN_MESSAGE = 'Let’s take a short break. Please try again in a few minutes.' + EMERGENCY;

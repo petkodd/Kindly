@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
         transcript: refusedTranscript,
         reply: crisis.reply,
         crisis: crisis.severity,
-        tts_url: await speakBestEffort(speech, crisis.reply, parent.speech_rate),
+        tts_url: crisis.limited ? null : await speakBestEffort(speech, crisis.reply, parent.speech_rate),
       });
     }
 

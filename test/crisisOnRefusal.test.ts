@@ -26,7 +26,7 @@ vi.mock('@/lib/db', () => ({ db: () => q }));
 
 import { POST as messagePOST } from '../src/app/api/talk/message/route';
 import { POST as voicePOST } from '../src/app/api/talk/voice/route';
-import { CRISIS_STT_LIMIT } from '../src/lib/talk/limits';
+import { CRISIS_REFUSED_LIMIT, CRISIS_STT_LIMIT } from '../src/lib/talk/limits';
 
 const BUYER = 'sarah@example.com';
 
@@ -181,6 +181,27 @@ describe('text route: crisis words on a refused turn', () => {
     const { reply } = await (await say(token, conversationId, 'I want to kill myself')).json();
     expect(reply).toMatch(/988/);
     expect(reply).not.toMatch(/let .* know/);
+  });
+  it(`refused crisis turns record at most ${CRISIS_REFUSED_LIMIT.limit} flags a day per parent, but always return 988/911`, async () => {
+    const { parentId, token, conversationId } = await readyParent();
+    await rateLimit(token, conversationId);
+    const tts = vi.spyOn(fakeSpeechClient, 'textToSpeech');
+    const extra = 3;
+    let last: { reply: string; tts_url: string | null } | null = null;
+    for (let i = 0; i < CRISIS_REFUSED_LIMIT.limit + extra; i += 1) {
+      const res = await say(token, conversationId, 'I want to kill myself');
+      expect(res.status).toBe(200);
+      last = await res.json();
+      expect(last!.reply).toMatch(/988/);
+    }
+    expect(await flags(parentId)).toHaveLength(CRISIS_REFUSED_LIMIT.limit);
+    expect(tts).toHaveBeenCalledTimes(CRISIS_REFUSED_LIMIT.limit);
+    // Past the allowance nothing new is dispatched, so nothing is claimed.
+    expect(last!.tts_url).toBeNull();
+    expect(last!.reply).not.toMatch(/let .* know/);
+    const sends = vi.mocked(fakeEmailClient.send).mock.calls.length;
+    await say(token, conversationId, 'I want to kill myself');
+    expect(vi.mocked(fakeEmailClient.send).mock.calls.length).toBe(sends);
   });
 });
 

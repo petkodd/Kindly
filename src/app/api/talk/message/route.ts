@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         conversation_id: conversationId,
         reply: crisis.reply,
         crisis: crisis.severity,
-        tts_url: await speakBestEffort(crisis.reply, parentId),
+        tts_url: crisis.limited ? null : await speakBestEffort(crisis.reply, parentId),
       });
     }
     const parent = await parentRepo.getById(pool, parentId);

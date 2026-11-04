@@ -5,7 +5,8 @@ import { safetyFlagRepo } from '../repos/safetyFlag';
 import { detectCrisisKeywords, type CrisisKeywordSeverity } from '../safety/crisisKeywords';
 import { alertContactFirstName, resolveAlertContact, startSafetyAlert, type AlertOutcome } from '../safety/alerts';
 import { awaitAlertOutcome, crisisPrefix } from '../ai/turn';
-import { TEXT_MAX_CHARS } from './limits';
+import { rateLimitRepo } from '../repos/rateLimit';
+import { CRISIS_REFUSED_LIMIT, TEXT_MAX_CHARS } from './limits';
 
 /**
  * Crisis help on refused talk turns (release check NEW-2, B3).
@@ -29,8 +30,16 @@ export interface CrisisShortcut {
   severity: CrisisKeywordSeverity;
   /** The crisis copy (crisisResourceV2), worded from the alert outcome. */
   reply: string;
-  flag: SafetyFlag;
+  /** null when the per-parent allowance is used up (see CRISIS_REFUSED_LIMIT). */
+  flag: SafetyFlag | null;
   alert: AlertOutcome | null;
+  /**
+   * True when the allowance is used up: the 988/911 copy is still returned
+   * (it costs nothing), but no new flag, alert or speech is made, so a link
+   * that is already rate-limited can't be used to flood the team's inbox or
+   * run up provider spend.
+   */
+  limited: boolean;
 }
 
 /** The conversation id if it belongs to this parent, else null (never trust a client id for the flag). */
@@ -55,6 +64,13 @@ export async function crisisShortcut(
   const severity = detectCrisisKeywords((input.text ?? '').slice(0, TEXT_MAX_CHARS));
   if (!severity) return null;
 
+  const allowance = await rateLimitRepo.hit(q, `talk:crisis-refused:${input.parentId}`, CRISIS_REFUSED_LIMIT);
+  if (!allowance.allowed) {
+    // Earlier refused-turn flags today are already in the admin queue. Give the
+    // numbers, and claim nothing about telling the family.
+    return { severity, reply: crisisPrefix(severity, null, null) as string, flag: null, alert: null, limited: true };
+  }
+
   const parent = await parentRepo.getById(q, input.parentId);
   const flag = await safetyFlagRepo.record(q, {
     parentId: parent.id,
@@ -66,5 +82,5 @@ export async function crisisShortcut(
   const contactName = contact ? (alertContactFirstName(contact.fullName) ?? 'your family') : null;
   const alert = await awaitAlertOutcome(startSafetyAlert(q, { flag, parent, now: input.now }));
   const reply = crisisPrefix(severity, alert, contactName) as string;
-  return { severity, reply, flag, alert };
+  return { severity, reply, flag, alert, limited: false };
 }
