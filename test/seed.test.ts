@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import {
@@ -84,7 +84,15 @@ describe('seedDemo', () => {
     (await q.query<{ n: number }>(sql, params)).rows[0].n;
 
   beforeEach(() => {
+    // The seed writes a 14-day beta starting at NOW, and repos such as
+    // conversationRepo.openSession check billing against the clock. Pin the
+    // clock to NOW so this test does not depend on the real date (NEW-1).
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
     q = makeTestDb();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('creates the full demo dataset', async () => {
