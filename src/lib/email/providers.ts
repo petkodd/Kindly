@@ -3,6 +3,12 @@ import { EmailError, type EmailClient, type SendEmailInput, type SendEmailResult
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 300;
+/**
+ * Per-request timeout. Without it a hung provider connection kept a safety
+ * alert (and the talk reply waiting on it) pending indefinitely (release
+ * check NEW-3).
+ */
+export const EMAIL_REQUEST_TIMEOUT_MS = 10_000;
 
 // 429 (rate limit) and 5xx are worth a retry; 4xx other than 429 (bad
 // request, invalid key, unknown recipient domain, etc.) will just fail the
@@ -33,6 +39,8 @@ export function createEmailClient(opts: {
   from: string;
   /** Test seam: replace the real timer-based delay with something instant/inspectable. */
   sleep?: (ms: number) => Promise<void>;
+  /** Test seam: per-request timeout (default EMAIL_REQUEST_TIMEOUT_MS). */
+  timeoutMs?: number;
 }): EmailClient {
   const { apiKey, from } = opts;
   const sleep = opts.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -42,20 +50,34 @@ export function createEmailClient(opts: {
       let lastError: EmailError | undefined;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        const res = await fetch(RESEND_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from,
-            to: input.to,
-            subject: input.subject,
-            html: input.html,
-            text: input.text,
-          }),
-        });
+        let res: Response;
+        try {
+          res = await fetch(RESEND_ENDPOINT, {
+            method: 'POST',
+            signal: AbortSignal.timeout(opts.timeoutMs ?? EMAIL_REQUEST_TIMEOUT_MS),
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from,
+              to: input.to,
+              subject: input.subject,
+              html: input.html,
+              text: input.text,
+            }),
+          });
+        } catch (err) {
+          // Timeout or network failure. Not retried here: a hung provider must
+          // not hold a safety alert for 3 x 10 s; the safety-alert retry job
+          // tries again later.
+          const name = (err as { name?: string } | null)?.name;
+          throw new EmailError(
+            name === 'TimeoutError' || name === 'AbortError'
+              ? 'Email provider request timed out'
+              : 'Email provider request failed: network error',
+          );
+        }
         if (res.ok) {
           const data = (await res.json()) as { id?: string };
           return { id: data.id ?? 'unknown' };

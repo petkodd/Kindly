@@ -40,10 +40,13 @@ export const MAX_PARENT_TURNS = 100;
 const TEN_MIN = 10 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
 
-export const SLOW_DOWN_MESSAGE = 'Let’s take a short break. Please try again in a few minutes.';
-export const DAILY_LIMIT_MESSAGE = 'We’ve talked a lot today. Let’s chat again tomorrow.';
+/** Every refusal message ends with the emergency numbers (release check NEW-2). */
+const EMERGENCY = ' If this is an emergency, call 911, or call or text 988.';
+export const SLOW_DOWN_MESSAGE = 'Let’s take a short break. Please try again in a few minutes.' + EMERGENCY;
+export const DAILY_LIMIT_MESSAGE = 'We’ve talked a lot today. Let’s chat again tomorrow.' + EMERGENCY;
 export const VOICE_LIMIT_MESSAGE =
-  'We’ve talked out loud a lot today. You can type to me instead, or we can talk again tomorrow.';
+  'We’ve talked out loud a lot today. You can type to me instead, or we can talk again tomorrow.' + EMERGENCY;
+export const TOO_LONG_MESSAGE = 'That was a bit long for me. Please try saying it in a shorter way.' + EMERGENCY;
 
 /**
  * Count one talk request (a turn or a new session) against the parent and the
@@ -84,13 +87,13 @@ export async function enforceVoiceMinutes(q: Querier, parentId: string): Promise
 
 export function enforceTextCap(content: string): void {
   if (content.length > TEXT_MAX_CHARS) {
-    throw new PayloadTooLargeError('That was a bit long for me. Please try saying it in a shorter way.');
+    throw new PayloadTooLargeError(TOO_LONG_MESSAGE);
   }
 }
 
 export function enforceAudioCap(bytes: number): void {
   if (bytes > AUDIO_MAX_BYTES) {
-    throw new PayloadTooLargeError('That was a bit long for me. Please try saying it in a shorter way.');
+    throw new PayloadTooLargeError(TOO_LONG_MESSAGE);
   }
 }
 

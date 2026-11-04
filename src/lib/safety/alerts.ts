@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs';
+import { after } from 'next/server';
 import type { Querier } from '../querier';
 import type { AlertDeliveryStatus, FlagSeverity, Parent, SafetyFlag } from '../types';
 import { safetyFlagRepo } from '../repos/safetyFlag';
@@ -8,6 +9,7 @@ import { getEmailClient } from '../email';
 import { adminSafetyAlertEmail, safetyAlertEmail, safetyAlertSms } from '../email/templates';
 import { getSmsClient, isSmsMissingInProduction } from '../sms';
 import { getAppBaseUrl } from '../appUrl';
+import { isDemoMode } from '../runtimeMode';
 
 /**
  * Safety alerting, decision D2 (claude/kindly-decisions.md):
@@ -52,6 +54,29 @@ export interface AlertOutcome {
   sms: AlertDeliveryStatus | null;
   admin: AlertDeliveryStatus | null;
   notifiedAt: Date | null;
+  /**
+   * True when the companion may honestly say the family is being told (D2,
+   * release check NEW-6): a family channel delivered this alert, or one was
+   * already delivered for this parent inside the 30-minute window (throttled).
+   * A 'simulated' delivery counts only in DEMO_MODE.
+   */
+  familyTold: boolean;
+}
+
+/**
+ * Did this channel reach the family? 'sent' always counts; 'simulated' (a fake
+ * client) counts only in DEMO_MODE, where the fakes stand in for the real thing
+ * on purpose. Outside demo mode a simulated send means nobody was told.
+ */
+export function reachedFamily(status: AlertDeliveryStatus | null): boolean {
+  if (status === 'sent') return true;
+  return status === 'simulated' && isDemoMode();
+}
+
+/** The first name the companion may say it is telling, or null to say nothing about telling anyone. */
+export function toldName(outcome: AlertOutcome | null, contactFirstName: string | null): string | null {
+  if (!outcome || !outcome.familyTold) return null;
+  return contactFirstName ?? 'your family';
 }
 
 /**
@@ -122,7 +147,15 @@ async function alertFamily(
   severity: 'p0' | 'p1',
   now: Date,
 ): Promise<AlertOutcome> {
-  const base = { severity, throttled: false, email: null, sms: null, admin: null, notifiedAt: null } as AlertOutcome;
+  const base: AlertOutcome = {
+    severity,
+    throttled: false,
+    email: null,
+    sms: null,
+    admin: null,
+    notifiedAt: null,
+    familyTold: false,
+  };
 
   const contact = await resolveAlertContact(q, parent);
   if (!contact) {
@@ -133,8 +166,26 @@ async function alertFamily(
     return { ...base, admin: await sendAdminEmail(flag, severity, reason) };
   }
 
+  // The slot is claimed atomically up front (two concurrent flagged turns
+  // must not both alert), but it is KEPT only if the family was actually
+  // reached; otherwise it is released below, so a failed first alert never
+  // suppresses the next P0/P1 (release check NEW-3).
   if (!(await safetyFlagRepo.claimAlertSlot(q, parent.id, now, ALERT_THROTTLE_MS))) {
-    return { ...base, throttled: true, email: 'suppressed_rate_limit', sms: 'suppressed_rate_limit' };
+    // A family alert was delivered in the last 30 minutes. The family is not
+    // emailed again, but a human on the team always hears about this flag.
+    const admin = await sendAdminEmail(
+      flag,
+      severity,
+      'a family alert already went out for this person in the last 30 minutes, so the family was not alerted again',
+    );
+    return {
+      ...base,
+      throttled: true,
+      email: 'suppressed_rate_limit',
+      sms: 'suppressed_rate_limit',
+      admin,
+      familyTold: true,
+    };
   }
 
   const link = appUrl('/app');
@@ -168,11 +219,20 @@ async function alertFamily(
   }
 
   const [email, sms] = await Promise.all([emailPromise, smsPromise]);
-  const delivered = email === 'sent' || sms === 'sent';
-  // Only a real delivery counts. 'simulated' means nobody was actually told.
-  // Backup: if nothing reached the family, a human on the team must know now.
-  const admin = delivered ? null : await sendAdminEmail(flag, severity, 'the family alert could not be delivered');
-  return { ...base, email, sms, admin, notifiedAt: delivered ? now : null };
+  // notified_at (shown to the team as "family notified") is set only on a real
+  // 'sent'. familyTold (the companion's wording, the throttle) also accepts a
+  // simulated send in DEMO_MODE.
+  const sent = email === 'sent' || sms === 'sent';
+  const familyTold = reachedFamily(email) || reachedFamily(sms);
+  if (!familyTold) {
+    await safetyFlagRepo.releaseAlertSlot(q, parent.id, now).catch((err) => {
+      console.error('safety alert: could not release the throttle slot', flag.id, err);
+      Sentry.captureException(err, { tags: { area: 'safety_alert', flag_id: flag.id } });
+    });
+  }
+  // Backup: if nothing really reached the family, a human on the team must know now.
+  const admin = sent ? null : await sendAdminEmail(flag, severity, 'the family alert could not be delivered');
+  return { ...base, email, sms, admin, notifiedAt: sent ? now : null, familyTold };
 }
 
 /**
@@ -198,6 +258,7 @@ export async function dispatchSafetyAlert(
         sms: null,
         admin: await sendAdminEmail(flag, severity, 'possible abuse, neglect or a scam (never sent to family)'),
         notifiedAt: null,
+        familyTold: false,
       };
     } else {
       // The team always hears about a P0/P1, whatever happens to the family alert.
@@ -233,5 +294,32 @@ export async function dispatchSafetyAlert(
     console.error('safety alert dispatch failed', flag.id, err);
     Sentry.captureException(err, { level: 'fatal', tags: { area: 'safety_alert', flag_id: flag.id, severity } });
     return null;
+  }
+}
+
+/**
+ * Start a safety alert and keep it running after the response is sent.
+ *
+ * On serverless, work still pending when the response returns can be frozen.
+ * `after()` (next/server) tells the platform to keep the function alive until
+ * the alert has finished, while the caller still waits a bounded time for the
+ * outcome so the reply wording can be honest (release check NEW-3).
+ * Outside a request (tests, scripts) `after` throws; the alert then simply
+ * runs as a normal promise.
+ */
+export function startSafetyAlert(
+  q: Querier,
+  input: { flag: SafetyFlag; parent: Parent; now?: Date },
+): Promise<AlertOutcome | null> {
+  const promise = dispatchSafetyAlert(q, input);
+  keepAliveAfterResponse(promise);
+  return promise;
+}
+
+export function keepAliveAfterResponse(promise: Promise<unknown>): void {
+  try {
+    after(promise.then(() => undefined, () => undefined));
+  } catch {
+    // Not inside a request scope: nothing to extend.
   }
 }

@@ -16,7 +16,18 @@ import {
   enforceVoiceMinutes,
 } from '@/lib/talk/limits';
 import { getSpeechClient } from '@/lib/speech';
-import { ValidationError } from '@/lib/types';
+import type { TtsOptions } from '@/lib/speech/types';
+import { ConversationFullError, PayloadTooLargeError, RateLimitError, ValidationError } from '@/lib/types';
+import { crisisShortcut } from '@/lib/talk/crisisShortcut';
+import { rateLimitRepo } from '@/lib/repos/rateLimit';
+
+/**
+ * A refused voice turn (rate limit, voice-minute cap, full conversation) is
+ * still transcribed so crisis words get help (release check NEW-2). That costs
+ * speech-to-text, so it has its own small per-parent allowance: a leaked link
+ * that is already rate-limited can't use it to run up unlimited STT spend.
+ */
+const CRISIS_STT_LIMIT = { limit: 10, windowMs: 10 * 60 * 1000 };
 
 // STT + model + TTS normally finish in a few seconds; never let one request run (and bill) for minutes.
 export const maxDuration = 30;
@@ -43,8 +54,17 @@ export async function POST(req: NextRequest) {
     const pool = db();
     const parentId = await resolveParentFromRequest(req, pool);
     if (!parentId) return unauthorized();
-    // Spend guards before any parsing or provider work.
-    await enforceTalkRate(pool, parentId, clientIp(req));
+    // Spend guards before any parsing or provider work. A rate-limit refusal
+    // is held, not returned yet: crisis words must still get help (NEW-2).
+    let refusal: unknown = null;
+    try {
+      await enforceTalkRate(pool, parentId, clientIp(req));
+    } catch (err) {
+      if (!(err instanceof RateLimitError)) throw err;
+      refusal = err;
+    }
+    // Over the size cap the audio can't be transcribed cheaply, so this is
+    // refused outright; the client's message for it includes 911/988.
     const declaredBytes = Number(req.headers.get('content-length') ?? 0);
     if (declaredBytes > AUDIO_MAX_BYTES + 64 * 1024) enforceAudioCap(declaredBytes);
 
@@ -67,13 +87,42 @@ export async function POST(req: NextRequest) {
     const audioBuffer = Buffer.from(await audioEntry.arrayBuffer());
 
     // Ownership + open check, turn cap and daily voice time before any provider work.
-    await conversationRepo.requireOpen(pool, conversationId, parentId);
-    await enforceTurnCap(pool, conversationId, parentId);
-    await enforceVoiceMinutes(pool, parentId);
+    if (!refusal) {
+      try {
+        await conversationRepo.requireOpen(pool, conversationId, parentId);
+        await enforceTurnCap(pool, conversationId, parentId);
+        await enforceVoiceMinutes(pool, parentId);
+      } catch (err) {
+        if (!(err instanceof ConversationFullError || err instanceof RateLimitError || err instanceof PayloadTooLargeError)) {
+          throw err;
+        }
+        refusal = err;
+      }
+    }
     const parent = await parentRepo.getById(pool, parentId);
+    const speech = getSpeechClient();
+
+    if (refusal) {
+      const allowance = await rateLimitRepo.hit(pool, `talk:crisis-stt:${parentId}`, CRISIS_STT_LIMIT);
+      if (!allowance.allowed) throw refusal;
+      let refusedTranscript = '';
+      try {
+        refusedTranscript = (await speech.speechToText(audioBuffer, mimeType, { language: parent.language })).transcript;
+      } catch {
+        throw refusal;
+      }
+      const crisis = await crisisShortcut(pool, { parentId, conversationId, text: refusedTranscript });
+      if (!crisis) throw refusal;
+      return NextResponse.json({
+        conversation_id: conversationId,
+        transcript: refusedTranscript,
+        reply: crisis.reply,
+        crisis: crisis.severity,
+        tts_url: await speakBestEffort(speech, crisis.reply, parent.speech_rate),
+      });
+    }
 
     // --- STT ---
-    const speech = getSpeechClient();
     const { transcript, durationSeconds } = await speech.speechToText(audioBuffer, mimeType, {
       language: parent.language,
     });
@@ -106,15 +155,13 @@ export async function POST(req: NextRequest) {
       channel: 'voice',
     });
 
-    // --- TTS runs before persisting, mirroring the text-turn invariant: turns
-    // are written only after the full pipeline succeeds, so a TTS failure never
-    // leaves the client unsure whether the turn "took" (which would risk a retry
-    // re-submitting the same audio and duplicating the exchange).
-    const { audioUrl } = await speech.textToSpeech(replyText, {
-      speechRate: parent.speech_rate,
-    });
+    // --- TTS runs before persisting, so the client gets one answer per turn.
+    // A TTS failure no longer fails the turn (release check NEW-2: it lost
+    // crisis copy): the reply is saved and returned as text with tts_url null,
+    // and the talk page shows it.
+    const audioUrl = await speakBestEffort(speech, replyText, parent.speech_rate);
 
-    // Persist the exchange now that we have a reply AND synthesized audio.
+    // Persist the exchange now that we have a reply.
     const parentTurn = await conversationRepo.addTurn(pool, conversationId, parentId, 'parent', transcript);
     const kindlyTurn = await conversationRepo.addTurn(pool, conversationId, parentId, 'kindly', replyText);
     await conversationRepo.addVoiceMinutes(pool, conversationId, parentId, durationSeconds);
@@ -125,7 +172,9 @@ export async function POST(req: NextRequest) {
     try {
       await Promise.all([
         usageCostRepo.recordSttCost(pool, { turnId: parentTurn.id, conversationId, parentId, durationSeconds }),
-        usageCostRepo.recordTtsCost(pool, {
+        audioUrl === null
+          ? Promise.resolve()
+          : usageCostRepo.recordTtsCost(pool, {
           turnId: kindlyTurn.id,
           conversationId,
           parentId,
@@ -146,5 +195,19 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const { status, body } = errorToResponse(err);
     return NextResponse.json(body, { status });
+  }
+}
+
+/** Text-to-speech that never fails the turn: null when the provider fails. */
+async function speakBestEffort(
+  speech: ReturnType<typeof getSpeechClient>,
+  text: string,
+  speechRate: TtsOptions['speechRate'],
+): Promise<string | null> {
+  try {
+    return (await speech.textToSpeech(text, { speechRate })).audioUrl;
+  } catch (err) {
+    console.error('voice turn: TTS failed, returning text only', (err as Error)?.name);
+    return null;
   }
 }
