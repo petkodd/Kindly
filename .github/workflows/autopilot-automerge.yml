@@ -1,0 +1,130 @@
+name: Autopilot auto-merge
+
+# Decision D15 (2026-11-06, Petko): approved autopilot PRs into release/* merge
+# without waiting for Petko. The AI reviewer never merges itself. It approves by:
+#   1. adding the label `ap:approved` to the PR, and
+#   2. commenting `ap-approved-sha: <full head sha>` on the PR.
+# This workflow then squash-merges the PR when ALL of these hold:
+#   - the base branch starts with `release/` (never main);
+#   - the PR head sha equals the sha in the latest `ap-approved-sha:` comment,
+#     so nothing pushed after the review can slip in;
+#   - the CI `build` check is green on that sha;
+#   - the PR does not touch `.github/` or `prompts/signoffs.json` (those stay
+#     human-only: Petko merges them by hand).
+# After merging it sets the tracking issue (`Tracking: #N` in the PR body) to
+# `ap:done` and closes it.
+#
+# Workflows triggered by workflow_run and schedule run from the DEFAULT branch,
+# so this file must be on `main` to take effect.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+
+concurrency:
+  group: autopilot-automerge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const HUMAN_ONLY = [/^\.github\//, /^prompts\/signoffs\.json$/];
+
+            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            const candidates = prs.filter(pr =>
+              pr.base.ref.startsWith('release/') &&
+              pr.labels.some(l => l.name === 'ap:approved'));
+
+            if (candidates.length === 0) { core.info('No approved autopilot PRs.'); return; }
+
+            const say = (n, body) => github.rest.issues.createComment({ owner, repo, issue_number: n, body: `${body}\n\n_autopilot auto-merge (D15)_` });
+            const unapprove = n => github.rest.issues.removeLabel({ owner, repo, issue_number: n, name: 'ap:approved' }).catch(() => {});
+
+            for (const listed of candidates) {
+              const n = listed.number;
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: n });
+              const head = pr.head.sha;
+              core.info(`PR #${n} head ${head}`);
+
+              if (!pr.base.ref.startsWith('release/')) continue; // never main
+
+              // 1. The approval must name the exact head sha.
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: n, per_page: 100 });
+              let approved = null;
+              for (const c of comments) {
+                const m = /^ap-approved-sha:\s*([0-9a-f]{40})\b/m.exec(c.body || '');
+                if (m) approved = m[1];
+              }
+              if (approved !== head) {
+                core.info(`#${n}: approval sha ${approved} != head ${head}; removing ap:approved.`);
+                await unapprove(n);
+                await say(n, `Not merged: the head is \`${head.slice(0, 7)}\` but the latest \`ap-approved-sha:\` is \`${(approved || 'none').slice(0, 7)}\`. Commits arrived after the review, so it needs another review.`);
+                continue;
+              }
+
+              // 2. Human-only paths.
+              const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: n, per_page: 100 });
+              const blocked = files.map(f => f.filename).filter(f => HUMAN_ONLY.some(r => r.test(f)));
+              if (blocked.length) {
+                await unapprove(n);
+                await say(n, `Not merged automatically: it changes human-only paths (${blocked.join(', ')}). Petko merges this one by hand.`);
+                continue;
+              }
+
+              // 3. CI build green on that sha.
+              const runs = await github.paginate(github.rest.checks.listForRef, { owner, repo, ref: head, check_name: 'build', per_page: 100 });
+              const done = runs.filter(r => r.status === 'completed').sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+              if (done.length === 0) { core.info(`#${n}: build not finished yet.`); continue; }
+              if (done[0].conclusion !== 'success') {
+                await unapprove(n);
+                await say(n, `Not merged: CI \`build\` is \`${done[0].conclusion}\` on \`${head.slice(0, 7)}\`.`);
+                continue;
+              }
+
+              // 4. Mergeable.
+              if (pr.mergeable === null) { core.info(`#${n}: mergeability unknown, retry later.`); continue; }
+              if (pr.mergeable === false) {
+                await unapprove(n);
+                await say(n, `Not merged: conflicts with \`${pr.base.ref}\`. The reviewer must update the branch and approve again.`);
+                continue;
+              }
+
+              // 5. Merge.
+              try {
+                const { data: res } = await github.rest.pulls.merge({
+                  owner, repo, pull_number: n, sha: head, merge_method: 'squash',
+                  commit_title: `${pr.title} (#${n})`,
+                });
+                core.info(`#${n} merged as ${res.sha}`);
+                await unapprove(n);
+                await say(n, `Squash-merged into \`${pr.base.ref}\` as \`${res.sha.slice(0, 7)}\` (approved sha \`${head.slice(0, 7)}\`, CI build green).`);
+
+                const t = /Tracking:\s*#(\d+)/i.exec(pr.body || '');
+                if (t) {
+                  const issue = Number(t[1]);
+                  const { data: iss } = await github.rest.issues.get({ owner, repo, issue_number: issue });
+                  const labels = iss.labels.map(l => l.name).filter(l => !l.startsWith('ap:'));
+                  await github.rest.issues.setLabels({ owner, repo, issue_number: issue, labels: [...labels, 'ap:done'] });
+                  await say(issue, `Done: PR #${n} squash-merged into \`${pr.base.ref}\` (\`${res.sha.slice(0, 7)}\`).`);
+                  await github.rest.issues.update({ owner, repo, issue_number: issue, state: 'closed', state_reason: 'completed' });
+                }
+              } catch (e) {
+                await unapprove(n);
+                await say(n, `Merge failed: ${e.message}. The reviewer should check and approve again.`);
+              }
+            }
