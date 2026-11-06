@@ -49,6 +49,17 @@ export interface TalkFailure {
   network?: boolean;
 }
 
+/**
+ * Added to every message that can't be fixed by trying again, and to the
+ * "short break" (429) and "too long" (413) messages: a refused turn must never
+ * leave someone in an emergency without the numbers (release check NEW-2).
+ */
+export const EMERGENCY_LINE = 'If this is an emergency, call 911, or call or text 988.';
+
+function withEmergency(message: string): string {
+  return `${message} ${EMERGENCY_LINE}`;
+}
+
 /** "Sarah", or "your family" when no safe first name is known. */
 export function familyLabel(ctx: TalkContext = {}): string {
   return ctx.familyFirstName?.trim() || 'your family';
@@ -87,13 +98,13 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
     };
   }
   if (status === 401) {
-    return { kind: 'link_expired', message: expiredLinkMessage(ctx), canType: false, canRetry: false };
+    return { kind: 'link_expired', message: withEmergency(expiredLinkMessage(ctx)), canType: false, canRetry: false };
   }
   if (status === 403 || status === 402) {
     const who = ctx.linkOwner === 'self' ? 'Please check your Dearly account.' : `Please ask ${familyLabel(ctx)} to check the account.`;
     return {
       kind: 'not_available',
-      message: `I can’t chat just now. ${who}`,
+      message: withEmergency(`I can’t chat just now. ${who}`),
       canType: false,
       canRetry: false,
     };
@@ -101,7 +112,7 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
   if (code === 'voice_limit') {
     return {
       kind: 'voice_limit',
-      message: 'We’ve talked out loud a lot today. You can type to me instead, or we can talk again tomorrow.',
+      message: withEmergency('We’ve talked out loud a lot today. You can type to me instead, or we can talk again tomorrow.'),
       canType: true,
       canRetry: false,
     };
@@ -109,7 +120,7 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
   if (code === 'conversation_full') {
     return {
       kind: 'session_full',
-      message: 'We’ve had a long chat. Tap “I’m done for now”, then “Talk again” to start fresh.',
+      message: withEmergency('We’ve had a long chat. Tap “I’m done for now”, then “Talk again” to start fresh.'),
       canType: false,
       canRetry: false,
     };
@@ -117,7 +128,7 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
   if (status === 429) {
     return {
       kind: 'too_many',
-      message: 'Let’s take a short break. Please try again in a few minutes.',
+      message: withEmergency('Let’s take a short break. Please try again in a few minutes.'),
       canType: false,
       canRetry: true,
     };
@@ -125,7 +136,7 @@ export function mapTalkError(failure: TalkFailure, ctx: TalkContext = {}): TalkP
   if (status === 413) {
     return {
       kind: 'too_long',
-      message: 'That was a bit long for me. Please try saying it in a shorter way.',
+      message: withEmergency('That was a bit long for me. Please try saying it in a shorter way.'),
       canType: true,
       canRetry: true,
     };

@@ -1,4 +1,4 @@
-# Autopilot: AI developer + AI reviewer for chats 9–14
+# Autopilot: AI developer + AI reviewer for chats 9–15
 
 Decision D12 (2026-10-30, Petko): the remaining work-plan chats run without
 Petko. Two scheduled Claude sessions take turns:
@@ -34,6 +34,20 @@ Run strictly one chat at a time, in this order:
 | 4 | 12 Accessibility & design system | 10, 11 |
 | 5 | 13 Brand, copy, SEO & pricing | 9, 12 |
 | 6 | 14 Independent release verification | 9–13 |
+| 7 | 15 Release blockers (added 2026-11-04, D13) | 9–13. Runs while chat 14 is `ap:blocked`; see below. |
+
+### Chat 14 ↔ chat 15 (D13, 2026-11-04)
+Chat 14's report (PR #87) found release blockers, and its PR cannot merge while CI
+`build` is red on `release/mvp-alpha`. So chat 14's issue (#80) is parked as
+`ap:blocked` and chat 15 fixes the blockers first:
+
+- **Developer:** treat chat 15 like any `ap:todo` chat. `ap:blocked` on #80 does not stop you.
+- **Reviewer, after merging chat 15:** do not disable the triggers yet (firing the developer is harmless: it will find #80 in review and end).
+  Set #80 back to `ap:in-review`, merge `origin/release/mvp-alpha` into PR #87's
+  branch `docs/release-check` (merge commit, no rebase), push, and review #87 in the same run
+  or the next one. When #87 is merged, add a short addendum to its report saying which
+  blockers chat 15 closed (B2 stays open for the humans), post the verdict on #80, close
+  it, and only then disable both autopilot triggers.
 
 ## State lives in GitHub issues
 
@@ -143,5 +157,5 @@ gh api -X PUT "$R/pulls/$PR/merge" -f merge_method=squash -f commit_title="…"
 - Stay in the chat's scope. Out-of-scope findings go under "Follow-ups".
 - Chat 14 is read-only except its report (see `chats/14.md`). When chat 14 is
   done, post its verdict on its issue, then end. Petko decides the final merge.
-- When all six issues are `ap:done`, the developer run ends without doing
+- When all seven issues are `ap:done`, the developer run ends without doing
   anything; if the session can update triggers, disable both autopilot triggers.

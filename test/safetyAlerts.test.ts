@@ -95,13 +95,14 @@ describe('dispatchSafetyAlert (decision D2)', () => {
     const second = await flagFor(parent, 'p0');
     const outcome = await dispatchSafetyAlert(q, { flag: second, parent, now: new Date(t0.getTime() + 10 * 60_000) });
     expect(outcome).toMatchObject({ throttled: true, email: 'suppressed_rate_limit', sms: 'suppressed_rate_limit' });
-    expect(emailSend).toHaveBeenCalledTimes(1);
+    // The family is not emailed again; the throttled flag goes to the admin (NEW-3).
+    expect(recipients()).toEqual([BUYER_EMAIL, ADMIN_EMAIL]);
     expect(smsSend).toHaveBeenCalledTimes(1);
     const stored = (await q.query(`SELECT notified_at FROM safety_flags WHERE id = $1`, [second.id])).rows[0];
     expect(stored.notified_at).toBeNull();
 
     await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p1'), parent, now: new Date(t0.getTime() + ALERT_THROTTLE_MS) });
-    expect(emailSend).toHaveBeenCalledTimes(2);
+    expect(recipients()).toEqual([BUYER_EMAIL, ADMIN_EMAIL, BUYER_EMAIL]);
   });
 
   it('the throttle is per parent', async () => {
@@ -194,6 +195,79 @@ describe('dispatchSafetyAlert (decision D2)', () => {
     const { parent } = await setup();
     vi.spyOn(safetyFlagRepo, 'recordAlertOutcome').mockRejectedValueOnce(new Error('db down'));
     await expect(dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent })).resolves.toBeNull();
+  });
+});
+
+describe('durable alerts (release check NEW-3)', () => {
+  const t0 = new Date('2026-10-20T10:00:00Z');
+  const later = (min: number) => new Date(t0.getTime() + min * 60_000);
+
+  it('a failed first alert does not use up the 30-minute slot: the next P0 alerts the family', async () => {
+    const { parent } = await setup();
+    emailSend.mockImplementationOnce(async () => {
+      throw new Error('provider down');
+    });
+    const first = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent, now: t0 });
+    expect(first).toMatchObject({ email: 'failed', admin: 'sent', familyTold: false, throttled: false });
+
+    const second = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent, now: later(5) });
+    expect(second).toMatchObject({ throttled: false, email: 'sent', familyTold: true });
+    expect(recipients()).toEqual([BUYER_EMAIL, ADMIN_EMAIL, BUYER_EMAIL]);
+  });
+
+  it('a simulated first alert (fake client, not DEMO_MODE) does not use up the slot', async () => {
+    const { parent } = await setup();
+    emailSend.mockResolvedValueOnce({ id: 'fake', simulated: true });
+    const first = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent, now: t0 });
+    expect(first).toMatchObject({ email: 'simulated', familyTold: false });
+    const second = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p1'), parent, now: later(1) });
+    expect(second).toMatchObject({ throttled: false, email: 'sent' });
+  });
+
+  it('in DEMO_MODE a simulated alert counts as told and holds the slot', async () => {
+    vi.stubEnv('DEMO_MODE', 'true');
+    try {
+      const { parent } = await setup();
+      emailSend.mockResolvedValue({ id: 'fake', simulated: true });
+      const first = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent, now: t0 });
+      expect(first).toMatchObject({ email: 'simulated', familyTold: true, notifiedAt: null });
+      const second = await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent, now: later(1) });
+      expect(second).toMatchObject({ throttled: true, familyTold: true });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('a throttled P0 always sends the admin backup and records it on the flag', async () => {
+    const { parent } = await setup();
+    await dispatchSafetyAlert(q, { flag: await flagFor(parent, 'p0'), parent, now: t0 });
+    const flag = await flagFor(parent, 'p0');
+    const outcome = await dispatchSafetyAlert(q, { flag, parent, now: later(10) });
+    expect(outcome).toMatchObject({ throttled: true, admin: 'sent', familyTold: true });
+    const adminMail = emailSend.mock.calls[1][0] as { to: string; text: string };
+    expect(adminMail.to).toBe(ADMIN_EMAIL);
+    expect(adminMail.text).toMatch(/already went out/);
+    const stored = (await q.query(`SELECT alert_admin_status, alert_email_status FROM safety_flags WHERE id = $1`, [flag.id]))
+      .rows[0];
+    expect(stored).toMatchObject({ alert_admin_status: 'sent', alert_email_status: 'suppressed_rate_limit' });
+  });
+
+  it('counts every dispatch in alert_attempts', async () => {
+    const { parent } = await setup();
+    const flag = await flagFor(parent, 'p0');
+    await dispatchSafetyAlert(q, { flag, parent, now: t0 });
+    await dispatchSafetyAlert(q, { flag, parent, now: later(60) });
+    const stored = (await q.query(`SELECT alert_attempts FROM safety_flags WHERE id = $1`, [flag.id])).rows[0];
+    expect(stored.alert_attempts).toBe(2);
+  });
+
+  it('releaseAlertSlot only removes the claim it made', async () => {
+    const { parent } = await setup();
+    expect(await safetyFlagRepo.claimAlertSlot(q, parent.id, t0, ALERT_THROTTLE_MS)).toBe(true);
+    await safetyFlagRepo.releaseAlertSlot(q, parent.id, later(1)); // not ours
+    expect(await safetyFlagRepo.claimAlertSlot(q, parent.id, later(2), ALERT_THROTTLE_MS)).toBe(false);
+    await safetyFlagRepo.releaseAlertSlot(q, parent.id, t0);
+    expect(await safetyFlagRepo.claimAlertSlot(q, parent.id, later(3), ALERT_THROTTLE_MS)).toBe(true);
   });
 });
 

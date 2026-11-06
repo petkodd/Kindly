@@ -13,8 +13,12 @@ const NAV = [
 ];
 
 export function SiteHeader() {
+  // z-40: backdrop-blur makes the header its own stacking context, so the
+  // mobile menu panel inside it (z-50) only counts within the header. Without
+  // a z-index on the header, later relative sections (the home hero) paint
+  // over the open menu (release check NEW-4).
   return (
-    <header className="relative border-b border-line bg-cloud/80 backdrop-blur">
+    <header className="relative z-40 border-b border-line bg-cloud/80 backdrop-blur">
       <div className="container-k flex items-center justify-between gap-2 py-4 sm:gap-4">
         <Link href="/" className="font-display text-xl font-semibold text-ink sm:text-2xl">
           Dearly

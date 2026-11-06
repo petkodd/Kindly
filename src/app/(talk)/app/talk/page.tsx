@@ -473,10 +473,11 @@ function Conversation({
         const code = (payload as { error?: { code?: string } } | null)?.error?.code;
         throw new HttpFailure(res.status, code);
       }
+      // tts_url is null when speech failed: the reply is still shown as text.
       const { transcript, reply, tts_url: ttsUrl } = payload as {
         transcript: string;
         reply: string;
-        tts_url: string;
+        tts_url: string | null;
       };
       lastBlobRef.current = null;
       add('parent', transcript);
@@ -569,11 +570,14 @@ function Conversation({
     const pending = add('parent', content);
     setSending(true);
     try {
-      const r = await api.post<{ reply: string }>('/api/talk/message', {
+      const r = await api.post<{ reply: string; tts_url?: string | null }>('/api/talk/message', {
         conversation_id: conversationId,
         content,
       });
       add('kindly', r.reply);
+      // Crisis help sent in place of a refusal comes with audio, so it is
+      // heard as well as shown (release check NEW-2).
+      if (r.tts_url) void playAudio(r.tts_url);
     } catch (err) {
       // The server persists turns only after a successful reply, so on failure
       // roll back the optimistic bubble and restore the draft — otherwise a

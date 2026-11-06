@@ -17,3 +17,4 @@ is PENDING, use the recommended default and say so in the PR body.
 | D10 | `origin/dev` | PENDING → frozen; ignore it. |
 | D11 | Sensitive memories in companion context | PENDING (default implemented in #71): included in a `<sensitive_memories>` block, "never bring them up first". Awaiting Gerontology/Privacy review. Don't change it. |
 | D12 | Autopilot | **DECIDED 2026-10-30:** AI developer + separate AI reviewer; merges go to `release/mvp-alpha` only; Petko does the one final merge to `main` after chat 14's GO. Human-only: production migrations/deploys, prompt sign-offs, live keys. |
+| D13 | Chat 15 | **DECIDED 2026-11-04 (Petko):** add chat 15 "Release blockers" (`chats/15.md`) to fix B1, B3, B4, B5 from the chat 14 release check before chat 14's report merges. Same autopilot rules as D12. |
