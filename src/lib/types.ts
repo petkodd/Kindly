@@ -124,6 +124,8 @@ export interface SafetyFlag {
   alert_email_status: AlertDeliveryStatus | null;
   alert_sms_status: AlertDeliveryStatus | null;
   alert_admin_status: AlertDeliveryStatus | null;
+  /** How many times this flag's alert has been dispatched (migration 0022; the retry job stops at 3). */
+  alert_attempts: number;
 }
 
 export type AlertDeliveryStatus =

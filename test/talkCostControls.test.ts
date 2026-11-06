@@ -15,7 +15,7 @@ import { runSessionEndJobs } from '../src/lib/jobs/sessionEnd';
 import { trimHistory, HISTORY_TOKEN_BUDGET } from '../src/lib/ai/history';
 import { llmCostMicros, llmRates } from '../src/lib/billing/usageRates';
 import { mapTalkError } from '../src/lib/talk/errors';
-import { AUDIO_MAX_BYTES, MAX_PARENT_TURNS, TEXT_MAX_CHARS } from '../src/lib/talk/limits';
+import { AUDIO_MAX_BYTES, DAILY_LIMIT_MESSAGE, MAX_PARENT_TURNS, SLOW_DOWN_MESSAGE, TEXT_MAX_CHARS } from '../src/lib/talk/limits';
 
 let q: Querier;
 vi.mock('@/lib/db', () => ({ db: () => q }));
@@ -109,7 +109,10 @@ describe('talk rate limits', () => {
     const res = await say(token, conversationId);
     expect(res.status).toBe(429);
     const body = await res.json();
-    expect(body.error).toEqual({ code: 'rate_limited', message: 'Let’s take a short break. Please try again in a few minutes.' });
+    expect(body.error).toEqual({ code: 'rate_limited', message: SLOW_DOWN_MESSAGE });
+    expect(SLOW_DOWN_MESSAGE).toBe(
+      'Let’s take a short break. Please try again in a few minutes. If this is an emergency, call 911, or call or text 988.',
+    );
   });
 
   it('limits per IP too, across different parents (a leaked link shared around)', async () => {
@@ -128,7 +131,8 @@ describe('talk rate limits', () => {
     const { token, conversationId } = await readyParent();
     await say(token, conversationId);
     const body = await (await say(token, conversationId)).json();
-    expect(body.error.message).toBe('We’ve talked a lot today. Let’s chat again tomorrow.');
+    expect(body.error.message).toBe(DAILY_LIMIT_MESSAGE);
+    expect(DAILY_LIMIT_MESSAGE).toMatch(/^We’ve talked a lot today\. Let’s chat again tomorrow\. .*911.*988/);
   });
 
   it('opening a session counts against the limit (it costs a spoken greeting)', async () => {
@@ -149,7 +153,11 @@ describe('talk rate limits', () => {
     const res = await voicePOST(voiceReq(token, conversationId));
     expect(res.status).toBe(429);
     expect((await res.json()).error.code).toBe('voice_limit');
-    expect(stt).not.toHaveBeenCalled();
+    // The refused clip is transcribed once, only to check it for crisis words
+    // (release check NEW-2); no voice time is logged for it.
+    expect(stt).toHaveBeenCalledTimes(1);
+    const { rows: stTime } = await q.query(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE parent_id = $1 AND provider = 'deepgram_stt'`, [parentId]);
+    expect(stTime[0].n).toBe(1);
     expect((await say(token, conversationId)).status).toBe(200);
     expect(mapTalkError({ status: 429, code: 'voice_limit' })).toMatchObject({ canType: true });
   });
