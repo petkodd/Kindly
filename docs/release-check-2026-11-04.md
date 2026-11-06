@@ -235,3 +235,21 @@ Screenshots in `docs/autopilot/evidence/chat-14/` are a representative subset of
 - **Security Engineer:** IDOR clean, CSRF guard holds, 0 high advisories; LOW X-Forwarded-For trust and malformed UUID 500s.
 - **AI Safety Reviewer:** pipeline wiring correct, but crisis help is lost on refusal and error paths (NEW-2) and alerts aren't durable (NEW-3, NEW-6); prompts unsigned; real model not tested.
 - **SEO Lead:** every indexed page scores SEO 100 / a11y 100 in Lighthouse; the blog is correctly noindexed; the sitemap has stable URLs.
+
+## Addendum 2026-11-06: after chat 15 (reviewer)
+
+Chat 15 (#88, PR #89, `4474824`) merged into `release/mvp-alpha` on 2026-11-06. The reviewer re-checked it on this branch with `release/mvp-alpha` merged in (`9d5ab8e`):
+
+| Blocker | Status | Evidence |
+|---|---|---|
+| B1: CI red (NEW-1 seed time bomb) | **CLOSED** | CI `build` is green on `9d5ab8e`. Local `npm test` passed on the real clock of 2026-11-06: 1397 passed, 15 skipped. `test/seed.test.ts` pins the clock. |
+| B2: unsigned serving prompts | **OPEN (humans only)** | `prompt-signoffs` still fails, as expected. Never signed by AI. |
+| B3: no crisis help on refused or failed turns (NEW-2) | **CLOSED** | `src/lib/safety/crisisKeywords.ts` runs before every refusal. A failed reply or TTS still returns the crisis copy. Tests: `test/crisisOnRefusal.test.ts`. Chat 15 browser evidence: `evidence/chat-15/talk-crisis-while-rate-limited-*.png`. |
+| B4: alerts not durable or honest (NEW-3, NEW-6) | **CLOSED** | The throttle slot is claimed only after delivery. The admin backup is always sent on throttle or failure. A daily retry covers undelivered P0/P1 (migration `0022_safety_alert_attempts`). The "let {buyer} know" wording now follows the alert outcome. Tests: `test/retryAlerts.test.ts`. Retries run daily only (Vercel Hobby); a sub-daily retry needs a paid plan. |
+| B5: hidden home mobile menu (NEW-4) | **CLOSED** | `SiteHeader.tsx:21` is now `relative z-40`. The reviewer re-ran it in headless Chromium: on `/` the menu opens and its Pricing link navigates at 375 and 768. Test: `test/siteHeaderStacking.test.tsx`. |
+
+Checks re-run by the reviewer: typecheck ✅, lint ✅, tests ✅ (1397/15 skipped), build ✅. On a fresh local Postgres 16 + pgvector, migrations 0001–0022 applied and seed OK.
+
+**Updated verdict: GO for the private alpha on the code side. Still NO-GO to merge into `main` until B2 is done**: the human reviewers must sign the 4 serving prompts. Items 2–6 of "What Petko must do" above still apply. Item 3 now covers migrations **0018–0022**, which adds `0022_safety_alert_attempts`.
+
+Follow-up (still open): `scripts/autopilot/setup-local-db.sh` still skips installing pgvector when `pg_ctl` already exists (friction 2). This run hit it again.
