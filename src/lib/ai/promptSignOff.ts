@@ -16,7 +16,8 @@ import signoffsData from '../../../prompts/signoffs.json';
  *   hasn't reviewed yet, since that's the expected pre-launch state today.
  * - scripts/check-prompt-signoffs.mjs (NOT part of npm test): the strict
  *   release-readiness gate — requires ALL THREE roles approved at the current
- *   hash for EVERY prompt. Run deliberately before launch, not on every commit.
+ *   hash for EVERY prompt. CI runs it separately with event-specific blocking;
+ *   direct invocation and manually dispatched CI are always strict.
  */
 
 export type ReviewerRole = 'ai_safety' | 'gerontology' | 'privacy';

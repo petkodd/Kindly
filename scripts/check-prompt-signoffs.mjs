@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * STRICT release-readiness gate. NOT part of `npm test`/CI (see
- * test/promptSignOff.test.ts for the CI-blocking drift-only check) — this is
- * the "are we actually allowed to launch" check, run deliberately before a
- * release, e.g.:
+ * STRICT release-readiness gate. Separate from `npm test` (which includes
+ * the drift-only test/promptSignOff.test.ts). CI runs this in its own job;
+ * scripts/prompt-signoff-policy.mjs determines whether failure blocks that
+ * event. Direct invocation always remains strict, e.g. before a release:
  *
  *   npm run check:prompt-signoffs
  *
