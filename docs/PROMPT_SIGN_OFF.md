@@ -20,8 +20,13 @@ side — it re-hashes the live prompt on every read and reports per-role status
 - **`npm run check:prompt-signoffs`** (NOT part of `npm test`): the STRICT
   release-readiness gate. Requires all three roles — AI Safety Reviewer,
   Gerontology Advisor, Privacy Advisor — approved at the current hash, for
-  every registered prompt. Deliberately run by hand before a release, not on
-  every commit, since it's expected to fail until real reviewers act.
+  every registered prompt. Direct invocation is always strict. The separate
+  CI job treats pending approvals as informational only for MVP alpha
+  integration (`release/mvp-alpha` pushes / PRs targeting that exact branch)
+  and PRs into `main`. Pushes to `main`, other release branches, PRs into
+  other release branches, and manual CI runs remain blocking. See the full
+  [CI policy](../prompts/README.md#ci-enforcement). An informational result
+  does not approve a prompt or change the human-only sign-off requirement.
 - **`GET /api/admin/prompt-signoff-status`**: the same status, machine-readable,
   for the future "Reviewed for safety" admin badge.
 
@@ -34,8 +39,7 @@ node scripts/sign-prompt.mjs --prompt <PROMPT_KEY> --role safety|gerontology|pri
 
 ## Sign-off matrix
 
-Status per role, computed against the current prompt text (all four prompts
-are unreviewed by any role today):
+Status per role for all ten registered prompts (all are pending human review):
 
 | Prompt | AI Safety Reviewer | Gerontology Advisor | Privacy Advisor |
 |---|---|---|---|
@@ -43,8 +47,12 @@ are unreviewed by any role today):
 | `SAFETY_SCAN_SYSTEM_V1` | — pending | — pending | — pending |
 | `MEMORY_EXTRACTION_SYSTEM_V1` | — pending | — pending | — pending |
 | `CONVERSATION_SUMMARY_SYSTEM_V1` | — pending | — pending | — pending |
-| `COMPANION_SYSTEM_V2` (bundle: system + context template + crisis/greeting copy + banned patterns + fallback + model id) — **live** | — pending | — pending | — pending |
-| `SAFETY_SCAN_SYSTEM_V2` (bundle: system + input template + model id + limits) — **live** | — pending | — pending | — pending |
+| `COMPANION_SYSTEM_V2` (bundle: system + context template + crisis/greeting copy + banned patterns + fallback + model id) | — pending | — pending | — pending |
+| `SAFETY_SCAN_SYSTEM_V2` (bundle: system + input template + model id + limits) | — pending | — pending | — pending |
+| `MEMORY_EXTRACTION_SYSTEM_V2` | — pending | — pending | — pending |
+| `CONVERSATION_SUMMARY_SYSTEM_V2` | — pending | — pending | — pending |
+| `MEMORY_EXTRACTION_SYSTEM_V3` | — pending | — pending | — pending |
+| `COMPANION_SYSTEM_V3` | — pending | — pending | — pending |
 
 The deterministic templates (`companionGreetingV1`, `crisisResourceV1`,
 `sanitizeFamilySummary`) are not model prompts — they're fixed copy the model
