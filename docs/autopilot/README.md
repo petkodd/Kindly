@@ -35,6 +35,19 @@ Run strictly one chat at a time, in this order:
 | 5 | 13 Brand, copy, SEO & pricing | 9, 12 |
 | 6 | 14 Independent release verification | 9–13 |
 | 7 | 15 Release blockers (added 2026-11-04, D13) | 9–13. Runs while chat 14 is `ap:blocked`; see below. |
+| 8 | SEO wave: 21a → 21b → 21c → 21d → 21e → 21f → 21g → 22a → 22b → 20r → (21z) (added 2026-11-10) | The previous SEO chat. Order and dependencies in `seo-queue.md`. |
+
+### SEO wave (2026-11-10)
+The SEO chats don't all have tracking issues up front. A third scheduled session, the
+**SEO orchestrator** (every hour at :55 Sofia time, 20 minutes before the developer),
+creates the next SEO tracking issue (`autopilot`, `seo`, `ap:todo`) only when nothing
+else is running and its dependencies are `ap:done`. Protocol: `seo-queue.md`.
+- **Developer:** treat an SEO issue like any `ap:todo` chat; its task file is
+  `chats/<id>.md` (e.g. `chats/21a.md`) and its branch is given there.
+- **Reviewer:** same reviewer run and merge rule. SEO-3 wording (titles/H1s) is a draft for
+  human approval (SEO-H4): merge it into `release/mvp-alpha` when the criteria are met; the
+  human sign-off gates `main`, not this branch.
+- No SEO issue existing yet is not "all done": see the last hard rule.
 
 ### Chat 14 ↔ chat 15 (D13, 2026-11-04)
 Chat 14's report (PR #87) found release blockers, and its PR cannot merge while CI
@@ -157,5 +170,8 @@ gh api -X PUT "$R/pulls/$PR/merge" -f merge_method=squash -f commit_title="…"
 - Stay in the chat's scope. Out-of-scope findings go under "Follow-ups".
 - Chat 14 is read-only except its report (see `chats/14.md`). When chat 14 is
   done, post its verdict on its issue, then end. Petko decides the final merge.
-- When all seven issues are `ap:done`, the developer run ends without doing
-  anything; if the session can update triggers, disable both autopilot triggers.
+- When every issue is `ap:done`, the developer run ends without doing anything.
+  **Don't disable the developer or reviewer triggers while the SEO wave is
+  unfinished** (no `SEO autopilot: run summary` issue yet): the SEO
+  orchestrator releases the next chat within the hour. Disable both only after
+  that summary issue exists.
