@@ -44,3 +44,4 @@ yarn-error.log*
 # never a project artifact, must not be committed
 *.tar.gz
 a11y-report.json
+seo-review-out/

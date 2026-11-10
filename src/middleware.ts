@@ -28,7 +28,9 @@ const SESSION_COOKIE = 'kindly_session';
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   // SEO-2: API routes (cron jobs, the Stripe webhook included) are never
-  // redirected and never indexed, on any host. They authenticate themselves.
+  // redirected, on any host; they authenticate themselves. The noindex header
+  // actually reaches clients via next.config.mjs (Next drops middleware
+  // response headers on route-handler responses); it's set here as well.
   if (isApiPath(pathname)) {
     const res = NextResponse.next();
     res.headers.set('X-Robots-Tag', 'noindex');

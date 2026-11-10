@@ -78,7 +78,13 @@ const nextConfig = {
         // API responses carry personal data (profiles, memories, summaries,
         // transcripts). Never let a browser, proxy or CDN keep a copy.
         source: '/api/:path*',
-        headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }],
+        // SEO-2: API responses (crons, the Stripe webhook included) are never
+        // indexed on any host. Set here, not only in the middleware, because
+        // Next drops middleware response headers on route-handler responses.
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex' },
+        ],
       },
     ];
   },
