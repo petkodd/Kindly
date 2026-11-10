@@ -1,10 +1,32 @@
 import type { Metadata } from 'next';
+import { SITE_URL_FALLBACK, normalizeSiteUrl } from './siteUrlGuard.mjs';
+
+/**
+ * The configured public site URL exactly as set (trimmed, no trailing slash),
+ * or undefined. For code that must tell "not configured" apart from the
+ * fallback (appUrl.ts, the cross-origin guard). Everything else: `siteUrl()`.
+ * NEXT_PUBLIC_* is inlined at build, so this works in server, edge and client code.
+ */
+export function configuredSiteUrl(): string | undefined {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL;
+  return raw && raw.trim() ? normalizeSiteUrl(raw) : undefined;
+}
+
+/**
+ * SEO-1: the site's public base URL, no trailing slash. The single source for
+ * canonicals, Open Graph, JSON-LD, sitemap, robots.txt, the canonical-host
+ * redirect and the Stripe return URLs. The placeholder fallback only exists
+ * outside production: next.config.mjs fails a production build without a
+ * real https:// URL (src/lib/siteUrlGuard.mjs).
+ */
+export function siteUrl(): string {
+  return configuredSiteUrl() ?? SITE_URL_FALLBACK;
+}
 
 export const SITE = {
   name: 'Dearly',
-  // Real domain from env (NEXT_PUBLIC_* is inlined at build); falls back to the
-  // placeholder in dev. Drives canonical URLs, Open Graph, sitemap, and robots.
-  url: process.env.NEXT_PUBLIC_SITE_URL || 'https://dearly.example.com',
+  // Read once at module load; see siteUrl().
+  url: siteUrl(),
   tagline: 'For the moments you can’t be there.',
   description:
     'A warm, voice-first AI companion your aging parent can talk to — with a respectful weekly summary for your family.',

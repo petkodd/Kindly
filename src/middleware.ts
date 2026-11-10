@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifySessionEdge } from '@/lib/sessionEdge';
 import { safeNextPath } from '@/lib/nextPath';
 import { normalizeReferralCode, REF_COOKIE, REF_COOKIE_MAX_AGE_S } from '@/lib/referralCode';
+import { siteUrl } from '@/lib/seo';
 
 // Must match SESSION_COOKIE in src/lib/session.ts (not imported: that module
 // pulls in node:crypto, which the edge runtime doesn't have).
@@ -22,12 +23,21 @@ const SESSION_COOKIE = 'kindly_session';
  * The middleware only sees the signed cookie, not revocation (see
  * sessionEdge.ts). A revoked-but-signed cookie is cleared by the app's 401
  * handling (signOutAndRedirect in apiClient.ts), so it can't bounce forever.
- * API routes are not matched here; they authenticate with resolveBuyer.
+ * API routes are never redirected here; they authenticate with resolveBuyer.
  */
 export async function middleware(req: NextRequest) {
-  const res = await route(req);
+  const { pathname } = req.nextUrl;
+  // SEO-2: API routes (cron jobs, the Stripe webhook included) are never
+  // redirected and never indexed, on any host. They authenticate themselves.
+  if (isApiPath(pathname)) {
+    const res = NextResponse.next();
+    res.headers.set('X-Robots-Tag', 'noindex');
+    return res;
+  }
+  const canonical = canonicalHostRedirect(req);
+  const res = canonical ?? (isAuthRoutedPath(pathname) ? await route(req) : NextResponse.next());
   // Chat 11: remember a ?ref=CODE referral code for 30 days (any page).
-  const ref = normalizeReferralCode(req.nextUrl.searchParams.get('ref'));
+  const ref = isPagePath(pathname) ? normalizeReferralCode(req.nextUrl.searchParams.get('ref')) : null;
   if (ref) {
     res.cookies.set(REF_COOKIE, ref, {
       maxAge: REF_COOKIE_MAX_AGE_S,
@@ -37,6 +47,35 @@ export async function middleware(req: NextRequest) {
     });
   }
   return res;
+}
+
+const isApiPath = (p: string) => p === '/api' || p.startsWith('/api/');
+/** Pages only: not API, not Next internals, not files like /og/default.png (the chat 11 ref rule). */
+const isPagePath = (p: string) => !isApiPath(p) && !p.startsWith('/_next') && !/\/[^/]*\.[^/]*$/.test(p);
+const isAuthRoutedPath = (p: string) =>
+  p === '/login' || p === '/signup' || p === '/app' || p.startsWith('/app/') || p === '/admin' || p.startsWith('/admin/');
+
+/**
+ * SEO-2: the site answers on one host only. In the Vercel production
+ * deployment, a request on any other host (the `*.vercel.app` alias, `www.`
+ * vs the apex) gets a 308 to the same path and query on the canonical host
+ * from `siteUrl()`. Preview and development deployments, local `next start`
+ * and tests (no `VERCEL_ENV=production`) are never redirected. Reads the
+ * `host` header (Vercel sets it to the requested domain); `x-forwarded-host`
+ * is client-controlled in front of other proxies, so it is not trusted here.
+ */
+function canonicalHostRedirect(req: NextRequest): NextResponse | null {
+  if (process.env.VERCEL_ENV !== 'production') return null;
+  let canonical: URL;
+  try {
+    canonical = new URL(siteUrl());
+  } catch {
+    return null; // unreachable: the build guard (siteUrlGuard.mjs) requires a valid URL
+  }
+  const host = (req.headers.get('host') ?? req.nextUrl.host).split(',')[0].trim().toLowerCase();
+  if (!host || host === canonical.host.toLowerCase()) return null;
+  const { pathname, search } = req.nextUrl;
+  return NextResponse.redirect(new URL(`${pathname}${search}`, canonical.origin), 308);
 }
 
 async function route(req: NextRequest): Promise<NextResponse> {
@@ -71,10 +110,10 @@ function redirect(req: NextRequest, to: string): NextResponse {
   return NextResponse.redirect(new URL(to, req.nextUrl.origin));
 }
 
+// SEO-2 needs every request on a non-canonical host, so the middleware sees
+// everything except Next's build assets. Auth redirects still only run for
+// /app, /admin, /login and /signup (isAuthRoutedPath), referral capture only
+// on pages (isPagePath), and /api only gets the noindex header.
 export const config = {
-  matcher: [
-    '/app', '/app/:path*', '/admin', '/admin/:path*', '/login', '/signup',
-    // Any other page carrying ?ref= (chat 11 referral capture); never API or static files.
-    { source: '/((?!api|_next|.*\\..*).*)', has: [{ type: 'query', key: 'ref' }] },
-  ],
+  matcher: ['/((?!_next/static|_next/image).*)'],
 };

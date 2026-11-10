@@ -7,10 +7,13 @@
  * checkout route's success/cancel URLs to migrate to later, unchanged here
  * to keep this hardening pass scoped).
  *
- * Precedence: `APP_BASE_URL` first, then `NEXT_PUBLIC_SITE_URL` (the
- * existing var already used for canonical/OG/sitemap and Stripe redirect
- * URLs) as a fallback so a deploy that only set the older var keeps working.
+ * Precedence: `APP_BASE_URL` first, then the configured public site URL
+ * (`configuredSiteUrl()` in seo.ts, the one used for canonical/OG/sitemap
+ * and Stripe redirect URLs) as a fallback so a deploy that only set the
+ * older var keeps working.
  */
+
+import { configuredSiteUrl } from './seo';
 
 const LOCAL_DEV_DEFAULT = 'http://localhost:3000';
 
@@ -49,13 +52,13 @@ function normalizeBaseUrl(url: URL): string {
  * normalized away.
  */
 export function getAppBaseUrl(): string {
-  const configured = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  const configured = process.env.APP_BASE_URL || configuredSiteUrl();
 
   if (configured) {
     const url = isHttpUrl(configured);
     if (!url) {
       throw new AppUrlConfigError(
-        `APP_BASE_URL (or NEXT_PUBLIC_SITE_URL) is set to "${configured}", which is not a valid absolute http(s) URL.`,
+        `APP_BASE_URL (or the public site URL) is set to "${configured}", which is not a valid absolute http(s) URL.`,
       );
     }
     return normalizeBaseUrl(url);

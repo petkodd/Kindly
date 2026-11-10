@@ -1,6 +1,18 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs/config';
+import { assertSiteUrlForBuild } from './src/lib/siteUrlGuard.mjs';
+
+// SEO-1: a production build must never ship the placeholder domain in
+// canonicals, Open Graph, JSON-LD, the sitemap, robots.txt or Stripe return
+// URLs. Fails `next build` (and `next start`) with a clear message when
+// VERCEL_ENV=production and NEXT_PUBLIC_SITE_URL is missing, not https://, or
+// a placeholder. Rules and the local/CI exceptions: src/lib/siteUrlGuard.mjs.
+assertSiteUrlForBuild({
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+  vercelEnv: process.env.VERCEL_ENV,
+  nodeEnv: process.env.NODE_ENV,
+});
 
 // Content-Security-Policy. Google Fonts are allow-listed (see layout.tsx).
 // NOTE: script-src keeps 'unsafe-inline' because Next's hydration scripts are
