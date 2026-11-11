@@ -50,9 +50,40 @@ Check current coverage any time with:
 npm run check:prompt-signoffs
 ```
 
-This is the strict, all-three-roles-at-the-current-hash gate — it is NOT part
-of `npm test`/CI (see `docs/PROMPT_SIGN_OFF.md` for why), so don't expect it to
-pass until real reviewers have actually signed off every prompt.
+This command is always strict: it exits nonzero until real reviewers have
+signed off every registered prompt at the current hash. Setting
+`SIGNOFF_BLOCKING=false` does not change the Node command's exit status.
+
+### CI enforcement
+
+The separate `prompt-signoffs` job in `.github/workflows/ci.yml` always runs
+the strict command and publishes the full coverage report in the run summary.
+`scripts/prompt-signoff-policy.mjs` controls whether CI may continue after
+that command fails:
+
+| CI event | Missing approvals block CI? |
+|---|---|
+| Push to `release/mvp-alpha` | No; a warning and coverage report remain visible |
+| PR targeting `release/mvp-alpha` | No; a warning and coverage report remain visible |
+| PR targeting `main` | No (existing policy) |
+| Push to `main` | Yes |
+| Push to another `release/*` branch | Yes |
+| PR targeting another `release/*` branch | Yes |
+| Manual **Run workflow**, on any branch | Yes |
+
+The exception is exact: `release/mvp-alpha-next`, for example, remains
+blocking. It allows integration of the pre-launch MVP alpha while human
+reviews are pending; a green alpha CI run is **not** prompt approval or a
+release GO. `npm test` still enforces prompt registration, approved-hash
+drift protection, and the automated safety/content contracts. No approvals
+are created by the workflow, and prompt sign-offs remain human-only (D12).
+
+For a strict pre-release check, run the command above or use **Actions → CI
+→ Run workflow** and select the exact release branch. GitHub displays the
+manual trigger once the workflow containing `workflow_dispatch` exists on
+the default branch; until then, use the local strict command. Record real
+approvals on that branch with `scripts/sign-prompt.mjs` and update the matrix
+in `docs/PROMPT_SIGN_OFF.md` before a production release.
 
 ## What happens if a prompt changes after approval
 

@@ -28,12 +28,13 @@ export async function GET(req: NextRequest) {
       result.purgedUsers > 0 ||
       result.purgedParents > 0 ||
       result.purgedTurns > 0 ||
-      result.purgedWaitlistSignups > 0
+      result.purgedWaitlistSignups > 0 ||
+      result.purgedDemoRequests > 0
     ) {
       // The cron response body is discarded; log so purges are visible in the
       // platform logs (counts only — never identities).
       console.info(
-        `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents, ${result.purgedTurns} turns, ${result.purgedWaitlistSignups} waitlist signups (cutoff ${result.cutoff})`,
+        `purge-hard-deletes: purged ${result.purgedUsers} users, ${result.purgedParents} parents, ${result.purgedTurns} turns, ${result.purgedWaitlistSignups} waitlist signups, ${result.purgedDemoRequests} demo requests (cutoff ${result.cutoff})`,
       );
     }
     if (result.failedUsers > 0) {

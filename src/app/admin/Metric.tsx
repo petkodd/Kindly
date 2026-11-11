@@ -10,9 +10,9 @@ export function Metric({
   alert?: boolean;
 }) {
   return (
-    <div className={`rounded-xl border bg-cloud p-5 ${alert ? 'border-clay' : 'border-line'}`}>
+    <div className={`rounded-xl border bg-cloud p-5 ${alert ? 'border-error' : 'border-line'}`}>
       <p className="text-sm text-muted">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold ${alert ? 'text-clay' : 'text-ink'}`}>{value}</p>
+      <p className={`mt-1 text-3xl font-semibold ${alert ? 'text-error' : 'text-ink'}`}>{value}</p>
       {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
     </div>
   );

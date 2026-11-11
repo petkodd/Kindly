@@ -6,6 +6,9 @@ import { api, ApiError } from '@/lib/apiClient';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
+import { useEmailVerified, UNVERIFIED_REASON } from '@/hooks/useEmailVerified';
+import { FormStatus } from '@/components/FormStatus';
+import { StatusBadge } from '@/components/StatusBadge';
 
 interface WeeklySummary {
   id: string;
@@ -100,7 +103,7 @@ function SummaryPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean 
     void load();
   }, [load]);
 
-  if (error) return <p className="text-base text-clay">{error}</p>;
+  if (error) return <FormStatus kind="error" message={error} />;
   if (!preview || !history) return <p className="text-base text-muted">Loading summary…</p>;
 
   // The current-week preview is also the newest history row — don't list it twice.
@@ -122,17 +125,8 @@ function SummaryPanel({ parentId, isSelf }: { parentId: string; isSelf: boolean 
   );
 }
 
-function StatusBadge({ status }: { status: WeeklySummary['status'] }) {
-  const sent = status === 'sent';
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-        sent ? 'bg-sage text-cloud' : 'border border-line bg-mist text-muted'
-      }`}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  );
+function SummaryStatusBadge({ status }: { status: WeeklySummary['status'] }) {
+  return <StatusBadge tone={status === 'sent' ? 'positive' : 'neutral'}>{STATUS_LABEL[status]}</StatusBadge>;
 }
 
 function PreviewCard({
@@ -148,8 +142,12 @@ function PreviewCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [statusKind, setStatusKind] = useState<'success' | 'info' | 'error'>('success');
   const [needsRecipient, setNeedsRecipient] = useState(false);
   const sent = summary.status === 'sent';
+  const emailVerified = useEmailVerified();
+  const blockedUnverified = emailVerified === false;
+  const body = (summary.body_long || summary.body_short || '').trim();
 
   async function send() {
     setStatus('');
@@ -166,13 +164,23 @@ function PreviewCard({
       if (count > 0) parts.push(`Sent to ${recipients(count)}.`);
       // Demo mode / no email key: say plainly that nothing actually went out.
       if (simulated > 0) parts.push(`Simulated for ${recipients(simulated)} — demo mode, no email was sent.`);
+      setStatusKind('success');
       setStatus(parts.join(' ') || 'Sent to 0 recipients.');
       onSent(r.summary);
     } catch (err) {
-      // 409: no consented recipient yet — the send is gated on consent.
-      if (err instanceof ApiError && err.status === 409) {
+      // 409 parent_consent_required: the parent hasn't said yes to sharing
+      // summaries yet (chat 9). Any other 409: no accepted recipient yet.
+      if (err instanceof ApiError && err.status === 409 && err.code === 'parent_consent_required') {
+        setStatusKind('info');
+        setStatus(
+          isSelf
+            ? 'You haven’t agreed to share weekly summaries yet. Dearly will ask you the next time you talk.'
+            : 'Your parent hasn’t agreed to share weekly summaries yet. Dearly asks them, in their own words, the next time they talk — nothing is sent until they say yes.',
+        );
+      } else if (err instanceof ApiError && err.status === 409) {
         setNeedsRecipient(true);
       } else {
+        setStatusKind('error');
         setStatus(err instanceof ApiError ? err.message : 'Could not send the summary.');
       }
     } finally {
@@ -182,22 +190,30 @@ function PreviewCard({
 
   return (
     <section className="rounded-xl border border-line bg-cloud p-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-ink">
           {fmtRange(summary.period_start, summary.period_end)}
         </h2>
-        <StatusBadge status={summary.status} />
+        <SummaryStatusBadge status={summary.status} />
       </div>
 
+      {/* has_concern is always false for new summaries (D3 default, chat 9);
+          older rows may still carry it. The old copy pointed to a "note
+          below" that never existed, so the badge now stands on its own. */}
       {summary.has_concern && (
-        <p className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3 text-sm font-semibold text-ink">
-          This week includes a gentle heads-up — see the note below.
+        <p className="mt-4 rounded-lg border border-error bg-mist px-4 py-3 text-base font-semibold text-ink">
+          This week&rsquo;s summary includes a gentle heads-up.
         </p>
       )}
 
-      <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-ink">
-        {summary.body_long || summary.body_short}
-      </p>
+      {body ? (
+        <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-ink">{body}</p>
+      ) : (
+        <p className="mt-4 text-base text-muted">
+          There&rsquo;s nothing to share for this week yet. A summary is written from the week&rsquo;s conversations, so it
+          fills in once {isSelf ? 'you' : 'your parent'} {isSelf ? 'have' : 'has'} talked with Dearly.
+        </p>
+      )}
 
       <div className="mt-6 border-t border-line pt-6">
         {sent ? (
@@ -214,26 +230,38 @@ function PreviewCard({
         )}
 
         {needsRecipient ? (
-          <div className="mt-4 rounded-lg border border-clay bg-mist px-4 py-3">
+          <div className="mt-4 rounded-lg border border-error bg-mist px-4 py-3">
             <p className="text-base text-ink">
               No one has accepted an invitation to receive summaries yet.
             </p>
-            <Link href="/app/referrals" className="mt-2 inline-block text-base text-sage underline">
+            <Link href="/app/referrals" className="mt-2 inline-flex min-h-[2.75rem] items-center text-base font-semibold text-sageDeep underline">
               {isSelf ? 'Invite someone to follow along' : 'Invite a family member'}
             </Link>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={send}
-            disabled={busy}
-            className="btn-primary mt-4 disabled:opacity-60"
-          >
-            {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={send}
+              disabled={busy || blockedUnverified || !body}
+              aria-describedby={blockedUnverified ? 'send-blocked-reason' : undefined}
+              className="btn-primary mt-4 disabled:opacity-60"
+            >
+              {busy ? 'Sending…' : sent ? 'Send again' : 'Send last week’s summary'}
+            </button>
+            {blockedUnverified && (
+              <p id="send-blocked-reason" className="mt-2 text-base text-error">
+                {UNVERIFIED_REASON}
+              </p>
+            )}
+          </>
         )}
 
-        {status && <p className="mt-3 text-sm text-muted">{status}</p>}
+        {statusKind === 'error' ? (
+          <FormStatus kind="error" message={status} className="mt-3" />
+        ) : (
+          <FormStatus kind={statusKind} message={status} className="mt-3" />
+        )}
 
         <AutoSendToggle />
       </div>
@@ -311,18 +339,31 @@ function PastSummaries({ summaries }: { summaries: WeeklySummary[] }) {
     <div>
       <h2 className="text-lg font-semibold text-ink">Past weeks</h2>
       <ul className="mt-4 space-y-3">
-        {summaries.map((s) => (
-          <li
-            key={s.id}
-            className="flex items-center justify-between rounded-xl border border-line bg-cloud px-4 py-3"
-          >
-            <div>
-              <p className="text-base text-ink">{fmtRange(s.period_start, s.period_end)}</p>
-              {s.body_short && <p className="text-sm text-muted">{s.body_short}</p>}
-            </div>
-            <StatusBadge status={s.status} />
-          </li>
-        ))}
+        {summaries.map((s) => {
+          const body = (s.body_long || s.body_short || '').trim();
+          return (
+            <li key={s.id} className="rounded-xl border border-line bg-cloud">
+              {/* Native disclosure: keyboard and screen-reader friendly with no extra script. */}
+              <details className="group">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
+                  <span>
+                    <span className="block text-base text-ink">{fmtRange(s.period_start, s.period_end)}</span>
+                    <span className="block text-base text-sageDeep underline group-open:hidden">Show summary</span>
+                    <span className="hidden text-base text-sageDeep underline group-open:block">Hide summary</span>
+                  </span>
+                  <SummaryStatusBadge status={s.status} />
+                </summary>
+                <div className="border-t border-line px-4 py-3">
+                  {body ? (
+                    <p className="whitespace-pre-line text-base leading-relaxed text-ink">{body}</p>
+                  ) : (
+                    <p className="text-base text-muted">Nothing was written for this week.</p>
+                  )}
+                </div>
+              </details>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

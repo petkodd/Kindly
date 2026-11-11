@@ -127,6 +127,25 @@ export function accountExistsEmail(input: { loginUrl: string; resetUrl: string }
   return e;
 }
 
+/**
+ * The buyer asked for their parent's talk link by email ("Email it to me"),
+ * so they can forward it or open it on the parent's tablet. Goes only to the
+ * buyer's own verified-or-not account address, never to anyone else.
+ */
+export function talkLinkEmail(input: { parentFirstName: string; talkUrl: string }): Email {
+  const name = input.parentFirstName;
+  return linkEmail(
+    `${name}'s Dearly talk link`,
+    `Here is ${name}'s private link to talk with Dearly. Open it on the phone, tablet or computer ${name} will use, and bookmark it or add it to the home screen:`,
+    `Open ${name}'s talk link`,
+    input.talkUrl,
+    [
+      `Anyone with this link can talk with Dearly as ${name}, so share it only with ${name}.`,
+      'If it is ever lost or shared by mistake, make a new link on the Parent profile page in Dearly; the old one stops working straight away.',
+    ],
+  );
+}
+
 /** Password reset link: sets a new password without the old one, then signs out every device. */
 export function passwordResetEmail(input: { resetUrl: string }): Email {
   return linkEmail(
@@ -206,6 +225,41 @@ export function adminSafetyAlertEmail(input: {
     <p>Why you're getting this: ${escapeHtml(input.reason)}</p>
     <p>Flag: ${escapeHtml(input.flagId)}</p>
     <p><a href="${escapeHtml(input.adminUrl)}">Open the review queue</a></p>
+  `.trim();
+  return { subject, html, text };
+}
+
+/**
+ * Internal sales alert for a facility demo request (senior-living page, chat
+ * 13). Goes only to SALES_ALERT_EMAIL. Every field is visitor-supplied, so
+ * every field is escaped in the HTML part.
+ */
+export function salesDemoRequestEmail(input: {
+  facilityName: string;
+  residents: number;
+  roleLabel: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  sourcePage: string | null;
+}): { subject: string; html: string; text: string } {
+  // Subject is a header: strip line breaks so a field can't inject headers.
+  const oneLine = (v: string) => v.replace(/[\r\n]+/g, ' ').slice(0, 120);
+  const subject = `[Dearly sales] Demo request: ${oneLine(input.facilityName)} (${input.residents} residents)`;
+  const rows: [string, string][] = [
+    ['Community', input.facilityName],
+    ['Residents', String(input.residents)],
+    ['Role', input.roleLabel],
+    ['Name', input.name],
+    ['Email', input.email],
+    ['Phone', input.phone ?? 'not given'],
+    ['Page', input.sourcePage ?? '/senior-living'],
+  ];
+  const text = ['A senior living community asked for a Dearly demo.', '', ...rows.map(([k, v]) => `${k}: ${v}`), '', 'Reply to the contact within one business day.'].join('\n');
+  const html = `
+    <p>A senior living community asked for a Dearly demo.</p>
+    <table>${rows.map(([k, v]) => `<tr><td><strong>${escapeHtml(k)}</strong></td><td>${escapeHtml(v)}</td></tr>`).join('')}</table>
+    <p>Reply to the contact within one business day.</p>
   `.trim();
   return { subject, html, text };
 }

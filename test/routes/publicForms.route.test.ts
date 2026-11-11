@@ -22,6 +22,8 @@ beforeEach(() => {
   q = makeTestDb();
 });
 
+const DEMO = { facility_name: 'Maple Grove', residents: 40, role: 'administrator', name: 'Bob', email: 'bob@example.com' };
+
 describe('POST /api/waitlist', () => {
   it('400s an invalid email', async () => {
     process.env.DATABASE_URL = 'postgres://test';
@@ -61,25 +63,25 @@ describe('POST /api/waitlist', () => {
 describe('POST /api/demo', () => {
   it('400s an invalid email', async () => {
     process.env.DATABASE_URL = 'postgres://test';
-    const res = await demoPOST(postReq('http://localhost/api/demo', { email: 'not-an-email' }));
+    const res = await demoPOST(postReq('http://localhost/api/demo', { ...DEMO, email: 'not-an-email' }));
     expect(res.status).toBe(400);
   });
 
   it('degrades to persisted:false when DATABASE_URL is unset', async () => {
     delete process.env.DATABASE_URL;
-    const res = await demoPOST(postReq('http://localhost/api/demo', { email: 'bob@example.com' }));
+    const res = await demoPOST(postReq('http://localhost/api/demo', DEMO));
     expect(res.status).toBe(201);
     expect((await res.json()).persisted).toBe(false);
   });
 
-  it('persists a signup with wants_demo = true when DATABASE_URL is set', async () => {
+  it('persists a facility demo request when DATABASE_URL is set (chat 13)', async () => {
     process.env.DATABASE_URL = 'postgres://test';
-    const res = await demoPOST(postReq('http://localhost/api/demo', { email: 'bob@example.com' }));
+    const res = await demoPOST(postReq('http://localhost/api/demo', DEMO));
     expect(res.status).toBe(201);
     expect((await res.json()).persisted).toBe(true);
 
-    const { rows } = await q.query<{ wants_demo: boolean }>(`SELECT wants_demo FROM waitlist_signups WHERE email = 'bob@example.com'`);
-    expect(rows[0].wants_demo).toBe(true);
+    const { rows } = await q.query<{ facility_name: string }>(`SELECT facility_name FROM facility_demo_requests WHERE email = 'bob@example.com'`);
+    expect(rows[0].facility_name).toBe('Maple Grove');
   });
 });
 
@@ -104,10 +106,10 @@ describe('public form throttles (chat 7)', () => {
   it('demo: 429s an IP after 5 requests in an hour', async () => {
     process.env.DATABASE_URL = 'postgres://test';
     for (let i = 0; i < 5; i++) {
-      const res = await demoPOST(fromIp('http://localhost/api/demo', { email: `d${i}@example.com` }, '4.4.4.6'));
+      const res = await demoPOST(fromIp('http://localhost/api/demo', { ...DEMO, email: `d${i}@example.com` }, '4.4.4.6'));
       expect(res.status).toBeLessThan(400);
     }
-    expect((await demoPOST(fromIp('http://localhost/api/demo', { email: 'd99@example.com' }, '4.4.4.6'))).status).toBe(429);
+    expect((await demoPOST(fromIp('http://localhost/api/demo', { ...DEMO, email: 'd99@example.com' }, '4.4.4.6'))).status).toBe(429);
   });
 
   it('both refuse a cross-site POST', async () => {

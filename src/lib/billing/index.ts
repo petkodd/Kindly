@@ -44,15 +44,6 @@ export function getPriceIdForInterval(interval: BillingInterval): string {
   return getPlanIntervalPriceId('family_companion', interval);
 }
 
-// Referral-reward-for-annual mechanism (deferred, not implemented here):
-// once feature/referral-program merges, an annual subscriber's "one free
-// month" should credit 1/12 of the annual price (Option B from the
-// annual-billing task doc) rather than a full month's price — chosen over
-// extending a subscription schedule's period boundaries for the same
-// reliability reason the base referral reward already uses a balance
-// credit over subscription mutation. Deliberately not built as code yet:
-// nothing in this branch calls it, and unexercised exported utilities are
-// worse than a documented follow-up. Implement alongside the actual
-// applyReferralReward/applySide wiring in src/lib/billing/referralReward.ts
-// (feature/referral-program), using getPriceIdForInterval + a live
-// stripe.prices.retrieve for both intervals to size the credit.
+// Referral credit ("give a month, get a month", chat 11) lives in
+// ./referralCredit.ts: a Stripe customer-balance credit of one month — the
+// monthly price, or 1/12 of the annual price for a yearly subscriber.

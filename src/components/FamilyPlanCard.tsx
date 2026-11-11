@@ -2,6 +2,7 @@ import { TrackedCtaLink } from './TrackedCtaLink';
 import { PlanFeatureList } from './PlanFeatureList';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import type { BillingInterval } from '@/lib/billing';
+import { signupHref } from '@/lib/nextPath';
 
 interface FamilyPlan {
   id: string;
@@ -11,6 +12,8 @@ interface FamilyPlan {
   cta: { label: string; href: string };
   priceMonthlyCents: number;
   priceAnnualCents: number;
+  /** Free-trial length checkout grants (shown on the card). */
+  trialDays: number;
 }
 
 /**
@@ -33,23 +36,33 @@ export function FamilyPlanCard({ plan, billingInterval }: { plan: FamilyPlan; bi
         <p className="mt-4">
           <span className="font-display text-3xl font-semibold text-ink">{formatUsdCents(plan.priceAnnualCents)}</span>{' '}
           <span className="text-base text-muted">/year</span>
-          <span className="mt-1 flex items-center gap-2 text-sm text-muted">
+          <span className="mt-1 flex items-center gap-2 text-base text-muted">
             {formatUsdCents(perMonthEquivalentCents(plan.priceAnnualCents))}/mo equivalent
             {savingsPercent > 0 && (
-              <span className="rounded-full bg-sageDeep/15 px-2 py-0.5 text-xs font-semibold text-sageDeep">
+              <span className="rounded-full bg-sageDeep/15 px-2 py-0.5 text-base font-semibold text-sageDeep">
                 Save {savingsPercent}%
               </span>
             )}
           </span>
         </p>
       )}
+      <p className="mt-3 inline-flex w-fit rounded-full bg-sageDeep/15 px-3 py-1 text-base font-semibold text-sageDeep">
+        {plan.trialDays}-day free trial
+      </p>
+      <p className="mt-2 text-base text-muted">
+        {billingInterval === 'month'
+          ? `Free for ${plan.trialDays} days, then ${formatUsdCents(plan.priceMonthlyCents)} a month. Cancel anytime.`
+          : `Free for ${plan.trialDays} days, then ${formatUsdCents(plan.priceAnnualCents)} a year. Cancel anytime.`}
+      </p>
       <p className="mt-3 text-base text-muted">{plan.tagline}</p>
       <PlanFeatureList bullets={plan.bullets} />
       <TrackedCtaLink
         // Carries the selected interval into onboarding — otherwise a
         // visitor who picks Monthly here lands back on checkout's own
-        // (Annual) default with no memory of that choice.
-        href={`${plan.cta.href}?interval=${billingInterval}`}
+        // (Annual) default with no memory of that choice. Signup comes
+        // first; `next` brings them back to onboarding afterwards (an
+        // already signed-in buyer is sent straight on by the middleware).
+        href={signupHref(`${plan.cta.href}?interval=${billingInterval}`)}
         ctaId={`plan_${plan.id}`}
         slug="/pricing"
         className="btn-secondary mt-8 w-full"

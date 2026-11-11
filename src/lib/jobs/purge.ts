@@ -34,7 +34,8 @@ import { runInTransaction } from '../db';
  *     DEFAULT_TRANSCRIPT_RETENTION_DAYS = 30) regardless of account deletion —
  *     transcripts expire on their own clock, independent of the user/parent
  *     purge above.
- *  5. DELETE waitlist_signups older than DEFAULT_WAITLIST_RETENTION_DAYS (365).
+ *  5. DELETE waitlist_signups (and facility_demo_requests, chat 13) older
+ *     than DEFAULT_WAITLIST_RETENTION_DAYS (365).
  *     waitlist_signups has no FK to users — a signup predates any account and
  *     often never becomes one — so it runs on its own marketing-retention
  *     clock (created_at), not the account deletion promise above.
@@ -49,6 +50,8 @@ export interface PurgeResult {
   purgedParents: number;
   purgedTurns: number;
   purgedWaitlistSignups: number;
+  /** Facility demo requests past the same marketing-retention window (chat 13). */
+  purgedDemoRequests: number;
 }
 
 export const DEFAULT_RETENTION_DAYS = 30;
@@ -67,6 +70,8 @@ const USER_REF_NULLIFICATIONS: { table: string; column: string }[] = [
   { table: 'audit_log', column: 'actor_id' },
   { table: 'beta_invites', column: 'redeemed_by_user_id' },
   { table: 'beta_invites', column: 'created_by_user_id' },
+  { table: 'referral_rewards', column: 'referrer_user_id' },
+  { table: 'referral_rewards', column: 'referred_user_id' },
 ];
 
 export async function purgeHardDeletes(
@@ -143,6 +148,11 @@ export async function purgeHardDeletes(
     `DELETE FROM waitlist_signups WHERE created_at < $1`,
     [waitlistCutoff],
   );
+  // Facility demo requests (0021) follow the same marketing clock.
+  const demoRequests = await q.query(
+    `DELETE FROM facility_demo_requests WHERE created_at < $1`,
+    [waitlistCutoff],
+  );
 
   return {
     cutoff: cutoff.toISOString(),
@@ -151,5 +161,6 @@ export async function purgeHardDeletes(
     purgedParents: parents.rowCount ?? 0,
     purgedTurns: turns.rowCount ?? 0,
     purgedWaitlistSignups: waitlist.rowCount ?? 0,
+    purgedDemoRequests: demoRequests.rowCount ?? 0,
   };
 }

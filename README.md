@@ -1,17 +1,19 @@
-# AI companion for aging parents — web app (Alpha v0.1)
+# Dearly — AI companion for aging parents (Alpha v0.1)
 
 > For the moments you can’t be there.
 
-A warm, voice-first AI companion that an adult child gives to an aging parent.
-The child sets up the companion and seeds it with memories, the parent talks
-with a kind, patient AI, and the family gets a respectful weekly summary.
+Dearly is a warm, voice-first AI companion that an adult child gives to an
+aging parent. The child sets up the companion and seeds it with memories, the
+parent talks with a kind, patient AI, and — once the parent agrees — the
+family gets a respectful weekly summary.
 
-> **Product name:** the final name is still an open founder decision (D1). The
-> UI currently says “Dearly” and the repo says “Kindly”; this README says
-> “the app”.
+> **Product name:** Dearly (founder decision D1, 2026-10-30). Every
+> user-facing surface says Dearly. Internal identifiers (the `petkodd/Kindly`
+> repo, the `kindly` package and database names, cookie names) keep the
+> original working name on purpose.
 
 This repo holds the marketing website (SEO-ready, indexable) and the private
-web app (noindex): Next.js 14 App Router, TypeScript, Tailwind, Postgres with
+web app (noindex): Next.js 15 App Router, TypeScript, Tailwind, Postgres with
 pgvector, deployed on Vercel.
 
 ---
@@ -101,6 +103,7 @@ paid provider; none of them are needed locally.
 | `DEMO_MODE` | no | no | `true` = always simulated AI/voice/email plus the demo badge, even with keys set. For demo deploys. |
 | `NEXT_PUBLIC_SITE_URL` | prod: yes | no | Public URL for canonical, Open Graph and sitemap. |
 | `APP_BASE_URL` | prod: yes | no | Base for absolute links back into the app (invites, emails). Local default `http://localhost:3000`. |
+| `SALES_ALERT_EMAIL` | prod: yes | no | Inbox that receives facility demo requests from `/senior-living`. Unset: requests are stored and Sentry gets an error. |
 | `AI_API_KEY` | prod: yes* | **yes** | Anthropic key for the companion and summaries. |
 | `AI_MODEL` | no | no | Model id for the companion (default: the signed `claude-sonnet-4-6`). |
 | `TALK_LIMIT_PARENT_PER_10_MIN`, `TALK_LIMIT_PARENT_PER_DAY` | no | no | Talk turns per parent (defaults 30 per 10 minutes, 300 per day). |

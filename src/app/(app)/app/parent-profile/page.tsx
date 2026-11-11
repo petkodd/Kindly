@@ -1,25 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError, grantSelfTalkAccess } from '@/lib/apiClient';
 import { ParentPicker } from '@/components/ParentPicker';
 import { EmptyParentState } from '@/components/EmptyParentState';
 import { ParentGate } from '@/components/ParentGate';
-import { inputCls } from '@/lib/formStyles';
+import { checkCls, fieldErrorCls, helpCls, inputCls, labelCls } from '@/lib/formStyles';
+import { PARENT_SHORT_FIELD_MAX, type Parent } from '@/lib/types';
+import { validateProfile, type ProfileField } from '@/lib/profileValidation';
+import { Card } from '@/components/Card';
+import { FormStatus } from '@/components/FormStatus';
+import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning';
+import Link from 'next/link';
+import { ParentTalkLinkSection, TALK_LINK_SECTION_ID } from '@/components/ParentTalkLinkSection';
 
-interface Parent {
-  id: string;
-  first_name: string;
-  relationship: string;
-  pronouns: string | null;
-  city: string | null;
-  language: string;
-  large_text: boolean;
-  voice_first: boolean;
-  speech_rate: 'slow' | 'normal';
-  activated_at: string | null;
-}
 
 const LANGUAGES = [
   { code: 'en-US', label: 'English (US)' },
@@ -96,13 +91,26 @@ function ProfilePanel({ parentId }: { parentId: string }) {
     };
   }, [parentId]);
 
-  if (error) return <p className="text-base text-clay">{error}</p>;
+  if (error) return <FormStatus kind="error" message={error} />;
   if (!parent) return <p className="text-base text-muted">Loading profile…</p>;
 
   return (
     <div className="space-y-6">
       <ProfileForm parent={parent} onSaved={setParent} />
       {parent.relationship === 'self' && parent.activated_at && <TalkToDearlySection parentId={parent.id} />}
+      {parent.activated_at ? (
+        <ParentTalkLinkSection parentId={parent.id} firstName={parent.first_name} />
+      ) : (
+        <Card id={TALK_LINK_SECTION_ID}>
+          <h2 className="text-lg font-semibold text-ink">{parent.first_name}&rsquo;s talk link</h2>
+          <p className="mt-2 text-base text-muted">
+            Finish setting up {parent.first_name}&rsquo;s profile first, then you can make their talk link here.
+          </p>
+          <Link href="/app/onboarding" className="btn-primary mt-4">
+            Finish setup
+          </Link>
+        </Card>
+      )}
       {parent.activated_at && <BillingSection parentId={parent.id} />}
     </div>
   );
@@ -132,13 +140,13 @@ function TalkToDearlySection({ parentId }: { parentId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-line bg-cloud p-6">
+    <Card>
       <h2 className="text-lg font-semibold text-ink">Talk to Dearly</h2>
-      {error && <p className="mt-2 text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} className="mt-2" />
       <button type="button" onClick={startTalking} disabled={busy} className="btn-primary mt-4 disabled:opacity-60">
         {busy ? 'One moment…' : 'Start talking'}
       </button>
-    </section>
+    </Card>
   );
 }
 
@@ -221,7 +229,7 @@ function BillingSection({ parentId }: { parentId: string }) {
   const wasBeta = subscription?.status === 'beta';
 
   return (
-    <section className="rounded-xl border border-line bg-cloud p-6">
+    <Card>
       <h2 className="text-lg font-semibold text-ink">Billing</h2>
       {isCurrent && subscription ? (
         <p className="mt-2 text-base text-muted">
@@ -243,13 +251,13 @@ function BillingSection({ parentId }: { parentId: string }) {
               'This parent doesn’t have an active trial or subscription yet, so talk access is paused.'
             )}
           </p>
-          {error && <p className="mt-2 text-base text-clay">{error}</p>}
+          <FormStatus kind="error" message={error} className="mt-2" />
           <button type="button" onClick={startTrial} disabled={busy} className="btn-primary mt-4 disabled:opacity-60">
             {busy ? 'Redirecting…' : 'Start 7-day free trial'}
           </button>
         </>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -261,7 +269,19 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
   const [voiceFirst, setVoiceFirst] = useState(parent.voice_first);
   const [speechRate, setSpeechRate] = useState<'slow' | 'normal'>(parent.speech_rate);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  const [touched, setTouched] = useState<Partial<Record<ProfileField, boolean>>>({});
+
+  const fieldErrors = validateProfile({ pronouns, city });
+  const dirty =
+    pronouns !== (parent.pronouns ?? '') ||
+    city !== (parent.city ?? '') ||
+    language !== parent.language ||
+    largeText !== parent.large_text ||
+    voiceFirst !== parent.voice_first ||
+    speechRate !== parent.speech_rate;
+  useUnsavedChangesWarning(dirty);
 
   // Include the parent's current language even if it's not in the preset list,
   // so saving never silently changes it.
@@ -269,8 +289,15 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
     ? LANGUAGES
     : [{ code: parent.language, label: parent.language }, ...LANGUAGES];
 
-  async function save() {
-    setStatus('');
+  async function save(e?: FormEvent) {
+    e?.preventDefault();
+    setSuccess('');
+    setError('');
+    setTouched({ pronouns: true, city: true });
+    if (Object.keys(fieldErrors).length > 0) {
+      setError('Please fix the highlighted fields.');
+      return;
+    }
     setBusy(true);
     try {
       const r = await api.patch<{ parent: Parent }>(`/api/parents/${parent.id}`, {
@@ -291,59 +318,73 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
       setLargeText(r.parent.large_text);
       setVoiceFirst(r.parent.voice_first);
       setSpeechRate(r.parent.speech_rate);
-      setStatus('Saved.');
+      setSuccess('Saved.');
     } catch (err) {
-      setStatus(err instanceof ApiError ? err.message : 'Could not save.');
+      setError(err instanceof ApiError ? err.message : 'Could not save.');
     } finally {
       setBusy(false);
     }
   }
 
+  function textField(field: ProfileField, label: string, value: string, set: (v: string) => void, placeholder: string) {
+    const id = `pp-${field}`;
+    const showError = touched[field] ? fieldErrors[field] : undefined;
+    return (
+      <div>
+        <label htmlFor={id} className={labelCls}>
+          {label}
+        </label>
+        <input
+          id={id}
+          value={value}
+          maxLength={PARENT_SHORT_FIELD_MAX}
+          onChange={(e) => {
+            set(e.target.value);
+            setSuccess('');
+          }}
+          onBlur={() => setTouched((t) => ({ ...t, [field]: true }))}
+          placeholder={placeholder}
+          aria-invalid={showError ? true : undefined}
+          aria-describedby={`${id}-help${showError ? ` ${id}-error` : ''}`}
+          className={fieldCls}
+        />
+        <p id={`${id}-help`} className={helpCls}>
+          Optional · {value.length}/{PARENT_SHORT_FIELD_MAX} characters
+        </p>
+        {showError && (
+          <p id={`${id}-error`} className={fieldErrorCls}>
+            {showError}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-line bg-cloud p-6">
+      <Card as="div">
         <h2 className="text-lg font-semibold text-ink">{parent.first_name}</h2>
         <p className="mt-1 text-base text-muted">
           {relationshipLabel(parent.relationship)}
           {parent.activated_at ? ' · active' : ' · not yet active'}
         </p>
-      </div>
+      </Card>
 
-      <section className="space-y-5 rounded-xl border border-line bg-cloud p-6">
-        <div>
-          <label htmlFor="pp-pronouns" className="block text-base font-semibold text-ink">
-            Pronouns
-          </label>
-          <input
-            id="pp-pronouns"
-            value={pronouns}
-            onChange={(e) => setPronouns(e.target.value)}
-            placeholder="she/her, he/him…"
-            className={fieldCls}
-          />
-        </div>
+      <Card as="form" onSubmit={save} noValidate aria-label="Profile settings" className="space-y-5">
+        {textField('pronouns', 'Pronouns', pronouns, setPronouns, 'she/her, he/him…')}
+        {textField('city', 'City', city, setCity, 'Where they live')}
 
         <div>
-          <label htmlFor="pp-city" className="block text-base font-semibold text-ink">
-            City
-          </label>
-          <input
-            id="pp-city"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="Where they live"
-            className={fieldCls}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="pp-language" className="block text-base font-semibold text-ink">
+          <label htmlFor="pp-language" className={labelCls}>
             Language
           </label>
           <select
             id="pp-language"
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            onChange={(e) => {
+              setLanguage(e.target.value);
+              setSuccess('');
+            }}
             className={fieldCls}
           >
             {languages.map((l) => (
@@ -355,13 +396,16 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
         </div>
 
         <div>
-          <label htmlFor="pp-speech" className="block text-base font-semibold text-ink">
+          <label htmlFor="pp-speech" className={labelCls}>
             Speech pace
           </label>
           <select
             id="pp-speech"
             value={speechRate}
-            onChange={(e) => setSpeechRate(e.target.value as 'slow' | 'normal')}
+            onChange={(e) => {
+              setSpeechRate(e.target.value as 'slow' | 'normal');
+              setSuccess('');
+            }}
             className={fieldCls}
           >
             <option value="slow">Slow &amp; clear</option>
@@ -369,33 +413,43 @@ function ProfileForm({ parent, onSaved }: { parent: Parent; onSaved: (p: Parent)
           </select>
         </div>
 
-        <label className="flex items-center gap-3 text-base text-ink">
+        <label className="flex min-h-[2.75rem] items-center gap-3 text-base text-ink">
           <input
             type="checkbox"
             checked={largeText}
-            onChange={(e) => setLargeText(e.target.checked)}
-            className="h-5 w-5 rounded border-line text-sage focus:ring-sage"
+            onChange={(e) => {
+              setLargeText(e.target.checked);
+              setSuccess('');
+            }}
+            className={checkCls}
           />
           Larger text on their screen
         </label>
 
-        <label className="flex items-center gap-3 text-base text-ink">
+        <label className="flex min-h-[2.75rem] items-center gap-3 text-base text-ink">
           <input
             type="checkbox"
             checked={voiceFirst}
-            onChange={(e) => setVoiceFirst(e.target.checked)}
-            className="h-5 w-5 rounded border-line text-sage focus:ring-sage"
+            onChange={(e) => {
+              setVoiceFirst(e.target.checked);
+              setSuccess('');
+            }}
+            className={checkCls}
           />
           Voice-first (speak rather than type)
         </label>
 
-        <div className="flex items-center gap-4 pt-2">
-          <button type="button" onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">
-            {busy ? 'Saving…' : 'Save changes'}
-          </button>
-          {status && <p className="text-sm text-muted">{status}</p>}
+        <div className="space-y-3 pt-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <button type="submit" disabled={busy} className="btn-primary disabled:opacity-60">
+              {busy ? 'Saving…' : 'Save changes'}
+            </button>
+            {dirty && !busy && <p className="text-base text-muted">You have unsaved changes.</p>}
+          </div>
+          <FormStatus kind="error" message={error} />
+          <FormStatus kind="success" message={success} />
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

@@ -39,7 +39,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* Skip link (chat 12): first focusable element, jumps past the header. */}
+        <a href="#main" className="skip-link">
+          Skip to main content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

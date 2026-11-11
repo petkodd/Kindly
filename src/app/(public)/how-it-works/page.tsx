@@ -2,11 +2,12 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/seo';
 import { HOW_IT_WORKS } from '@/lib/content';
-import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { CtaBand } from '@/components/CtaBand';
 
 export const metadata: Metadata = buildMetadata({
   title: 'How Dearly’s AI Companion for Seniors Works',
-  description: 'Set it up, your parent talks by voice, and your family gets a respectful weekly summary. Simple, voice-first, senior-friendly.',
+  description:
+    'You set it up, your parent simply talks by voice, and with their OK your family gets a short weekly summary. A voice-first AI companion for seniors.',
   path: '/how-it-works',
 });
 
@@ -30,7 +31,7 @@ export default function Page() {
   return (
     <>
       <section className="container-k py-20">
-        <p className="eyebrow">AI companion for seniors</p>
+        <p className="eyebrow">Three simple steps</p>
         <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
         <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
       </section>
@@ -81,30 +82,7 @@ export default function Page() {
         </Link>
       </section>
 
-      <section className="bg-sageDeep py-20 text-center text-cloud">
-        <div className="container-k">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">{cta.h2}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{cta.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <TrackedCtaLink
-              href={cta.primary.href}
-              ctaId="final_cta_primary"
-              slug="/how-it-works"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
-            >
-              {cta.primary.label}
-            </TrackedCtaLink>
-            <TrackedCtaLink
-              href={cta.secondary.href}
-              ctaId="final_cta_secondary"
-              slug="/how-it-works"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
-            >
-              {cta.secondary.label}
-            </TrackedCtaLink>
-          </div>
-        </div>
-      </section>
+      <CtaBand cta={cta} slug="/how-it-works" />
     </>
   );
 }

@@ -1,19 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
+import { FormStatus } from '@/components/FormStatus';
+import { inputOnPageCls, labelCls } from '@/lib/formStyles';
+import { EMAIL_RE } from '@/lib/validation';
 
 type Status = 'idle' | 'submitting' | 'done' | 'error';
 
-export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string }) {
+/**
+ * Email-only updates list (POST /api/waitlist). Chat 13: a real <form> with
+ * the same email check as the server (EMAIL_RE), and copy set by the caller
+ * — "Get updates" on /waitlist, "Email me new posts" on the blog. The
+ * consumer product is on sale, so this is never the primary buy CTA.
+ */
+export function WaitlistForm({
+  sourcePage = '/waitlist',
+  submitLabel = 'Get updates',
+  doneMessage = 'Thank you. You’re on the list, and we’ll be in touch.',
+}: {
+  sourcePage?: string;
+  submitLabel?: string;
+  doneMessage?: string;
+}) {
   const [email, setEmail] = useState('');
-  const [wantsDemo, setWantsDemo] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit() {
-    if (!email.includes('@')) {
+  async function handleSubmit(e?: FormEvent) {
+    e?.preventDefault();
+    const value = email.trim();
+    if (!EMAIL_RE.test(value) || value.length > 320) {
       setStatus('error');
-      setMessage('Please enter a valid email address.');
+      setMessage('Please enter a valid email address, like name@example.com.');
+      inputRef.current?.focus();
       return;
     }
     setStatus('submitting');
@@ -21,60 +41,50 @@ export function WaitlistForm({ sourcePage = '/waitlist' }: { sourcePage?: string
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, wants_demo: wantsDemo, source_page: sourcePage }),
+        body: JSON.stringify({ email: value, source_page: sourcePage }),
       });
-      if (!res.ok) throw new Error('Request failed');
+      if (res.status === 429) throw new Error('Too many requests. Please try again in a little while.');
+      if (res.status === 400) throw new Error('Please enter a valid email address, like name@example.com.');
+      if (!res.ok) throw new Error('Something went wrong. Please try again.');
       setStatus('done');
-      setMessage('You’re on the list. We’ll be in touch soon.');
-    } catch {
+      setMessage(doneMessage);
+    } catch (err) {
       setStatus('error');
-      setMessage('Something went wrong. Please try again.');
+      setMessage(err instanceof Error && err.message ? err.message : 'Something went wrong. Please try again.');
     }
   }
 
   if (status === 'done') {
-    return (
-      <div className="rounded-xl border border-line bg-cloud p-6 text-lg text-ink">{message}</div>
-    );
+    return <FormStatus kind="success" message={message} />;
   }
 
   return (
-    <div className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate aria-label={submitLabel} className="space-y-5">
       <div>
-        <label htmlFor="wl-email" className="block text-base font-semibold text-ink">
+        <label htmlFor="wl-email" className={labelCls}>
           Your email
         </label>
         <input
+          ref={inputRef}
           id="wl-email"
+          name="email"
           type="email"
+          required
+          maxLength={320}
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage"
+          aria-invalid={status === 'error' ? true : undefined}
+          aria-describedby={status === 'error' ? 'wl-error' : undefined}
+          className={`mt-2 ${inputOnPageCls}`}
           placeholder="you@example.com"
         />
       </div>
-      <label className="flex items-center gap-3 text-base text-ink">
-        <input
-          type="checkbox"
-          checked={wantsDemo}
-          onChange={(e) => setWantsDemo(e.target.checked)}
-          className="h-5 w-5 rounded border-line"
-        />
-        I’d also like a quick demo
-      </label>
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={status === 'submitting'}
-        className="btn-primary w-full disabled:opacity-60"
-      >
-        {status === 'submitting' ? 'Joining…' : 'Join the waitlist'}
+      <button type="submit" disabled={status === 'submitting'} className="btn-primary w-full disabled:opacity-60">
+        {status === 'submitting' ? 'Sending…' : submitLabel}
       </button>
-      {status === 'error' && <p className="text-base text-clay">{message}</p>}
-      <p className="text-sm text-muted">
-        We’ll only use your email to contact you about Dearly. No spam, ever.
-      </p>
-    </div>
+      <FormStatus kind="error" id="wl-error" message={status === 'error' ? message : ''} />
+      <p className="text-base text-muted">We’ll only use your email to contact you about Dearly. No spam, ever.</p>
+    </form>
   );
 }

@@ -14,7 +14,9 @@ const COLUMNS = [
     title: 'Trust',
     links: [
       { label: 'Trust & privacy', href: '/trust-and-privacy' },
-      { label: 'Waitlist', href: '/waitlist' },
+      { label: 'Privacy policy', href: '/privacy' },
+      { label: 'Terms of use', href: '/terms' },
+      { label: 'Get updates', href: '/waitlist' },
     ],
   },
   {

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { buildMetadata, organizationJsonLd } from '@/lib/seo';
+import { buildMetadata, homeJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { CtaBand } from '@/components/CtaBand';
 import { Testimonials } from '@/components/Testimonials';
+import { signupHref } from '@/lib/nextPath';
 import {
   HERO,
   PROBLEM,
@@ -16,7 +18,7 @@ import {
 export const metadata: Metadata = buildMetadata({
   title: 'Dearly — Warm AI Companion for Aging Parents',
   description:
-    'For the moments you can’t be there. Give your aging parent a warm AI companion to talk to, with a gentle weekly summary for family.',
+    'For the moments you can’t be there. Give your aging parent a warm AI companion to talk to, and get a short weekly summary once they agree.',
   path: '/',
 });
 
@@ -40,7 +42,7 @@ export default function HomePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd()) }}
       />
 
       {/* HERO — the thesis: warmth and presence, not a tech demo. */}
@@ -51,7 +53,7 @@ export default function HomePage() {
         />
         <div className="container-k relative grid items-center gap-12 py-20 md:grid-cols-[1.1fr_0.9fr] md:py-28">
           <div>
-            <p className="eyebrow">A gift for an aging parent</p>
+            <p className="eyebrow">An AI companion for aging parents</p>
             <h1 className="mt-4 font-display text-3xl font-semibold leading-tight text-ink md:text-4xl">
               {HERO.h1}
             </h1>
@@ -145,14 +147,14 @@ export default function HomePage() {
           <ol className="mt-10 grid gap-8 md:grid-cols-3">
             {STEPS.items.map((step, i) => (
               <li key={step.title} className="rounded-2xl border border-line bg-mist p-8">
-                <span className="font-display text-2xl text-clay">{i + 1}</span>
+                <span className="font-display text-2xl text-sageDeep">{i + 1}</span>
                 <h3 className="mt-3 text-xl font-semibold text-ink">{step.title}</h3>
                 <p className="mt-3 text-base text-muted">{step.body}</p>
               </li>
             ))}
           </ol>
           <div className="mt-10">
-            <TrackedCtaLink href="/app/onboarding" ctaId="steps_primary" slug="/" className="btn-primary">
+            <TrackedCtaLink href={signupHref()} ctaId="steps_primary" slug="/" className="btn-primary">
               Set up the gift
             </TrackedCtaLink>
           </div>
@@ -243,30 +245,7 @@ export default function HomePage() {
       </section>
 
       {/* FINAL CTA */}
-      <section className="bg-sageDeep py-20 text-center text-cloud">
-        <div className="container-k">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">{FINAL_CTA.h2}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{FINAL_CTA.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <TrackedCtaLink
-              href={FINAL_CTA.primary.href}
-              ctaId="final_cta_primary"
-              slug="/"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
-            >
-              {FINAL_CTA.primary.label}
-            </TrackedCtaLink>
-            <TrackedCtaLink
-              href={FINAL_CTA.secondary.href}
-              ctaId="final_cta_secondary"
-              slug="/"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
-            >
-              {FINAL_CTA.secondary.label}
-            </TrackedCtaLink>
-          </div>
-        </div>
-      </section>
+      <CtaBand cta={FINAL_CTA} slug="/" />
     </>
   );
 }

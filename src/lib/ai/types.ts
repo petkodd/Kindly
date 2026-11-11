@@ -68,6 +68,13 @@ export interface CompanionReplyInput {
    */
   alertContactFirstName?: string | null;
   /**
+   * First name of the family member who can see and change the memories (the
+   * buyer), so the companion can answer "who can see this?" honestly (D8).
+   */
+  memoryViewerFirstName?: string | null;
+  /** True when the parent set Dearly up for themselves (relationship 'self'). */
+  selfUse?: boolean;
+  /**
    * Hard-ban keys a previous draft of this reply violated. Set only on the one
    * regeneration runCompanionTurn does after a redaction.
    */

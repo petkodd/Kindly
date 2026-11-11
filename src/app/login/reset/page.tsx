@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Choose a new password — Dearly', r
 
 export default function ResetPasswordPage() {
   return (
-    <main className="min-h-screen bg-mist px-4 py-20">
+    <main id="main" tabIndex={-1} className="min-h-screen bg-mist px-4 py-20">
       <ResetPasswordForm />
     </main>
   );

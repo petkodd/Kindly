@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { AuthStatus } from '@/components/AuthStatus';
+import { MobileMenu } from '@/components/MobileMenu';
+import { signupHref } from '@/lib/nextPath';
 
 const NAV = [
   { label: 'How it works', href: '/how-it-works' },
@@ -11,8 +13,12 @@ const NAV = [
 ];
 
 export function SiteHeader() {
+  // z-40: backdrop-blur makes the header its own stacking context, so the
+  // mobile menu panel inside it (z-50) only counts within the header. Without
+  // a z-index on the header, later relative sections (the home hero) paint
+  // over the open menu (release check NEW-4).
   return (
-    <header className="border-b border-line bg-cloud/80 backdrop-blur">
+    <header className="relative z-40 border-b border-line bg-cloud/80 backdrop-blur">
       <div className="container-k flex items-center justify-between gap-2 py-4 sm:gap-4">
         <Link href="/" className="font-display text-xl font-semibold text-ink sm:text-2xl">
           Dearly
@@ -33,14 +39,17 @@ export function SiteHeader() {
         </nav>
         <div className="flex shrink-0 items-center gap-2 sm:gap-5">
           <AuthStatus />
+          {/* Below sm the CTA lives in the menu panel instead, so the header
+              row (logo, auth, menu button) fits a 320px screen. */}
           <TrackedCtaLink
-            href="/app/onboarding"
+            href={signupHref()}
             ctaId="header_primary"
             slug="header"
-            className="btn-primary !min-h-[2.75rem] !px-3 !text-sm sm:!px-5 sm:!text-base"
+            className="btn-primary !hidden !min-h-[2.75rem] !px-3 !text-sm sm:!inline-flex sm:!px-5 sm:!text-base"
           >
             Set up the gift
           </TrackedCtaLink>
+          <MobileMenu items={NAV} ctaHref={signupHref()} ctaLabel="Set up the gift" />
         </div>
       </div>
     </header>

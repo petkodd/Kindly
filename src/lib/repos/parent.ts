@@ -3,6 +3,7 @@ import {
   type Parent,
   type Relationship,
   PARENT_LANGUAGES,
+  PARENT_FIRST_NAME_MAX,
   PARENT_SHORT_FIELD_MAX,
   SPEECH_RATES,
   NotFoundError,
@@ -77,7 +78,7 @@ export const parentRepo = {
   async create(q: Querier, input: CreateParentInput): Promise<Parent> {
     const firstName = (input.firstName ?? '').trim();
     if (!firstName) throw new ValidationError('firstName is required');
-    if (firstName.length > 80) throw new ValidationError('firstName is too long');
+    if (firstName.length > PARENT_FIRST_NAME_MAX) throw new ValidationError('firstName is too long');
     const fields = validateParentFields(input);
     if (!RELATIONSHIPS.includes(input.relationship)) {
       throw new ValidationError('relationship is invalid');

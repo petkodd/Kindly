@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { expiredLinkMessage, familyLabel, mapTalkError } from '../src/lib/talk/errors';
+import { EMERGENCY_LINE, expiredLinkMessage, familyLabel, mapTalkError } from '../src/lib/talk/errors';
 
 const SARAH = { familyFirstName: 'Sarah', linkOwner: 'family' as const };
 
@@ -17,20 +17,24 @@ describe('mapTalkError', () => {
 
   it('401 names the family member, or "your family" when unknown, and offers no dead-end buttons', () => {
     expect(mapTalkError({ status: 401 }, SARAH)).toMatchObject({
-      message: 'Please ask Sarah to send you a new link.',
+      message: `Please ask Sarah to send you a new link. ${EMERGENCY_LINE}`,
       canRetry: false,
       canType: false,
     });
-    expect(mapTalkError({ status: 401 }).message).toBe('Please ask your family to send you a new link.');
+    expect(mapTalkError({ status: 401 }).message).toBe(`Please ask your family to send you a new link. ${EMERGENCY_LINE}`);
   });
 
   it('self-use profiles are never told to ask their family', () => {
-    expect(mapTalkError({ status: 401 }, { linkOwner: 'self' }).message).toBe('Please open Dearly again from your account.');
+    expect(mapTalkError({ status: 401 }, { linkOwner: 'self' }).message).toBe(
+      `Please open Dearly again from your account. ${EMERGENCY_LINE}`,
+    );
     expect(mapTalkError({ status: 403 }, { linkOwner: 'self' }).message).not.toMatch(/ask/i);
   });
 
   it('403, 429, 413, mic, offline and anything else all get a plain next step', () => {
-    expect(mapTalkError({ status: 403 }, SARAH).message).toBe('I can’t chat just now. Please ask Sarah to check the account.');
+    expect(mapTalkError({ status: 403 }, SARAH).message).toBe(
+      `I can’t chat just now. Please ask Sarah to check the account. ${EMERGENCY_LINE}`,
+    );
     expect(mapTalkError({ status: 429 })).toMatchObject({ kind: 'too_many', canRetry: true, canType: false });
     expect(mapTalkError({ status: 413 })).toMatchObject({ kind: 'too_long', canType: true });
     expect(mapTalkError({ micDenied: true })).toMatchObject({ kind: 'mic_blocked', canType: true });
@@ -45,9 +49,37 @@ describe('mapTalkError', () => {
       { status: 500 }, { micDenied: true }, { network: true },
     ];
     for (const f of failures) {
-      const { message } = mapTalkError(f, SARAH);
+      // The emergency line (911/988) is checked separately below.
+      const message = mapTalkError(f, SARAH).message.replace(EMERGENCY_LINE, '').trim();
       expect(message.split(/\s+/).length).toBeLessThanOrEqual(20);
       expect(message).not.toMatch(/transcri|token|error|server|http|\d{3}|request|api/i);
+    }
+  });
+});
+
+describe('mapTalkError: emergency numbers on refusals (release check NEW-2)', () => {
+  it('every non-retryable message, and the 429 and 413 messages, end with 911/988', () => {
+    const refusals = [
+      { status: 401 }, { status: 402 }, { status: 403 }, { status: 429 }, { status: 413 },
+      { status: 429, code: 'voice_limit' }, { status: 409, code: 'conversation_full' },
+    ];
+    for (const f of refusals) {
+      for (const ctx of [SARAH, { linkOwner: 'self' as const }]) {
+        expect(mapTalkError(f, ctx).message.endsWith(EMERGENCY_LINE)).toBe(true);
+      }
+    }
+    expect(EMERGENCY_LINE).toBe('If this is an emergency, call 911, or call or text 988.');
+  });
+
+  it('every message without a retry includes the emergency line', () => {
+    const all = [
+      { status: 422 }, { status: 401 }, { status: 402 }, { status: 403 }, { status: 429 }, { status: 413 },
+      { status: 429, code: 'voice_limit' }, { status: 409, code: 'conversation_full' },
+      { status: 500 }, { micDenied: true }, { network: true },
+    ];
+    for (const f of all) {
+      const p = mapTalkError(f, SARAH);
+      if (!p.canRetry) expect(p.message).toContain(EMERGENCY_LINE);
     }
   });
 });

@@ -1,26 +1,21 @@
 import type { Config } from 'tailwindcss';
+import { colors } from './src/design/tokens.mjs';
 
 const config: Config = {
   content: ['./src/**/*.{ts,tsx,mdx}'],
   theme: {
     extend: {
-      colors: {
-        // Kindly palette — calm, warm, trustworthy. Not the AI-default cream/terracotta.
-        ink: '#23302E',      // deep evergreen ink (text)
-        sage: '#5B7F73',     // primary sage
-        sageDeep: '#3F5C52', // hover / accents
-        clay: '#C98A6B',     // warm clay accent (used sparingly)
-        mist: '#F3F1EA',     // soft off-white background
-        cloud: '#FBFAF6',    // card / surface
-        line: '#DED9CC',     // hairline borders
-        muted: '#6B7771',    // secondary text
-      },
+      // Single-sourced in src/design/tokens.mjs (also feeds the contrast table).
+      colors,
       fontFamily: {
         sans: ['var(--font-body)', 'system-ui', 'sans-serif'],
         display: ['var(--font-display)', 'Georgia', 'serif'],
       },
       fontSize: {
-        // Senior-friendly scale: larger base, generous line height.
+        // Senior-friendly scale: larger base, generous line height. xs/sm are
+        // floored at 16/17px; app screens use text-base or larger (chat 12).
+        xs: ['1rem', { lineHeight: '1.5rem' }],
+        sm: ['1.0625rem', { lineHeight: '1.625rem' }],
         base: ['1.1875rem', { lineHeight: '1.75rem' }],
         lg: ['1.375rem', { lineHeight: '2rem' }],
         xl: ['1.75rem', { lineHeight: '2.25rem' }],

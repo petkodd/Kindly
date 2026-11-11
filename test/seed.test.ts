@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { makeTestDb } from './db';
 import type { Querier } from '../src/lib/querier';
 import {
@@ -84,7 +84,15 @@ describe('seedDemo', () => {
     (await q.query<{ n: number }>(sql, params)).rows[0].n;
 
   beforeEach(() => {
+    // The seed writes a 14-day beta starting at NOW, and repos such as
+    // conversationRepo.openSession check billing against the clock. Pin the
+    // clock to NOW so this test does not depend on the real date (NEW-1).
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
     q = makeTestDb();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('creates the full demo dataset', async () => {
@@ -165,7 +173,7 @@ describe('seedDemo', () => {
     expect(await count(`SELECT COUNT(*)::int AS n FROM usage_costs WHERE provider <> 'anthropic_llm'`)).toBe(17);
     expect(await count(`SELECT COUNT(*)::int AS n FROM weekly_summaries`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM safety_flags`)).toBe(1);
-    expect(await count(`SELECT COUNT(*)::int AS n FROM consents`)).toBe(3);
+    expect(await count(`SELECT COUNT(*)::int AS n FROM consents`)).toBe(4);
     expect(await count(`SELECT COUNT(*)::int AS n FROM subscriptions`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM beta_invites`)).toBe(1);
     expect(await count(`SELECT COUNT(*)::int AS n FROM parent_access_tokens`)).toBe(1);

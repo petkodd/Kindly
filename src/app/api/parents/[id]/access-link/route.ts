@@ -8,6 +8,25 @@ import { accessTokenRepo } from '@/lib/repos/accessToken';
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
+ * Status of the parent's talk link for the buyer's "Parent's talk link"
+ * section: whether one is active, and when it was made / expires. The raw
+ * token is never retrievable after issue — to show a link again, issue a new one.
+ */
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params;
+  const buyerId = await resolveBuyer(req);
+  if (!buyerId) return NextResponse.json({ error: { code: 'unauthorized', message: 'Sign in required.' } }, { status: 401 });
+  try {
+    const pool = db();
+    await parentRepo.getOwned(pool, params.id, buyerId); // isolation
+    return NextResponse.json(await accessTokenRepo.activeStatus(pool, params.id));
+  } catch (err) {
+    const { status, body } = errorToResponse(err);
+    return NextResponse.json(body, { status });
+  }
+}
+
+/**
  * Issue a passwordless talk link for the parent. Returns the raw token ONCE.
  * By default this revokes any prior active link (accessTokenRepo.issue's
  * single-active-link rule — a leaked gift link should invalidate old ones).

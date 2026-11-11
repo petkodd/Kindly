@@ -6,8 +6,29 @@ import { consentRepo } from '@/lib/repos/consent';
 import { ValidationError } from '@/lib/types';
 
 /**
- * Accept a summary-recipient invite (public — the sibling clicks an emailed
- * link). Activates the pending consent so the recipient can receive summaries.
+ * Preview an invite (public, read-only): who invited them and whose weekly
+ * summary it is, so the page can ask before accepting. GET never changes
+ * anything, so an email security scanner that fetches the link can't accept
+ * on the recipient's behalf.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const pool = db();
+    await rateLimitRepo.enforce(pool, `invitepreview:ip:${clientIp(req)}`, { limit: 30, windowMs: 15 * 60 * 1000 });
+    const token = req.nextUrl.searchParams.get('token') ?? '';
+    if (!token) throw new ValidationError('token is required');
+    const invite = await consentRepo.previewRecipientInvite(pool, token);
+    return NextResponse.json({ invite }, { headers: { 'cache-control': 'no-store' } });
+  } catch (err) {
+    const { status, body } = errorToResponse(err);
+    return NextResponse.json(body, { status });
+  }
+}
+
+/**
+ * Accept a summary-recipient invite (public — the sibling clicks "Yes, send
+ * me weekly summaries" on the invite page; never on page load). Activates the
+ * pending consent so the recipient can receive summaries.
  */
 export async function POST(req: NextRequest) {
   const blocked = rejectCrossOrigin(req);

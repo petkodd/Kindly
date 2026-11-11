@@ -1,39 +1,80 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { inputOnPageCls, labelCls } from '@/lib/formStyles';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError, resolvePostLoginPath } from '@/lib/apiClient';
+import { safeNextPath, withNext } from '@/lib/nextPath';
+import { normalizeReferralCode, readReferralCookie } from '@/lib/referralCode';
+import { FormStatus } from '@/components/FormStatus';
 
 type Mode = 'login' | 'signup';
 
-export function AuthForm({ mode }: { mode: Mode }) {
+/**
+ * `next` comes from the page's ?next= (set by the middleware or a gift CTA).
+ * It is re-validated here and on the server, and carried through signup's
+ * confirmation link so the buyer lands where they were going.
+ */
+export function AuthForm({
+  mode,
+  next: rawNext,
+  referralCode: initialReferralCode,
+}: {
+  mode: Mode;
+  next?: string | null;
+  /** Signup only: a ?ref= code from the page URL (chat 11); falls back to the ref cookie. */
+  referralCode?: string | null;
+}) {
   const router = useRouter();
+  const next = safeNextPath(rawNext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Which field the current error is about (client-side checks), so it can be
+  // marked aria-invalid and linked with aria-describedby.
+  const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [magicSent, setMagicSent] = useState(false);
   // Signup never signs in directly (no account enumeration): it ends here, and
   // the emailed link confirms the address and signs the new account in.
   const [checkEmail, setCheckEmail] = useState(false);
+  const [referralCode, setReferralCode] = useState(normalizeReferralCode(initialReferralCode) ?? '');
+  useEffect(() => {
+    if (mode !== 'signup') return;
+    const fromCookie = readReferralCookie(document.cookie);
+    if (fromCookie) setReferralCode((c) => c || fromCookie);
+  }, [mode]);
 
   const isSignup = mode === 'signup';
 
-  async function submit() {
+  function fail(field: 'email' | 'password' | null, message: string) {
+    setErrorField(field);
+    setError(message);
+  }
+
+  async function submit(e?: FormEvent) {
+    e?.preventDefault();
     setError('');
-    if (!email.includes('@')) return setError('Please enter a valid email address.');
-    if (password.length < 8) return setError('Password must be at least 8 characters.');
+    setErrorField(null);
+    if (!email.includes('@')) return fail('email', 'Please enter a valid email address.');
+    if (password.length < 8) return fail('password', 'Password must be at least 8 characters.');
     setBusy(true);
     try {
       if (isSignup) {
-        await api.post('/api/auth/signup', { email, password });
+        const code = referralCode.trim();
+        await api.post('/api/auth/signup', {
+          email,
+          password,
+          ...(next ? { next } : {}),
+          ...(code ? { referral_code: code } : {}),
+        });
         setCheckEmail(true);
         setBusy(false);
         return;
       }
       await api.post('/api/auth/login', { email, password });
-      router.push(await resolvePostLoginPath());
+      router.push(next ?? (await resolvePostLoginPath()));
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -43,7 +84,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   async function sendMagicLink() {
     setError('');
-    if (!email.includes('@')) return setError('Please enter a valid email address.');
+    setErrorField(null);
+    if (!email.includes('@')) return fail('email', 'Please enter a valid email address.');
     setBusy(true);
     try {
       await api.post('/api/auth/magic', { email });
@@ -74,32 +116,51 @@ export function AuthForm({ mode }: { mode: Mode }) {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-5">
+    <form onSubmit={submit} noValidate className="mx-auto max-w-sm space-y-5">
       <h1 className="font-display text-3xl font-semibold text-ink">
         {isSignup ? 'Create your account' : 'Welcome back'}
       </h1>
       <div>
-        <label htmlFor="email" className="block text-base font-semibold text-ink">Email</label>
+        <label htmlFor="email" className={labelCls}>Email</label>
         <input
           id="email" type="email" autoComplete="email" value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage"
+          aria-invalid={errorField === 'email' ? true : undefined}
+          aria-describedby={errorField === 'email' ? 'auth-error' : undefined}
+          className={`mt-2 ${inputOnPageCls}`}
           placeholder="you@example.com"
         />
       </div>
       <div>
-        <label htmlFor="password" className="block text-base font-semibold text-ink">Password</label>
+        <label htmlFor="password" className={labelCls}>Password</label>
         <input
           id="password" type="password"
           autoComplete={isSignup ? 'new-password' : 'current-password'}
           value={password} onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          className="mt-2 w-full rounded-xl border border-line bg-cloud px-4 py-3 text-lg text-ink focus:border-sage"
+          aria-invalid={errorField === 'password' ? true : undefined}
+          aria-describedby={errorField === 'password' ? 'auth-error' : undefined}
+          className={`mt-2 ${inputOnPageCls}`}
           placeholder="At least 8 characters"
         />
       </div>
-      {error && <p className="text-base text-clay">{error}</p>}
-      <button type="button" onClick={submit} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      {isSignup && (
+        <div>
+          <label htmlFor="referral-code" className={labelCls}>
+            Referral code <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <input
+            id="referral-code" type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false}
+            value={referralCode} onChange={(e) => setReferralCode(e.target.value)}
+            aria-describedby="referral-code-help"
+            className={`mt-2 uppercase tracking-widest ${inputOnPageCls}`}
+          />
+          <p id="referral-code-help" className="mt-1 text-base text-muted">
+            From a friend who uses Dearly? You’ll each get a free month after your first payment.
+          </p>
+        </div>
+      )}
+      <FormStatus kind="error" message={error} id="auth-error" />
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}
       </button>
       {!isSignup && (
@@ -111,25 +172,25 @@ export function AuthForm({ mode }: { mode: Mode }) {
       )}
       {!isSignup && (
         magicSent ? (
-          <p className="text-sm text-muted">Check your email for a sign-in link. It expires in 15 minutes.</p>
+          <p className="text-base text-muted">Check your email for a sign-in link. It expires in 15 minutes.</p>
         ) : (
           <button
             type="button"
             onClick={sendMagicLink}
             disabled={busy}
-            className="w-full text-sm text-sage underline disabled:opacity-60"
+            className="min-h-[2.75rem] w-full text-base font-semibold text-sageDeep underline disabled:opacity-60"
           >
             Email me a sign-in link instead
           </button>
         )
       )}
-      <p className="text-sm text-muted">
+      <p className="text-base text-muted">
         {isSignup ? (
-          <>Already have an account? <Link href="/login" className="text-sage underline">Sign in</Link></>
+          <>Already have an account? <Link href={withNext('/login', next)} className="text-sageDeep underline">Sign in</Link></>
         ) : (
-          <>New to Dearly? <Link href="/signup" className="text-sage underline">Create an account</Link></>
+          <>New to Dearly? <Link href={withNext('/signup', next)} className="text-sageDeep underline">Create an account</Link></>
         )}
       </p>
-    </div>
+    </form>
   );
 }

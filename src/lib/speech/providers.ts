@@ -3,9 +3,14 @@ import { SpeechError, TTS_SPEED, type SpeechClient, type SttOptions, type SttRes
 /** Deepgram language codes look like 'en', 'en-US', 'es-419'. Anything else falls back to detection. */
 const LANGUAGE_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,4})?$/;
 
-/** Deepgram /listen URL: the profile's language when valid, otherwise language detection. */
+/**
+ * Deepgram /listen URL: the profile's language when valid, otherwise language
+ * detection. `mip_opt_out=true` opts every request out of Deepgram's Model
+ * Improvement Program, so parents' audio is never kept to train Deepgram's
+ * models (see docs/voice-selection.md, "Vendor data handling").
+ */
 export function deepgramListenUrl(language?: string | null): string {
-  const base = 'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true';
+  const base = 'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&mip_opt_out=true';
   const lang = language?.trim();
   return lang && LANGUAGE_RE.test(lang) ? `${base}&language=${encodeURIComponent(lang)}` : `${base}&detect_language=true`;
 }

@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { buildMetadata } from '@/lib/seo';
 import { GIFT_FOR_AGING_PARENT } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { CtaBand } from '@/components/CtaBand';
 
 export const metadata: Metadata = buildMetadata({
   title: 'A Meaningful Gift for an Aging Parent | Dearly',
@@ -32,7 +33,7 @@ export default function Page() {
       <section className="container-k py-20">
         <div className="grid items-center gap-12 md:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <p className="eyebrow">gift for elderly parent</p>
+            <p className="eyebrow">The gift of company</p>
             <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
             <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
           </div>
@@ -114,30 +115,7 @@ export default function Page() {
         </TrackedCtaLink>
       </section>
 
-      <section className="bg-sageDeep py-20 text-center text-cloud">
-        <div className="container-k">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">{cta.h2}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-cloud/85">{cta.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <TrackedCtaLink
-              href={cta.primary.href}
-              ctaId="final_cta_primary"
-              slug="/gift-for-aging-parent"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl bg-cloud px-8 text-lg font-semibold text-sageDeep hover:bg-mist"
-            >
-              {cta.primary.label}
-            </TrackedCtaLink>
-            <TrackedCtaLink
-              href={cta.secondary.href}
-              ctaId="final_cta_secondary"
-              slug="/gift-for-aging-parent"
-              className="inline-flex min-h-[3.5rem] items-center justify-center rounded-xl border-2 border-cloud px-8 text-lg font-semibold text-cloud hover:bg-cloud hover:text-sageDeep"
-            >
-              {cta.secondary.label}
-            </TrackedCtaLink>
-          </div>
-        </div>
-      </section>
+      <CtaBand cta={cta} slug="/gift-for-aging-parent" />
     </>
   );
 }

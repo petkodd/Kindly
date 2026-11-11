@@ -2,21 +2,44 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, ApiError, grantSelfTalkAccess, takeCachedParentsForOnboarding } from '@/lib/apiClient';
-import { inputOnPageCls } from '@/lib/formStyles';
+import { api, ApiError, grantSelfTalkAccess, signOutAndRedirect, takeCachedParentsForOnboarding } from '@/lib/apiClient';
+import { AlertContactForm, type AlertContact } from '@/components/AlertContactForm';
+import { checkCls, inputOnPageCls, labelCls } from '@/lib/formStyles';
+import { MEMORY_VALUE_MAX, PARENT_FIRST_NAME_MAX, PARENT_SHORT_FIELD_MAX, type Parent } from '@/lib/types';
 import { getFamilyPlan } from '@/lib/content';
 import { computeAnnualSavingsPercent, formatUsdCents, perMonthEquivalentCents } from '@/lib/pricing';
 import { BillingIntervalToggle } from '@/components/BillingIntervalToggle';
 import type { BillingInterval } from '@/lib/billing';
+import { ReferralCodeField } from '@/components/ReferralCodeField';
+import { FormStatus } from '@/components/FormStatus';
 
-interface Parent {
-  id: string;
-  first_name: string;
-  activated_at?: string | null;
-  relationship?: string;
-}
 
 const RELATIONSHIPS = ['mother', 'father', 'grandparent', 'aunt', 'uncle', 'other'] as const;
+const RELATIONSHIP_LABELS: Record<(typeof RELATIONSHIPS)[number], string> = {
+  mother: 'Mother',
+  father: 'Father',
+  grandparent: 'Grandparent',
+  aunt: 'Aunt',
+  uncle: 'Uncle',
+  other: 'Other family member',
+};
+
+/**
+ * A 401 anywhere in the wizard means the session is gone (expired, revoked
+ * elsewhere). The middleware already sends signed-out visitors to signup, so
+ * this only catches a stale cookie: clear it and go to sign-up with
+ * next=/app/onboarding (router.replace, so Back doesn't return to a dead page).
+ */
+function useUnauthorizedRedirect(): (err: unknown) => boolean {
+  const router = useRouter();
+  return (err: unknown) => {
+    if (err instanceof ApiError && err.status === 401) {
+      void signOutAndRedirect(router, '/signup');
+      return true;
+    }
+    return false;
+  };
+}
 
 // Onboarding fields sit on the bare page (no card), and labels sit above them.
 const fieldCls = `mt-2 ${inputOnPageCls}`;
@@ -42,6 +65,7 @@ function OnboardingWizard() {
   const intervalParam = searchParams.get('interval');
   const initialInterval: BillingInterval = intervalParam === 'month' ? 'month' : 'year';
   const router = useRouter();
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
   // Founding Family Beta invite token, captured once from the URL and held
   // only in memory (never localStorage/cookies) — see BillingStep. Stripped
   // from the visible URL right after capture (below) so it doesn't linger in
@@ -107,6 +131,7 @@ function OnboardingWizard() {
         // Don't silently fall through to step 1 — the user may have just paid
         // via Stripe; losing that context with no explanation is the bug being
         // fixed here. Offer a retry instead of restarting the whole wizard.
+        if (active && redirectIfUnauthorized(err)) return;
         if (active) {
           setReturnError(err instanceof ApiError ? err.message : 'Could not load your progress. Please try again.');
         }
@@ -117,6 +142,8 @@ function OnboardingWizard() {
     return () => {
       active = false;
     };
+    // redirectIfUnauthorized is a fresh closure each render; it only wraps the stable router.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returningParentId, retryCount]);
 
   useEffect(() => {
@@ -167,8 +194,14 @@ function OnboardingWizard() {
             setStep(3);
           }
         }
-      } catch {
-        /* non-fatal — worst case the buyer starts a fresh parent */
+      } catch (err) {
+        // A 401 used to be swallowed here, so a signed-out visitor walked the
+        // whole wizard and dead-ended on "Sign in required." (chat 10).
+        if (active && redirectIfUnauthorized(err)) {
+          redirecting = true;
+          return;
+        }
+        /* anything else is non-fatal — worst case the buyer starts a fresh parent */
       } finally {
         if (active && !redirecting) setCheckingResume(false);
       }
@@ -224,13 +257,14 @@ function OnboardingWizard() {
     }
   }
 
-  // The self path skips ConsentStep (step 3), so steps 0-5 compress to 5
-  // displayed steps instead of 6 — every step before the skipped one still
-  // gets the same +1 (0-indexed -> 1-indexed); only steps after it stop
-  // getting that offset once it's no longer in the sequence.
-  const skipsConsentStep = isSelf || forSelf;
-  const totalSteps = skipsConsentStep ? 5 : 6;
-  const displayStep = step + (skipsConsentStep && step > 2 ? 0 : 1);
+  // Steps: 0 who · 1 profile · 2 memories · 3 consent · 4 billing ·
+  // 5 emergency alerts · 6 done. The self path skips ConsentStep (3) and the
+  // alerts step (5) — the buyer IS the person talking, so there's nobody to
+  // alert — leaving 5 displayed steps instead of 7. Each skipped step removes
+  // one from the displayed number of every step after it.
+  const isSelfFlow = isSelf || forSelf;
+  const totalSteps = isSelfFlow ? 5 : 7;
+  const displayStep = step + 1 - (isSelfFlow ? (step > 3 ? 1 : 0) + (step > 5 ? 1 : 0) : 0);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -252,10 +286,11 @@ function OnboardingWizard() {
           billingResult={billingResult}
           initialInterval={initialInterval}
           inviteToken={inviteToken}
-          onDone={() => setStep(5)}
+          onDone={() => setStep(isSelf ? 6 : 5)}
         />
       )}
-      {step === 5 && parent && (
+      {step === 5 && parent && !isSelf && <AlertsStep parent={parent} onDone={() => setStep(6)} />}
+      {step === 6 && parent && (
         <DoneStep forSelf={isSelf} parent={parent} talkToken={talkToken} setTalkToken={setTalkToken} />
       )}
     </div>
@@ -288,6 +323,7 @@ function ProfileStep({
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
 
   // The account-name fetch (OnboardingWizard) can resolve after this step has
   // already mounted with an empty field — useState's initial value only seeds
@@ -313,49 +349,60 @@ function ProfileStep({
       });
       onDone(parent);
     } catch (err) {
+      if (redirectIfUnauthorized(err)) return;
       setError(err instanceof ApiError ? err.message : 'Could not save.');
       setBusy(false);
     }
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void next();
+      }}
+      noValidate
+      className="mt-6 space-y-5"
+    >
       <h1 className="font-display text-3xl font-semibold text-ink">
         {forSelf ? 'A little about you' : 'A little about them'}
       </h1>
       <div>
-        <label htmlFor="ob-name" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-name" className={labelCls}>
           {forSelf ? 'Your first name' : 'Their first name'}
         </label>
         <input
           id="ob-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+          maxLength={PARENT_FIRST_NAME_MAX} autoComplete="off"
+          aria-invalid={error && !firstName.trim() ? true : undefined}
+          aria-describedby={error && !firstName.trim() ? 'ob-profile-error' : undefined}
           className={fieldCls} placeholder={forSelf ? 'e.g. Maria' : 'e.g. Robert'}
         />
       </div>
       {!forSelf && (
         <div>
-          <label htmlFor="ob-rel" className="block text-base font-semibold text-ink">Your relationship</label>
+          <label htmlFor="ob-rel" className={labelCls}>They are your…</label>
           <select id="ob-rel" value={relationship} onChange={(e) => setRelationship(e.target.value as typeof relationship)} className={fieldCls}>
-            {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r}</option>)}
+            {RELATIONSHIPS.map((r) => <option key={r} value={r}>{RELATIONSHIP_LABELS[r]}</option>)}
           </select>
         </div>
       )}
       <div>
-        <label htmlFor="ob-pron" className="block text-base font-semibold text-ink">Pronouns (optional)</label>
-        <input id="ob-pron" value={pronouns} onChange={(e) => setPronouns(e.target.value)} className={fieldCls} placeholder="she/her, he/him…" />
+        <label htmlFor="ob-pron" className={labelCls}>Pronouns (optional)</label>
+        <input id="ob-pron" value={pronouns} maxLength={PARENT_SHORT_FIELD_MAX} onChange={(e) => setPronouns(e.target.value)} className={fieldCls} placeholder="she/her, he/him…" />
       </div>
       <div>
-        <label htmlFor="ob-city" className="block text-base font-semibold text-ink">City (optional)</label>
+        <label htmlFor="ob-city" className={labelCls}>City (optional)</label>
         <input
-          id="ob-city" value={city} onChange={(e) => setCity(e.target.value)}
+          id="ob-city" value={city} maxLength={PARENT_SHORT_FIELD_MAX} onChange={(e) => setCity(e.target.value)}
           className={fieldCls} placeholder={forSelf ? 'Where you live' : 'Where they live'}
         />
       </div>
-      {error && <p className="text-base text-clay">{error}</p>}
-      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      <FormStatus kind="error" id="ob-profile-error" message={error} />
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -365,6 +412,7 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
   const [enjoys, setEnjoys] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
 
   async function next() {
     setError('');
@@ -384,40 +432,57 @@ function MemoriesStep({ forSelf, parent, onDone }: { forSelf: boolean; parent: P
       // silently swallowed and leaving a paid-but-never-activatable profile.
       await onDone();
     } catch (err) {
+      if (redirectIfUnauthorized(err)) return;
       setError(err instanceof ApiError ? err.message : 'Could not save.');
       setBusy(false);
     }
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void next();
+      }}
+      noValidate
+      className="mt-6 space-y-5"
+    >
       <h1 className="font-display text-3xl font-semibold text-ink">
         {forSelf ? 'A few things about you' : `A few things about ${parent.first_name}`}
       </h1>
       <p className="text-base text-muted">These help Dearly hold a warmer conversation. All optional — you can add more later.</p>
+      <div className="rounded-xl border border-line bg-cloud p-4 text-base text-ink" role="note">
+        <p className="font-semibold">How we keep these</p>
+        <p className="mt-1 text-muted">
+          {forSelf
+            ? 'What you write here is stored privately in your Dearly profile and used only to make your conversations more personal. You can see, change or delete it any time on the Memories page.'
+            : `What you write here is stored privately in ${parent.first_name}’s Dearly profile and used only to make their conversations more personal. Dearly tells ${parent.first_name} that family can see what it remembers. You can see, change or delete these any time on the Memories page.`}{' '}
+          Please don’t add medical details, passwords or account numbers.
+        </p>
+      </div>
       <div>
-        <label htmlFor="ob-person" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-person" className={labelCls}>
           {forSelf ? 'Someone who matters to you' : 'Someone who matters to them'}
         </label>
-        <input id="ob-person" value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder={forSelf ? 'e.g. your spouse, Margaret' : 'e.g. their late wife, Margaret'} />
+        <input id="ob-person" maxLength={MEMORY_VALUE_MAX} value={person} onChange={(e) => setPerson(e.target.value)} className={fieldCls} placeholder={forSelf ? 'e.g. your spouse, Margaret' : 'e.g. their late wife, Margaret'} />
       </div>
       <div>
-        <label htmlFor="ob-home" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-home" className={labelCls}>
           {forSelf ? 'Where you’re from' : 'Where they’re from'}
         </label>
-        <input id="ob-home" value={hometown} onChange={(e) => setHometown(e.target.value)} className={fieldCls} placeholder="e.g. Detroit" />
+        <input id="ob-home" maxLength={MEMORY_VALUE_MAX} value={hometown} onChange={(e) => setHometown(e.target.value)} className={fieldCls} placeholder="e.g. Detroit" />
       </div>
       <div>
-        <label htmlFor="ob-enjoys" className="block text-base font-semibold text-ink">
+        <label htmlFor="ob-enjoys" className={labelCls}>
           {forSelf ? 'Something you love' : 'Something they love'}
         </label>
-        <input id="ob-enjoys" value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
+        <input id="ob-enjoys" maxLength={MEMORY_VALUE_MAX} value={enjoys} onChange={(e) => setEnjoys(e.target.value)} className={fieldCls} placeholder="e.g. jazz, gardening" />
       </div>
-      {error && <p className="text-base text-clay">{error}</p>}
-      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      <FormStatus kind="error" message={error} />
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -425,6 +490,7 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
 
   async function next() {
     setError('');
@@ -434,26 +500,34 @@ function ConsentStep({ parent, onDone }: { parent: Parent; onDone: () => void })
       await api.post(`/api/parents/${parent.id}/consent`, { kind: 'buyer_attestation' });
       onDone();
     } catch (err) {
+      if (redirectIfUnauthorized(err)) return;
       setError(err instanceof ApiError ? err.message : 'Could not save.');
       setBusy(false);
     }
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void next();
+      }}
+      noValidate
+      className="mt-6 space-y-5"
+    >
       <h1 className="font-display text-3xl font-semibold text-ink">One important step</h1>
       <p className="text-lg text-muted">
         Dearly is only for people who want it. Please confirm {parent.first_name} is happy to talk with an AI companion.
       </p>
       <label className="flex items-start gap-3 rounded-xl border border-line bg-cloud p-4 text-base text-ink">
-        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-5 w-5 rounded border-line" />
+        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className={`mt-1 ${checkCls}`} />
         I confirm I have {parent.first_name}’s permission to set up Dearly for them.
       </label>
-      {error && <p className="text-base text-clay">{error}</p>}
-      <button type="button" onClick={next} disabled={busy} className="btn-primary w-full disabled:opacity-60">
+      <FormStatus kind="error" message={error} />
+      <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Saving…' : 'Continue'}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -465,6 +539,7 @@ function BillingStep({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
   const [confirming, setConfirming] = useState(billingResult === 'success');
   // Not named `interval`/`setInterval` — that shadows the window.setInterval global.
   const [billingInterval, setBillingInterval] = useState<BillingInterval>(initialInterval);
@@ -537,6 +612,7 @@ function BillingStep({
       }
       window.location.href = url as string;
     } catch (err) {
+      if (redirectIfUnauthorized(err)) return;
       setError(err instanceof ApiError ? err.message : 'Could not start your trial.');
       setBusy(false);
     }
@@ -582,10 +658,11 @@ function BillingStep({
           </>
         )}
       </p>
+      <ReferralCodeField />
       {billingResult === 'cancel' && (
-        <p className="text-base text-clay">Checkout was canceled — no charge was made. You can try again below.</p>
+        <p className="text-base text-error">Checkout was canceled — no charge was made. You can try again below.</p>
       )}
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={startTrial} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Redirecting…' : 'Start 7-day free trial'}
       </button>
@@ -605,6 +682,7 @@ function FoundingBetaBillingStep({
 }: { parent: Parent; inviteToken: string; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
 
   async function activate() {
     if (busy) return; // extra guard alongside the button's own disabled state
@@ -618,6 +696,7 @@ function FoundingBetaBillingStep({
       await api.post(`/api/parents/${parent.id}/activate`);
       onDone();
     } catch (err) {
+      if (redirectIfUnauthorized(err)) return;
       setError(err instanceof ApiError ? err.message : 'Could not activate your beta access. Please try again.');
       setBusy(false);
     }
@@ -631,11 +710,82 @@ function FoundingBetaBillingStep({
         Try Dearly free for 14 days. No card required. Your family will receive personal
         onboarding and direct support while helping us improve the experience.
       </p>
-      {error && <p className="text-base text-clay">{error}</p>}
+      <FormStatus kind="error" message={error} />
       <button type="button" onClick={activate} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Setting things up…' : 'Continue with free beta'}
       </button>
-      <p className="text-sm text-muted">You will not be charged automatically when the beta ends.</p>
+      <p className="text-base text-muted">You will not be charged automatically when the beta ends.</p>
+    </div>
+  );
+}
+
+/**
+ * Decision D2: on a P0/P1 safety flag the gift buyer gets an email and (with
+ * consent) a text within minutes. This step collects the US mobile number and
+ * the explicit, unticked-by-default SMS consent. Skippable — alerts then go by
+ * email only, and the number can be added later on the account page.
+ */
+function AlertsStep({ parent, onDone }: { parent: Parent; onDone: () => void }) {
+  const redirectIfUnauthorized = useUnauthorizedRedirect();
+  const [initial, setInitial] = useState<AlertContact | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [confirmSkip, setConfirmSkip] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<{ alert_contact: AlertContact }>('/api/me/alert-contact')
+      .then((r) => active && setInitial(r.alert_contact))
+      .catch((err) => {
+        if (active) redirectIfUnauthorized(err);
+      })
+      .finally(() => active && setLoaded(true));
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="mt-6 space-y-5">
+      <h1 className="font-display text-3xl font-semibold text-ink">Emergency alerts</h1>
+      <p className="text-lg text-ink">
+        If {parent.first_name} says something that sounds like an emergency, we&rsquo;ll text and email you right away.
+      </p>
+      <p className="text-base text-muted">
+        Dearly is not an emergency service and never calls anyone. It tells {parent.first_name} honestly that it&rsquo;s
+        letting you know, so you can check on them.
+      </p>
+      {!loaded ? (
+        <p className="text-base text-muted">Loading…</p>
+      ) : (
+        <AlertContactForm
+          initial={initial}
+          saveLabel="Save and continue"
+          onSaved={onDone}
+          onUnauthorized={() => redirectIfUnauthorized(new ApiError(401, 'unauthorized', 'Sign in required.'))}
+        />
+      )}
+      {confirmSkip ? (
+        <div className="space-y-3 rounded-xl border border-error bg-cloud p-4" role="alert">
+          <p className="text-base text-ink">
+            Without a mobile number, emergency alerts will reach you <strong>by email only</strong>, which you might not
+            see for a while. You can add a number later on your Account page.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button type="button" onClick={onDone} className="btn-secondary">
+              Skip — email alerts only
+            </button>
+            <button type="button" onClick={() => setConfirmSkip(false)} className="btn-secondary">
+              Go back and add a number
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirmSkip(true)} className="w-full text-base text-sageDeep underline">
+          Skip for now
+        </button>
+      )}
     </div>
   );
 }
@@ -673,7 +823,7 @@ function SelfDoneStep({ parent }: { parent: Parent }) {
       <h1 className="font-display text-3xl font-semibold text-ink">You’re all set 🎉</h1>
       {error ? (
         <>
-          <p className="text-base text-clay">{error}</p>
+          <p className="text-base text-error">{error}</p>
           <button type="button" onClick={() => setRetryCount((n) => n + 1)} className="btn-primary w-full">
             Try again
           </button>
@@ -751,7 +901,7 @@ function GiftDoneStep({
       {talkToken ? (
         <div className="space-y-3 rounded-xl border border-line bg-cloud p-6">
           <p className="text-base font-semibold text-ink">Talk link (shown once — save it now):</p>
-          <code className="block break-all rounded-lg bg-mist px-3 py-2 text-sm text-ink">{talkUrl}</code>
+          <code className="block break-all rounded-lg bg-mist px-3 py-2 text-base text-ink">{talkUrl}</code>
           <div className="flex gap-3">
             <button type="button" onClick={copyLink} className="btn-secondary flex-1">
               {copied ? 'Copied' : 'Copy link'}
@@ -762,15 +912,19 @@ function GiftDoneStep({
               </button>
             )}
           </div>
-          <p className="text-sm text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Dearly.</p>
+          <p className="text-base text-muted">Share this only with {parent.first_name}. It’s their private key to talk with Dearly.</p>
         </div>
       ) : (
         <button type="button" onClick={issueLink} disabled={busy} className="btn-primary w-full disabled:opacity-60">
           {busy ? 'Creating…' : 'Create talk link'}
         </button>
       )}
-      {error && <p className="text-base text-clay">{error}</p>}
-      <button type="button" onClick={() => router.push('/app/account')} className="btn-secondary w-full">
+      <FormStatus kind="error" message={error} />
+      <p className="text-base text-muted">
+        You can make a new link, turn it off, email it to yourself or print a large-type card for {parent.first_name}{' '}
+        any time from their Parent profile.
+      </p>
+      <button type="button" onClick={() => router.push('/app/family-summary')} className="btn-secondary w-full">
         Done
       </button>
     </div>

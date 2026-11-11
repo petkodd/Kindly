@@ -96,6 +96,21 @@ export const safetyFlagRepo = {
     return updated.rows.length > 0;
   },
 
+  /**
+   * Give back a slot claimed at `claimedAt` when the alert it was claimed for
+   * reached nobody, so the next P0/P1 can alert the family (release check
+   * NEW-3). Only our own claim is removed: if another alert has claimed the
+   * slot since, its timestamp differs and nothing is deleted. Deleting is safe
+   * because any earlier timestamp the claim replaced was already outside the
+   * window.
+   */
+  async releaseAlertSlot(q: Querier, parentId: string, claimedAt: Date): Promise<void> {
+    await q.query(`DELETE FROM safety_alert_throttle WHERE parent_id = $1 AND last_alert_at = $2::timestamptz`, [
+      parentId,
+      claimedAt,
+    ]);
+  },
+
   /** Store the alert outcome on the flag (shown in the admin queue). */
   async recordAlertOutcome(
     q: Querier,
@@ -112,7 +127,8 @@ export const safetyFlagRepo = {
           SET notified_at = $2,
               alert_email_status = $3,
               alert_sms_status = $4,
-              alert_admin_status = $5
+              alert_admin_status = $5,
+              alert_attempts = alert_attempts + 1
         WHERE id = $1
         RETURNING *`,
       [flagId, outcome.notifiedAt, outcome.email ?? null, outcome.sms ?? null, outcome.admin ?? null],

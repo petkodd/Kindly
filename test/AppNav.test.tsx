@@ -28,10 +28,10 @@ afterEach(() => {
 });
 
 describe('AppNav', () => {
-  it('links to all six private pages', () => {
+  it('links to all six private pages (Talk link opens the parent profile’s talk-link section, never /app/talk)', () => {
     render(<AppNav />);
     const expected = [
-      ['Talk', '/app/talk'],
+      ['Talk link', '/app/parent-profile#talk-link'],
       ['Family Summary', '/app/family-summary'],
       ['Memories', '/app/memories'],
       ['Referrals', '/app/referrals'],
@@ -47,7 +47,7 @@ describe('AppNav', () => {
     pathname = '/app/memories';
     render(<AppNav />);
     expect(screen.getByRole('link', { name: 'Memories' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('link', { name: 'Talk' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Talk link' }).getAttribute('aria-current')).toBeNull();
     expect(screen.getByRole('link', { name: 'Account' }).getAttribute('aria-current')).toBeNull();
   });
 

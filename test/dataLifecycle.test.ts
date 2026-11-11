@@ -40,6 +40,7 @@ import { POST as webhookPOST } from '../src/app/api/billing/webhook/route';
 import { POST as messagePOST } from '../src/app/api/talk/message/route';
 import { GET as previewGET } from '../src/app/api/parents/[id]/summary/preview/route';
 import { POST as acceptPOST } from '../src/app/api/invites/accept/route';
+import { parentSaidYesToSummaries } from './parentConsent';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -337,6 +338,7 @@ describe('7. weekly summaries (D5)', () => {
 
     const accepted = await consentRepo.recordRecipientInvite(q, { parentId: parent.id, grantedBy: buyer, recipientEmail: 'sib@example.com' });
     await consentRepo.acceptRecipientInvite(q, accepted.inviteToken);
+    await parentSaidYesToSummaries(q, parent.id);
     const sent = await summaryRepo.send(q, parent.id, 'Ruth');
     expect(sent.summary.period_start).toBe(summary.period_start);
   });
@@ -347,6 +349,7 @@ describe('7. weekly summaries (D5)', () => {
     for (const p of [optedIn, notOpted]) {
       const inv = await consentRepo.recordRecipientInvite(q, { parentId: p.parent.id, grantedBy: p.buyer, recipientEmail: `r${Math.random()}@example.com` });
       await consentRepo.acceptRecipientInvite(q, inv.inviteToken);
+      await parentSaidYesToSummaries(q, p.parent.id);
     }
     const res = await mePATCH(authedReq('http://localhost/api/me', optedIn.buyer, { method: 'PATCH', body: JSON.stringify({ auto_send_summaries: true }) }));
     expect((await res.json()).account.auto_send_summaries).toBe(true);

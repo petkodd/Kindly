@@ -4,6 +4,8 @@ name: CI
 # release/* run it again on the merged code. `dev` is frozen (decision D10)
 # and no longer triggers CI.
 on:
+  # An explicit readiness check is always strict, including on MVP alpha.
+  workflow_dispatch:
   push:
     branches: [main, 'release/**']
   pull_request:
@@ -16,8 +18,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
       - name: Lint
@@ -31,26 +33,51 @@ jobs:
 
   # Release gate: every prompt in prompts/signoffs.json needs a current
   # approval from AI Safety, Gerontology and Privacy.
-  #  - BLOCKING on pushes to main / release/* and on PRs into release/*.
-  #  - Informational on PRs from feature branches into main (the step may fail,
-  #    the job stays green, and a warning annotation is added).
+  #  - BLOCKING on main / other release pushes, PRs into other releases,
+  #    and every manually dispatched run.
+  #  - Informational on release/mvp-alpha pushes / PRs into MVP alpha, and
+  #    PRs into main. An informational result is not approval to launch.
   # It is a separate job so the production migration below never waits on it.
   prompt-signoffs:
     runs-on: ubuntu-latest
-    env:
-      SIGNOFF_BLOCKING: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) || startsWith(github.base_ref, 'release/') }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: '20', cache: 'npm' }
+      - name: Select sign-off enforcement
+        id: signoff-policy
+        run: echo "blocking=$(node scripts/prompt-signoff-policy.mjs)" >> "$GITHUB_OUTPUT"
       - run: npm ci
       - name: Prompt sign-off coverage
         id: signoffs
-        run: npm run check:prompt-signoffs
-        continue-on-error: ${{ env.SIGNOFF_BLOCKING != 'true' }}
-      - name: Report non-blocking sign-off gaps
-        if: steps.signoffs.outcome == 'failure'
-        run: echo "::warning title=Prompt sign-offs missing::Not blocking on this branch, but main and release/* will fail until the named reviewers sign (scripts/sign-prompt.mjs)."
+        env:
+          SIGNOFF_BLOCKING: ${{ steps.signoff-policy.outputs.blocking }}
+        shell: bash
+        run: npm run check:prompt-signoffs 2>&1 | tee "$RUNNER_TEMP/prompt-signoffs.txt"
+        # A missing/invalid policy output must not make the check optional.
+        continue-on-error: ${{ steps.signoff-policy.outputs.blocking == 'false' }}
+      - name: Report sign-off coverage
+        if: ${{ !cancelled() && (steps.signoffs.outcome == 'success' || steps.signoffs.outcome == 'failure') }}
+        env:
+          SIGNOFF_BLOCKING: ${{ steps.signoff-policy.outputs.blocking }}
+          SIGNOFF_OUTCOME: ${{ steps.signoffs.outcome }}
+        shell: bash
+        run: |
+          {
+            echo '## Prompt sign-off coverage'
+            if [ "$SIGNOFF_BLOCKING" = 'false' ]; then
+              echo 'Informational for this CI event. This does not approve the prompts or authorize a production release.'
+            else
+              echo 'Blocking readiness check. All three human reviewer roles must approve every registered prompt at its current hash.'
+            fi
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/prompt-signoffs.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SIGNOFF_OUTCOME" = 'failure' ] && [ "$SIGNOFF_BLOCKING" = 'false' ]; then
+            echo '::warning title=Prompt sign-offs pending::Informational on this event only. Human sign-offs are still required before production release; use Run workflow for a strict readiness check.'
+          fi
 
   # Production migrations. Runs only on a push to main, after build passes,
   # and only once a required reviewer approves the `production` environment
@@ -66,8 +93,8 @@ jobs:
       group: production-migrate
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
       - name: Write optional database CA certificate

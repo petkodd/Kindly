@@ -61,6 +61,32 @@ export const accessTokenRepo = {
     return rows[0].parent_id;
   },
 
+  /**
+   * Whether the parent has a working talk link right now, and when the newest
+   * one was made / expires. Never returns a token (only hashes are stored).
+   */
+  async activeStatus(
+    q: Querier,
+    parentId: string,
+  ): Promise<{ active: boolean; created_at: string | null; expires_at: string | null }> {
+    const { rows } = await q.query<{ created_at: string | Date; expires_at: string | Date | null }>(
+      `SELECT created_at, expires_at FROM parent_access_tokens
+       WHERE parent_id = $1
+         AND revoked_at IS NULL
+         AND (expires_at IS NULL OR expires_at > now())
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [parentId],
+    );
+    const row = rows[0];
+    if (!row) return { active: false, created_at: null, expires_at: null };
+    return {
+      active: true,
+      created_at: new Date(row.created_at).toISOString(),
+      expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+    };
+  },
+
   /** Revoke every active token for a parent (buyer-initiated). */
   async revokeAll(q: Querier, parentId: string): Promise<void> {
     await q.query(

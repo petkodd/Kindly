@@ -41,6 +41,7 @@ function baseRoutes(overrides: Record<string, Handler> = {}) {
     'GET /api/me': () => json({ account: { full_name: 'Sarah' } }),
     'GET /api/parents/p1': () => json({ parent: PARENT }),
     'GET /api/parents/p1/subscription': () => json({ subscription: null, is_current: false }),
+    'GET /api/me/alert-contact': () => json({ alert_contact: { alert_phone: null, sms_alert_consent_at: null } }),
     ...overrides,
   };
 }
@@ -62,7 +63,7 @@ describe('OnboardingPage — Founding Family Beta (invited user)', () => {
     expect(screen.queryByText(/Start 7-day free trial/i)).toBeNull();
   });
 
-  it('activating calls the beta endpoint (not Stripe checkout) and advances to Step 6', async () => {
+  it('activating calls the beta endpoint (not Stripe checkout) and advances past billing', async () => {
     let activateCalls = 0;
     stubFetch(
       baseRoutes({
@@ -79,8 +80,9 @@ describe('OnboardingPage — Founding Family Beta (invited user)', () => {
 
     await waitFor(() => expect(screen.queryByText(/Join the Founding Family Beta/i)).toBeNull());
     expect(activateCalls).toBe(1);
-    // Landed on DoneStep (gift path — this test's PARENT has no relationship: 'self').
-    expect(await screen.findByText(/is all set/i)).toBeTruthy();
+    // Gift path (this test's PARENT has no relationship: 'self'): billing is
+    // followed by the Emergency alerts step (chat 10), then DoneStep.
+    expect(await screen.findByRole('heading', { name: 'Emergency alerts' })).toBeTruthy();
   });
 
   it('double-clicking the activation button submits only once', async () => {
@@ -118,7 +120,7 @@ describe('OnboardingPage — Founding Family Beta (invited user)', () => {
       }),
     );
     render(<OnboardingPage />);
-    expect(await screen.findByText(/is all set/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Emergency alerts' })).toBeTruthy();
     expect(screen.queryByText(/Join the Founding Family Beta/i)).toBeNull();
   });
 });

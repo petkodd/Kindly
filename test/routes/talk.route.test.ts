@@ -134,7 +134,12 @@ describe('POST /api/talk/session', () => {
     expect(tts).toHaveBeenCalledWith(body.greeting, { speechRate: 'slow' });
     expect(body.greeting).toMatch(/AI companion, not a real person/);
     expect(body.greeting_audio_url).toMatch(/^data:audio\/mp3;base64,/);
-    const { rows } = await q.query<{ provider: string }>(`SELECT provider FROM usage_costs WHERE parent_id = $1`, [parentId]);
+    // The greeting's TTS is tied to its turn. (A second, turn-less TTS row is
+    // the spoken summary-sharing notice on a first session — chat 9.)
+    const { rows } = await q.query<{ provider: string }>(
+      `SELECT provider FROM usage_costs WHERE parent_id = $1 AND turn_id IS NOT NULL`,
+      [parentId],
+    );
     expect(rows.map((r) => r.provider)).toEqual(['elevenlabs_tts']);
   });
 

@@ -9,14 +9,22 @@ import { consentRepo } from './consent';
 import { safetyFlagRepo } from './safetyFlag';
 import { getEmailClient } from '../email';
 import { weeklySummaryEmail } from '../email/templates';
+import { checkFamilySummaryV2 } from '../ai/prompts';
+
+/** API error code when the parent has not agreed to summary sharing (chat 9). */
+export const PARENT_CONSENT_REQUIRED = 'parent_consent_required';
 
 /**
  * Weekly summaries are the family-facing heartbeat of Dearly. They are built
  * ONLY from family-safe signals:
- *  - per-conversation summaries written by the summarize job
- *  - coarse, non-clinical mood signals ('warm'|'flat'|'low')
- * Restricted memories never reach a summary (see memoryRepo.listForFamily), and
- * delivery to any recipient requires an active summary_recipient consent.
+ *  - per-conversation summaries written by the summarize job, re-checked here
+ *    with checkFamilySummaryV2 (rows written before chat 9 never had it)
+ * Mood signals are NOT shared with family (decision D3 default, chat 9): the
+ * "seemed a little low" heads-up is gone and has_concern is always false for
+ * new summaries. Restricted memories never reach a summary (see
+ * memoryRepo.listForFamily). Sending requires the parent's own
+ * parent_summary_sharing consent AND, per recipient, an accepted
+ * summary_recipient consent.
  */
 
 export interface WeekBounds {
@@ -108,9 +116,14 @@ function composeBody(
   crisis: WeekCrisisFlags = { unresolved: false, reviewed: false },
 ): { bodyLong: string; bodyShort: string; hasConcern: boolean } {
   const chats = convs.length;
-  const highlights = convs.map((c) => c.summary_text?.trim()).filter(Boolean) as string[];
-  const moods = convs.map((c) => c.mood_signal).filter(Boolean) as string[];
-  const hasConcern = moods.includes('low');
+  const highlights = convs
+    .map((c) => c.summary_text?.trim())
+    .filter(Boolean)
+    .map((t) => checkFamilySummaryV2(t as string, firstName).text);
+  // Decision D3 (default): mood is never shared with family until the parent
+  // gives a separate opt-in, which does not exist yet. mood_signal stays on the
+  // conversation for internal use only.
+  const hasConcern = false;
 
   if (chats === 0) {
     const bodyShort = `We didn't hear from ${firstName} this week.`;
@@ -128,15 +141,6 @@ function composeBody(
   if (highlights.length > 0) {
     lines.push('', 'Some moments from the week:');
     for (const h of highlights) lines.push(`• ${h}`);
-  }
-  const anyCrisis = crisis.unresolved || crisis.reviewed;
-  if (hasConcern) {
-    lines.push(
-      '',
-      anyCrisis
-        ? `A gentle heads-up: ${firstName} seemed a little low in one of their chats. It may be worth a gentle check-in this week.`
-        : `A gentle heads-up: ${firstName} seemed a little low in one of their chats. Nothing alarming — it may be worth a gentle check-in this week.`,
-    );
   }
   if (crisis.reviewed && !crisis.unresolved) {
     lines.push('', REVIEWED_FLAG_LINE);
@@ -277,8 +281,10 @@ export const summaryRepo = {
    * Deliver the current-week summary to every consented recipient. Each
    * delivery ends as 'sent', 'simulated' (fake email client — nothing left the
    * app) or 'failed'. Refuses with
-   * a PreconditionError (API → 409) when no active summary_recipient consent
-   * exists — consent is a hard gate on every delivery.
+   * a PreconditionError (API → 409) when the parent has not said yes to the
+   * summary-sharing notice (code 'parent_consent_required', checked first), or
+   * when no active summary_recipient consent exists — consent is a hard gate on
+   * every delivery, manual or automatic (the cron calls this too).
    */
   async send(
     q: Querier,
@@ -287,6 +293,14 @@ export const summaryRepo = {
     // Decision D5: a manual send covers the last FULL week, like the cron.
     ref: Date = lastCompletedWeekRef(),
   ): Promise<{ summary: WeeklySummary; deliveries: SummaryDelivery[] }> {
+    // The parent's own consent comes first (chat 9): without their "Yes" to
+    // the talk-screen notice, nothing is sent to anyone.
+    if (!(await consentRepo.has(q, parentId, 'parent_summary_sharing'))) {
+      throw new PreconditionError(
+        `${firstName} hasn't agreed to weekly summaries yet. Dearly asks the next time you talk.`,
+        PARENT_CONSENT_REQUIRED,
+      );
+    }
     // Only ACCEPTED recipients — a pending (unaccepted) invite must never
     // receive a summary.
     const recipients = await consentRepo.listAcceptedRecipients(q, parentId);

@@ -27,6 +27,7 @@ export const SEED_IDS = {
   consentAttestation: ID(30),
   consentParent: ID(31),
   consentRecipient: ID(32),
+  consentSummarySharing: ID(33),
   summary: ID(40),
   delivery: ID(41),
   flag: ID(50),
@@ -222,12 +223,14 @@ export async function seedDemo(q, { password, now = new Date() } = {}) {
     [SEED_IDS.parent, demoUserId, PARENT_FIRST_NAME, iso(created)],
   );
 
-  // ---- consents: buyer attestation, parent conversation, accepted recipient ----
+  // ---- consents: buyer attestation, parent conversation, accepted recipient,
+  // and the parent's "Yes" to summary sharing (chat 9; sending needs it) ----
   await q.query(
     `INSERT INTO consents (id, parent_id, kind, granted_by, granted_at, detail) VALUES
        ($1, $4, 'buyer_attestation', $5, $6, $7),
-       ($2, $4, 'parent_conversation', NULL, $6, NULL),
-       ($3, $4, 'summary_recipient', $5, $6, $8)`,
+       ($2, $4, 'parent_conversation', NULL, $6, $10),
+       ($3, $4, 'summary_recipient', $5, $6, $8),
+       ($9, $4, 'parent_summary_sharing', NULL, $6, $11)`,
     [
       SEED_IDS.consentAttestation,
       SEED_IDS.consentParent,
@@ -241,6 +244,9 @@ export async function seedDemo(q, { password, now = new Date() } = {}) {
         status: 'accepted',
         invite_token_hash: sha256(randomBytes(24).toString('base64url')),
       }),
+      SEED_IDS.consentSummarySharing,
+      JSON.stringify({ seeded: true, notice_version: 'parent_conversation.v1', channel: 'talk_screen' }),
+      JSON.stringify({ seeded: true, answer: 'yes', notice_version: 'parent_summary_sharing.v1', channel: 'talk_screen' }),
     ],
   );
 
