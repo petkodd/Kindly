@@ -14,6 +14,10 @@ export const metadata: Metadata = buildMetadata({
   description:
     'Not ready to set up Dearly yet? Leave your email for occasional updates about the AI companion for aging parents. Or start a 7-day free trial today.',
   path: '/waitlist',
+  // SEO-4: thin page that competes with the home page's keyword. Reachable
+  // and linked, but noindex, follow and out of the sitemap.
+  index: false,
+  follow: true,
 });
 
 export default function WaitlistPage() {

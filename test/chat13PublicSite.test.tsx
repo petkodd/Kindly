@@ -130,7 +130,8 @@ describe('indexability and sitemap (chat 13)', () => {
   it('every other public page is indexable and in the sitemap; no private page is', () => {
     const urls = sitemap().map((e) => e.url);
     for (const [path, m] of ALL_META) {
-      if (path === '/blog') continue;
+      // /blog: above. /waitlist, /privacy, /terms: noindex, follow (SEO-4, chat 21b; seoIndexability.test.ts).
+      if (['/blog', '/waitlist', '/privacy', '/terms'].includes(path)) continue;
       expect(m.robots, path).toEqual({ index: true, follow: true });
       expect(urls, path).toContain(`${SITE.url}${path === '/' ? '' : path}`);
     }

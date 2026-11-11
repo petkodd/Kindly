@@ -28,6 +28,9 @@ export const SITE = {
   // Read once at module load; see siteUrl().
   url: siteUrl(),
   tagline: 'For the moments you can’t be there.',
+  // SEO-5: US-only site. <html lang> and og:locale on every page.
+  lang: 'en-US',
+  ogLocale: 'en_US',
   description:
     'A warm, voice-first AI companion your aging parent can talk to — with a respectful weekly summary for your family.',
 };
@@ -37,6 +40,8 @@ type SeoInput = {
   description: string;
   path: string; // e.g. '/pricing'
   index?: boolean; // default true for public pages
+  /** Whether crawlers may follow the page's links. Defaults to `index`. */
+  follow?: boolean;
   ogType?: 'website' | 'article';
 };
 
@@ -49,6 +54,7 @@ export function buildMetadata({
   description,
   path,
   index = true,
+  follow = index,
   ogType = 'website',
 }: SeoInput): Metadata {
   const url = `${SITE.url}${path}`;
@@ -56,14 +62,13 @@ export function buildMetadata({
     title,
     description,
     alternates: { canonical: url },
-    robots: index
-      ? { index: true, follow: true }
-      : { index: false, follow: false },
+    robots: { index, follow },
     openGraph: {
       title,
       description,
       url,
       siteName: SITE.name,
+      locale: SITE.ogLocale,
       type: ogType,
       images: [{ url: `${SITE.url}/og/default.png`, width: 1200, height: 630 }],
     },
@@ -75,6 +80,14 @@ export function buildMetadata({
     },
   };
 }
+
+/**
+ * SEO-4 / SEO-H5: /privacy and /terms are still drafts awaiting legal review.
+ * While this is true both pages are `noindex, follow` and out of the sitemap.
+ * After legal review, set it to false (one change): both go back into the
+ * sitemap and lose the noindex.
+ */
+export const LEGAL_PAGES_DRAFT: boolean = true;
 
 /** Organization JSON-LD (used on its own and inside homeJsonLd). */
 export function organizationJsonLd() {

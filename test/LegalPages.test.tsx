@@ -11,7 +11,7 @@ import { metadata as trustMeta } from '../src/app/(public)/trust-and-privacy/pag
 import sitemap from '../src/app/sitemap';
 import { SiteFooter } from '../src/components/SiteFooter';
 import SignupPage from '../src/app/signup/page';
-import { SITE } from '../src/lib/seo';
+import { SITE, LEGAL_PAGES_DRAFT } from '../src/lib/seo';
 
 afterEach(() => cleanup());
 
@@ -42,20 +42,21 @@ describe('/privacy and /terms (chat 9)', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Contact us' })).toBeTruthy();
   });
 
-  it('has unique titles and descriptions, canonical URLs and is indexable', () => {
+  it('has unique titles and descriptions and canonical URLs; noindex, follow while LEGAL_PAGES_DRAFT (SEO-4)', () => {
+    expect(LEGAL_PAGES_DRAFT).toBe(true);
     expect(privacyMeta.title).not.toBe(termsMeta.title);
     expect(privacyMeta.title).not.toBe(trustMeta.title);
     expect(privacyMeta.description).not.toBe(termsMeta.description);
     expect(privacyMeta.alternates?.canonical).toBe(`${SITE.url}/privacy`);
     expect(termsMeta.alternates?.canonical).toBe(`${SITE.url}/terms`);
-    expect(privacyMeta.robots).toEqual({ index: true, follow: true });
-    expect(termsMeta.robots).toEqual({ index: true, follow: true });
+    expect(privacyMeta.robots).toEqual({ index: false, follow: true });
+    expect(termsMeta.robots).toEqual({ index: false, follow: true });
   });
 
-  it('both are in the sitemap', () => {
+  it('neither is in the sitemap while they are drafts (SEO-4)', () => {
     const urls = sitemap().map((e) => e.url);
-    expect(urls).toContain(`${SITE.url}/privacy`);
-    expect(urls).toContain(`${SITE.url}/terms`);
+    expect(urls).not.toContain(`${SITE.url}/privacy`);
+    expect(urls).not.toContain(`${SITE.url}/terms`);
   });
 
   it('are linked from the footer and the signup page', async () => {

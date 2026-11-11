@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { buildMetadata } from '@/lib/seo';
+import { buildMetadata, LEGAL_PAGES_DRAFT } from '@/lib/seo';
 import { PRIVACY_POLICY } from '@/lib/legal';
 import { LegalDocumentView } from '@/components/LegalDocumentView';
 
@@ -8,6 +8,9 @@ export const metadata: Metadata = buildMetadata({
   description:
     'What Dearly collects, the vendors that help run it, how long data is kept (30-day transcripts) and how to export or delete your family’s data.',
   path: '/privacy',
+  // SEO-4: noindex, follow while the text is a draft (flag in seo.ts).
+  index: !LEGAL_PAGES_DRAFT,
+  follow: true,
 });
 
 export default function PrivacyPage() {

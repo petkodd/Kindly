@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   // that don't set their own title.
   title: `${SITE.name} — A Warm AI Companion for Aging Parents`,
   description: SITE.description,
+  // SEO-5: pages without their own Open Graph block still say en_US.
+  openGraph: { siteName: SITE.name, locale: SITE.ogLocale, type: 'website' },
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -30,7 +32,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang={SITE.lang}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
