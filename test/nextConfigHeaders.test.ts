@@ -12,6 +12,12 @@ describe('next.config.mjs headers', () => {
     expect(cc?.value).toMatch(/\bno-store\b/);
   });
 
+  it('sends X-Robots-Tag: noindex on every /api/* response (SEO-2, any host)', async () => {
+    const rules = (await nextConfig.headers!()) as HeaderRule[];
+    const api = rules.find((r) => r.source === '/api/:path*');
+    expect(api!.headers.find((h) => h.key.toLowerCase() === 'x-robots-tag')?.value).toBe('noindex');
+  });
+
   it('keeps the security headers on every route', async () => {
     const rules = (await nextConfig.headers!()) as HeaderRule[];
     const all = rules.find((r) => r.source === '/:path*');

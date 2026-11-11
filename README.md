@@ -101,7 +101,7 @@ paid provider; none of them are needed locally.
 | `CRON_SECRET` | yes for jobs | no | Bearer secret for `/api/jobs/*` (Vercel Cron and `npm run cron:*`). |
 | `DEMO_PASSWORD` | for `db:seed` | no | Password of the two seeded demo accounts. 8+ characters. |
 | `DEMO_MODE` | no | no | `true` = always simulated AI/voice/email plus the demo badge, even with keys set. For demo deploys. |
-| `NEXT_PUBLIC_SITE_URL` | prod: yes | no | Public URL for canonical, Open Graph and sitemap. |
+| `NEXT_PUBLIC_SITE_URL` | prod: yes | no | Public URL (`https://`, the real domain, apex or www) for canonicals, Open Graph, JSON-LD, sitemap, robots.txt, Stripe return URLs and the canonical-host redirect. A Vercel production build **fails** without it, with `http://`, or with the `example.` placeholder (`src/lib/siteUrlGuard.mjs`; `next start` with `VERCEL_ENV=production` applies the same check). Read it only through `siteUrl()` in `src/lib/seo.ts`. |
 | `APP_BASE_URL` | prod: yes | no | Base for absolute links back into the app (invites, emails). Local default `http://localhost:3000`. |
 | `SALES_ALERT_EMAIL` | prod: yes | no | Inbox that receives facility demo requests from `/senior-living`. Unset: requests are stored and Sentry gets an error. |
 | `AI_API_KEY` | prod: yes* | **yes** | Anthropic key for the companion and summaries. |
@@ -159,6 +159,7 @@ issues, PRs or chat. Refer to them by name.
 | `npm test` | Unit, route and component tests (vitest + in-memory Postgres). |
 | `npm run typecheck` / `npm run lint` | TypeScript and ESLint. |
 | `npm run check:prompt-signoffs` | Check that every AI prompt in use has its human sign-off. |
+| `npm run seo:audit` | Technical/on-page SEO audit of a **local** production build (crawl, sitemap, robots, canonicals, metadata, JSON-LD, links, Lighthouse). See "SEO checks" below. |
 
 ### Creating the first admin
 
@@ -218,6 +219,26 @@ npm run test:watch       # watch mode
 Tests run against an in-memory Postgres (pg-mem) built from the real migrations
 in `db/migrations`, with the simulated AI, voice and email clients. Before a PR,
 run `npm run typecheck && npm run lint && npm test`.
+
+### SEO checks
+
+`npm test` includes `test/seo.test.ts` (SEO-11): it discovers every page under
+`src/app/(public)` from the filesystem and fails when a page has no metadata,
+a title over 60 characters, a description outside 110–160 characters, a
+canonical other than `siteUrl() + path`, a duplicate title or description, or
+is neither in the sitemap nor `index: false`. New public pages are checked
+automatically; build their metadata with `buildMetadata()` from `src/lib/seo.ts`.
+
+For a full crawl before a release (local only; it refuses any other host):
+
+```bash
+NEXT_PUBLIC_SITE_URL=http://localhost:3000 npm run build && npm start &
+npm run seo:audit                                   # writes seo-review-out/seo-audit.md
+OUT=docs/some-folder LIGHTHOUSE=0 npm run seo:audit # other folder, skip Lighthouse
+```
+
+`KEYWORDS='{"/":"…"}'` sets the target keyword per path (see
+`docs/seo-tasks-2026-11-10.md`).
 
 ---
 
@@ -316,6 +337,12 @@ sage and warm clay on a soft off-white. Tokens live in `tailwind.config.ts` and
 4. Sign up, then `npm run admin:create -- you@example.com --confirm` against
    that database.
 5. Verify the domain in Google Search Console and submit `/sitemap.xml`.
+
+On the Production deployment the middleware answers on one host only: any
+other host (the `*.vercel.app` alias, `www.` vs the apex) gets a 308 to the
+same path on the host of `NEXT_PUBLIC_SITE_URL`. `/api/*` (crons, the Stripe
+webhook) is never redirected and carries `X-Robots-Tag: noindex`. Preview
+deployments are not redirected.
 
 `X-Robots-Tag: noindex, nofollow` is set on `/app/*` and `/admin` via both
 `next.config.mjs` and `vercel.json`.

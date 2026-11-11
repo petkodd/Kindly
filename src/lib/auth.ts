@@ -8,6 +8,7 @@ import { userRepo } from './repos/user';
 import { NotFoundError, ValidationError } from './types';
 import { SESSION_COOKIE, isRevoked, verifySession } from './session';
 import { PARENT_TOKEN_COOKIE } from './parentSession';
+import { configuredSiteUrl } from './seo';
 import { describeError } from './sentryScrub';
 
 /**
@@ -109,7 +110,7 @@ export function isCrossOriginWrite(req: NextRequest): boolean {
       req.headers.get('host'),
       req.nextUrl?.host,
       hostOf(process.env.APP_BASE_URL),
-      hostOf(process.env.NEXT_PUBLIC_SITE_URL),
+      hostOf(configuredSiteUrl()),
     ]
       .filter(Boolean)
       .map((h) => (h as string).split(',')[0].trim().toLowerCase()),

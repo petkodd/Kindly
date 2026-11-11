@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { siteUrl } from '@/lib/seo';
 import { resolveBuyer, errorToResponse } from '@/lib/auth';
 import { getStripeClient, getStripeSecretKeyRaw } from '@/lib/billing';
 import { subscriptionRepo } from '@/lib/repos/subscription';
@@ -42,12 +43,12 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dearly.example.com';
+    const base = siteUrl();
     let url: string;
     try {
       const session = await getStripeClient().billingPortal.sessions.create({
         customer,
-        return_url: `${siteUrl}/app/account`,
+        return_url: `${base}/app/account`,
       });
       url = session.url;
     } catch (err) {

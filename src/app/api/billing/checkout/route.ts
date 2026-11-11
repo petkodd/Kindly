@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { siteUrl } from '@/lib/seo';
 import { resolveBuyer, readJsonBody, errorToResponse } from '@/lib/auth';
 import { getStripeClient, getPriceIdForInterval, getStripeSecretKeyRaw, type BillingInterval } from '@/lib/billing';
 import { parentRepo } from '@/lib/repos/parent';
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const buyerId = await resolveBuyer(req);
   if (!buyerId) return unauthorized();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dearly.example.com';
+  const base = siteUrl();
   if (!getStripeSecretKeyRaw()) return notConfigured();
 
   try {
@@ -84,8 +85,8 @@ export async function POST(req: NextRequest) {
         metadata: { buyer_id: buyerId, parent_id: parentId },
       },
       payment_method_collection: 'always',
-      success_url: `${siteUrl}/app/onboarding?billing=success&parent_id=${parentId}`,
-      cancel_url: `${siteUrl}/app/onboarding?billing=cancel&parent_id=${parentId}`,
+      success_url: `${base}/app/onboarding?billing=success&parent_id=${parentId}`,
+      cancel_url: `${base}/app/onboarding?billing=cancel&parent_id=${parentId}`,
     });
 
     return NextResponse.json({ url: session.url });

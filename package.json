@@ -21,6 +21,7 @@
     "check:prompt-signoffs": "node scripts/check-prompt-signoffs.mjs",
     "test:redteam-live": "vitest run test/redteam-live",
     "test:a11y": "node scripts/a11y/axe.cjs",
+    "seo:audit": "node scripts/seo-review/audit.cjs",
     "contrast": "node scripts/contrast-table.mjs"
   },
   "dependencies": {

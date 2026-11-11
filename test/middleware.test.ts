@@ -86,11 +86,14 @@ describe('middleware (chat 10)', () => {
     }
   });
 
-  it('matches only pages (API routes authenticate themselves)', () => {
-    expect(config.matcher).toEqual([
-      '/app', '/app/:path*', '/admin', '/admin/:path*', '/login', '/signup',
-      { source: '/((?!api|_next|.*\\..*).*)', has: [{ type: 'query', key: 'ref' }] },
-    ]);
+  it('matches every request except Next build assets (SEO-2 needs all hosts and paths)', () => {
+    expect(config.matcher).toEqual(['/((?!_next/static|_next/image).*)']);
+  });
+
+  it('public pages and API routes pass through without auth redirects', async () => {
+    for (const p of ['/', '/pricing', '/how-it-works', '/api/me', '/api/billing/webhook', '/og/default.png']) {
+      expect(location(await middleware(req(p)))).toBeNull();
+    }
   });
 });
 
@@ -109,6 +112,12 @@ describe('middleware referral capture (chat 11)', () => {
     const res = await middleware(req('/app/onboarding?ref=ABCDEFGHJK'));
     expect(res.status).toBe(307);
     expect(res.cookies.get('dearly_ref')?.value).toBe('ABCDEFGHJK');
+  });
+
+  it('never sets the referral cookie on API routes or files', async () => {
+    for (const p of ['/api/me?ref=ABCDEFGHJK', '/og/default.png?ref=ABCDEFGHJK']) {
+      expect((await middleware(req(p))).cookies.get('dearly_ref')).toBeUndefined();
+    }
   });
 
   it('ignores a malformed ref (wrong length or characters)', async () => {
