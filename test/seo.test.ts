@@ -4,6 +4,7 @@ import { join, relative, sep } from 'node:path';
 import type { Metadata } from 'next';
 import sitemap from '../src/app/sitemap';
 import { siteUrl } from '../src/lib/seo';
+import { metadata as rootMetadata } from '../src/app/layout';
 
 /**
  * SEO-11: regression net for every public page. Routes are discovered from the
@@ -151,6 +152,13 @@ describe('SEO-11: public pages (discovered from src/app/(public))', () => {
     const paths = routes.map((r) => r.path);
     for (const p of ['/', '/gift-for-aging-parent', '/how-it-works', '/pricing', '/trust-and-privacy', '/senior-living', '/blog']) {
       expect(paths).toContain(p);
+    }
+  });
+
+  it('SEO-5: every page says og:locale en_US (its own Open Graph, or the root layout default it inherits)', () => {
+    for (const { path, metadata } of routes) {
+      // Next merges `openGraph` shallowly: a page's own block replaces the layout's entirely.
+      expect((metadata?.openGraph ?? rootMetadata.openGraph)?.locale, path).toBe('en_US');
     }
   });
 
