@@ -1,13 +1,13 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/seo';
 import { HOW_IT_WORKS } from '@/lib/content';
 import { CtaBand } from '@/components/CtaBand';
+import { ContextLink } from '@/components/ContextLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'How Dearly’s AI Companion for Seniors Works',
+  title: 'How Dearly Works: An AI Companion for Seniors',
   description:
-    'You set it up, your parent simply talks by voice, and with their OK your family gets a short weekly summary. A voice-first AI companion for seniors.',
+    'Dearly is a voice-first AI companion for seniors. You set it up, your parent simply talks, and with their OK your family gets a short weekly summary.',
   path: '/how-it-works',
 });
 
@@ -31,7 +31,7 @@ export default function Page() {
   return (
     <>
       <section className="container-k py-20">
-        <p className="eyebrow">Three simple steps</p>
+        <p className="eyebrow">{hero.eyebrow}</p>
         <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
         <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
       </section>
@@ -52,6 +52,7 @@ export default function Page() {
       <section className="container-k py-20">
         <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{voice.h2}</h2>
         <p className="mt-5 max-w-2xl text-lg text-muted">{voice.body}</p>
+        <ContextLink link={voice.seniorLivingLink} className="mt-5 max-w-2xl text-lg text-muted" />
       </section>
 
       <section className="bg-cloud py-20">
@@ -74,12 +75,7 @@ export default function Page() {
       <section className="container-k py-20">
         <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{boundaries.h2}</h2>
         <p className="mt-5 max-w-2xl text-lg text-muted">{boundaries.body}</p>
-        <Link
-          href="/trust-and-privacy"
-          className="mt-6 inline-block text-lg font-semibold text-sageDeep underline underline-offset-4"
-        >
-          Read our trust &amp; privacy promise →
-        </Link>
+        <ContextLink link={boundaries.trustLink} className="mt-5 max-w-2xl text-lg text-muted" />
       </section>
 
       <CtaBand cta={cta} slug="/how-it-works" />

@@ -5,11 +5,12 @@ import { SENIOR_LIVING } from '@/lib/content';
 import { CtaBand } from '@/components/CtaBand';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { FacilityDemoForm } from '@/components/FacilityDemoForm';
+import { ContextLink } from '@/components/ContextLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Senior Living Resident Engagement Software | Dearly',
+  title: 'AI Companion for Senior Living Communities | Dearly',
   description:
-    'A warm AI companion for senior living residents, with respectful weekly family updates. Request a demo of a founding pilot for your community.',
+    'Dearly is an AI companion for senior living: residents get someone patient to talk to, families get weekly updates. Request a demo of a founding pilot.',
   path: '/senior-living',
 });
 
@@ -104,6 +105,7 @@ export default function Page() {
       <section className="container-k py-20 max-w-2xl">
         <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{boundaries.h2}</h2>
         <p className="mt-5 text-lg text-muted">{boundaries.body}</p>
+        <ContextLink link={boundaries.trustLink} />
       </section>
 
       <section id="demo" aria-labelledby="demo-heading" className="scroll-mt-24 bg-cloud py-20">

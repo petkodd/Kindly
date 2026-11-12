@@ -3,10 +3,12 @@ import Image from 'next/image';
 import { buildMetadata } from '@/lib/seo';
 import { TRUST_AND_PRIVACY, FOOTER_LEGAL } from '@/lib/content';
 import { CtaBand } from '@/components/CtaBand';
+import { ContextLink } from '@/components/ContextLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Privacy, Trust & Safety | Dearly for Seniors',
-  description: 'Private and safe by design. Consent-based, data-minimized, built to support — never replace — family, caregivers, and doctors.',
+  title: 'AI Companion Privacy & Safety for Seniors | Dearly',
+  description:
+    'How Dearly handles AI companion privacy for seniors: consent first, less data, no transcripts for family, and honest help if a real concern comes up.',
   path: '/trust-and-privacy',
 });
 
@@ -68,6 +70,7 @@ export default function Page() {
             <p className="eyebrow">Trust &amp; privacy</p>
             <h1 className="mt-4 font-display text-3xl font-semibold text-ink md:text-4xl">{hero.h1}</h1>
             <p className="mt-6 max-w-2xl text-lg text-muted">{hero.sub}</p>
+            <ContextLink link={hero.homeLink} className="mt-4 max-w-2xl text-lg text-muted" />
           </div>
           <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl border border-line shadow-sm">
             <Image

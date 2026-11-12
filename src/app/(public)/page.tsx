@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { buildMetadata, homeJsonLd } from '@/lib/seo';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
+import { ContextLink } from '@/components/ContextLink';
 import { CtaBand } from '@/components/CtaBand';
 import { Testimonials } from '@/components/Testimonials';
 import { signupHref } from '@/lib/nextPath';
@@ -16,9 +17,9 @@ import {
 } from '@/lib/content';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Dearly — Warm AI Companion for Aging Parents',
+  title: 'AI Companion for Aging Parents | Dearly',
   description:
-    'For the moments you can’t be there. Give your aging parent a warm AI companion to talk to, and get a short weekly summary once they agree.',
+    'Dearly is an AI companion for aging parents: someone kind to talk to by voice, any time, plus a weekly family note once they agree. Try it free for 7 days.',
   path: '/',
 });
 
@@ -53,9 +54,12 @@ export default function HomePage() {
         />
         <div className="container-k relative grid items-center gap-12 py-20 md:grid-cols-[1.1fr_0.9fr] md:py-28">
           <div>
-            <p className="eyebrow">An AI companion for aging parents</p>
-            <h1 className="mt-4 font-display text-3xl font-semibold leading-tight text-ink md:text-4xl">
-              {HERO.h1}
+            {/* SEO-3: the keyword eyebrow is part of the H1, so it reads
+                "AI companion for aging parents — For the moments you can’t be there". */}
+            <h1 className="font-display text-3xl font-semibold leading-tight text-ink md:text-4xl">
+              <span className="eyebrow block font-sans">{HERO.eyebrow}</span>
+              <span className="sr-only"> — </span>
+              <span className="mt-4 block">{HERO.h1}</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg text-muted">{HERO.sub}</p>
             <div className="mt-8 flex flex-wrap gap-4">
@@ -122,6 +126,7 @@ export default function HomePage() {
           <div>
             <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{PROBLEM.h2}</h2>
             <p className="mt-5 max-w-2xl text-lg text-muted">{PROBLEM.body}</p>
+            <ContextLink link={PROBLEM.giftLink} className="mt-5 max-w-2xl text-lg text-muted" />
           </div>
           <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl border border-line shadow-sm">
             <Image

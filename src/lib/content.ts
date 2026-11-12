@@ -4,10 +4,28 @@
  * "prevents dementia", "like a real friend", guaranteed-outcome language.
  */
 
+/**
+ * SEO-10: a sentence with one descriptive in-content link to another public
+ * page (rendered by <ContextLink>). Anchors describe the target page; never
+ * "click here" or "learn more".
+ */
+export interface ContextLinkContent {
+  before: string;
+  label: string;
+  href: string;
+  after: string;
+}
+
+/**
+ * SEO-3 (chat 21c): the home H1 is the keyword eyebrow (a span inside the H1)
+ * followed by the tagline, so it reads "AI companion for aging parents — for
+ * the moments you can’t be there". Wording is a DRAFT for SEO-H4.
+ */
 export const HERO = {
+  eyebrow: 'AI companion for aging parents',
   h1: 'For the moments you can’t be there',
   sub:
-    'Dearly gives your aging parent a warm, patient companion to talk to — any time of day. You set it up. They simply talk. And once your parent says yes, you get a short weekly note about what they’ve been talking about.',
+    'Dearly is an AI companion for aging parents: a warm, patient voice your parent can talk to any time of day. You set it up. They simply talk. And once your parent says yes, you get a short weekly note about what they’ve been talking about.',
   primaryCta: { label: 'Set up the gift', href: '/signup?next=/app/onboarding' },
   secondaryCta: { label: 'See how it works', href: '/how-it-works' },
   trustline: 'Private by design · Cancel anytime · Built for older adults',
@@ -19,6 +37,12 @@ export const PROBLEM = {
   h2: 'You can’t call every day. That’s okay.',
   body:
     'Life is full. The miles add up. Between work, kids, and everything else, the daily call to Mom or Dad doesn’t always happen — and the guilt does. Dearly isn’t here to replace your call. It’s here to fill the quiet hours in between, so your parent always has someone kind to talk to.',
+  giftLink: {
+    before: 'Many families give Dearly as ',
+    label: 'a gift for an aging parent',
+    href: '/gift-for-aging-parent',
+    after: ' — for a birthday, a holiday, or just because.',
+  } satisfies ContextLinkContent,
 };
 
 export const STEPS = {
@@ -92,9 +116,10 @@ export const FOOTER_LEGAL =
 
 export const HOW_IT_WORKS = {
   hero: {
-    h1: 'How Dearly works',
+    eyebrow: 'For you and your parent',
+    h1: 'How Dearly works: an AI companion for seniors in three steps',
     sub:
-      'Three simple steps: you set it up, your parent talks, and your family stays close. No apps to learn on their end — just one big button.',
+      'Dearly is a voice-first AI companion for seniors. You set it up, your parent talks, and your family stays close. No apps to learn on their end — just one big button.',
   },
   steps: [
     {
@@ -117,6 +142,12 @@ export const HOW_IT_WORKS = {
     h2: 'Built to be easy for a 78-year-old, not just for you',
     body:
       'Dearly is voice-first: your parent speaks, and Dearly listens and replies in a warm, clear voice paced for easier listening. Large text and a slower speaking pace are on by default, and every screen uses strong color contrast. There is nothing to install and nothing to remember.',
+    seniorLivingLink: {
+      before: 'Run a senior living community? There is also ',
+      label: 'an AI companion for senior living residents',
+      href: '/senior-living',
+      after: ', with weekly family updates your staff doesn’t have to write.',
+    } satisfies ContextLinkContent,
   },
   family: {
     h2: 'What your family actually sees',
@@ -133,6 +164,12 @@ export const HOW_IT_WORKS = {
     h2: 'What Dearly is — and isn’t',
     body:
       'Dearly is a companion for conversation and connection. It is not a replacement for family, caregivers, or medical care, and it never pretends to be a person. If health, safety, or money concerns come up, Dearly gently encourages your parent to talk with someone who can actually help.',
+    trustLink: {
+      before: 'Read ',
+      label: 'how Dearly protects privacy',
+      href: '/trust-and-privacy',
+      after: ' and what happens if a conversation raises a real concern.',
+    } satisfies ContextLinkContent,
   },
   cta: {
     h2: 'Ready to set it up?',
@@ -160,9 +197,29 @@ export const HOW_IT_WORKS = {
  */
 export const PRICING = {
   hero: {
-    h1: 'One simple plan for staying close',
+    h1: 'Simple pricing for your parent’s senior companion app',
     sub:
       'One plan, billed monthly or yearly, with a 7-day free trial. It includes daily voice conversation, memory, and a respectful weekly family summary. Cancel anytime from your account.',
+    howLink: {
+      before: 'Not sure yet? See ',
+      label: 'how Dearly works for your parent',
+      href: '/how-it-works',
+      after: ', step by step.',
+    } satisfies ContextLinkContent,
+  },
+  more: {
+    giftLink: {
+      before: 'Giving Dearly as a present? Here’s what’s inside ',
+      label: 'a gift for an elderly parent',
+      href: '/gift-for-aging-parent',
+      after: '.',
+    } satisfies ContextLinkContent,
+    seniorLivingLink: {
+      before: 'Running a community? Pilots are priced differently: see ',
+      label: 'Dearly for senior living communities',
+      href: '/senior-living',
+      after: '.',
+    } satisfies ContextLinkContent,
   },
   plans: [
     {
@@ -243,9 +300,9 @@ export function getFamilyPlan() {
 
 export const SENIOR_LIVING = {
   hero: {
-    h1: 'Resident engagement for senior living, reimagined',
+    h1: 'An AI companion for senior living residents',
     sub:
-      'A warm AI companion your residents can talk to any time, with respectful weekly family updates your staff doesn’t have to write by hand. We’re now planning small founding pilots with US communities.',
+      'Resident engagement software built around a warm AI companion for senior living: someone your residents can talk to any time, with respectful weekly family updates your staff doesn’t have to write by hand. We’re now planning small founding pilots with US communities.',
   },
   problem: {
     h2: 'Your team can’t be everywhere either',
@@ -278,6 +335,12 @@ export const SENIOR_LIVING = {
     h2: 'A companion, not a caregiver',
     body:
       'Dearly is not a medical device and doesn’t diagnose, monitor vitals, or replace your clinical staff. It’s a warm conversational layer that keeps residents connected and gives families a window in — care decisions stay with your team.',
+    trustLink: {
+      before: 'Read ',
+      label: 'how Dearly protects residents’ privacy and safety',
+      href: '/trust-and-privacy',
+      after: ', from consent to crisis handling.',
+    } satisfies ContextLinkContent,
   },
   demo: {
     h2: 'Request a demo',
@@ -299,14 +362,20 @@ export const SENIOR_LIVING = {
 
 export const GIFT_FOR_AGING_PARENT = {
   hero: {
-    h1: 'A gift that keeps your parent company',
+    h1: 'A gift for elderly parents: someone kind to talk to',
     sub:
-      'Dearly is a warm AI companion you set up in minutes and your parent simply talks to — a thoughtful gift for a birthday, a holiday, or just because you wish you could call more often.',
+      'Dearly is a warm AI companion you set up in minutes and your elderly parent simply talks to — a thoughtful gift for a birthday, a holiday, or just because you wish you could call more often.',
   },
   why: {
     h2: 'A different kind of gift',
     body:
       'Flowers fade. A gadget your parent won’t use ends up in a drawer. Dearly shows up every day — someone patient to talk to about their morning, an old memory, or nothing in particular — and, once your parent agrees, sends you a weekly note about what they’ve enjoyed talking about.',
+    homeLink: {
+      before: 'New to Dearly? Meet ',
+      label: 'the AI companion for aging parents',
+      href: '/',
+      after: ' behind the gift.',
+    } satisfies ContextLinkContent,
   },
   occasions: {
     h2: 'A thoughtful choice for any occasion',
@@ -368,7 +437,13 @@ export const TRUST_AND_PRIVACY = {
   hero: {
     h1: 'Private and safe, by design',
     sub:
-      'Trust is the whole point of Dearly. Here is exactly what we do, what we don’t do, and how your family stays in control.',
+      'Trust is the whole point of an AI companion for seniors. Here is exactly what Dearly does, what it doesn’t do, and how your family stays in control.',
+    homeLink: {
+      before: 'New here? Start with ',
+      label: 'what Dearly does for aging parents',
+      href: '/',
+      after: '.',
+    } satisfies ContextLinkContent,
   },
   consent: {
     h2: 'Consent comes first',
