@@ -7,7 +7,7 @@ const COLUMNS = [
     links: [
       { label: 'How it works', href: '/how-it-works' },
       { label: 'Pricing', href: '/pricing' },
-      { label: 'Gift for parent', href: '/gift-for-aging-parent' },
+      { label: 'Gift for an aging parent', href: '/gift-for-aging-parent' },
     ],
   },
   {

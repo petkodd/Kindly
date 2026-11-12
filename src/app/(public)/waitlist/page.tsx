@@ -10,7 +10,7 @@ import { WAITLIST } from '@/lib/content';
 // product is on sale, so this page is for people who aren't ready yet — it
 // points to the real signup first and offers email updates second.
 export const metadata: Metadata = buildMetadata({
-  title: 'Get Dearly Updates — AI Companion for Aging Parents',
+  title: 'Email Updates | Dearly',
   description:
     'Not ready to set up Dearly yet? Leave your email for occasional updates about the AI companion for aging parents. Or start a 7-day free trial today.',
   path: '/waitlist',

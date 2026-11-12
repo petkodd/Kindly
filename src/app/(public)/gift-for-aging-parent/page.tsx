@@ -4,10 +4,12 @@ import { buildMetadata } from '@/lib/seo';
 import { GIFT_FOR_AGING_PARENT } from '@/lib/content';
 import { TrackedCtaLink } from '@/components/TrackedCtaLink';
 import { CtaBand } from '@/components/CtaBand';
+import { ContextLink } from '@/components/ContextLink';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'A Meaningful Gift for an Aging Parent | Dearly',
-  description: 'Give your elderly parent someone kind to talk to every day. Set up Dearly in minutes, with respectful weekly updates for your family.',
+  title: 'A Gift for Elderly Parents: Someone to Talk To | Dearly',
+  description:
+    'Looking for a gift for elderly parents? Dearly gives yours someone kind to talk to every day, set up by you in minutes. Start with a 7-day free trial.',
   path: '/gift-for-aging-parent',
 });
 
@@ -69,6 +71,7 @@ export default function Page() {
           <div className="md:order-1">
             <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">{why.h2}</h2>
             <p className="mt-5 text-lg text-muted">{why.body}</p>
+            <ContextLink link={why.homeLink} />
           </div>
         </div>
       </section>

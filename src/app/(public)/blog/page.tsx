@@ -5,7 +5,7 @@ import { BLOG } from '@/lib/content';
 import { WaitlistForm } from '@/components/WaitlistForm';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Dearly Blog — Caring for Aging Parents',
+  title: 'Blog: Caring for Aging Parents | Dearly',
   description: 'Practical, warm guidance for adult children caring for aging parents — connection, technology, and staying close from a distance.',
   path: '/blog',
   // Not indexed until it has real articles (BLOG_INDEX_MIN_ARTICLES); a
